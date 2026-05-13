@@ -148,7 +148,12 @@ C:\Alien Agentic\
 │   ├── daily-logs/              # YYYY-MM-DD.md
 │   ├── clients/                 # {client-name}/
 │   ├── meta/                    # 회사 자체 메타 데이터 (실패 케이스 포함)
-│   └── insights/                # 주간/월간 인사이트
+│   ├── insights/                # 주간/월간 인사이트
+│   ├── agents/                  # 27명 메모리 4파일 (work/learnings/decisions/mistakes)
+│   ├── messages/                # 에이전트 간 대화 (직접 통신 X, 모두 경유)
+│   ├── tasks/                   # 진행 중 업무 (Kanban)
+│   ├── interventions/           # 기영님 중간 개입
+│   └── dashboard.md             # 오늘 한 줄 + KPI + 위험 깃발
 ├── clients/                     # 진행 클라이언트 작업물 (계약 후)
 │   └── {client-name}/
 │       ├── WHY/                 # 4층 진단서, 비전, 마스터 내러티브
@@ -156,8 +161,10 @@ C:\Alien Agentic\
 │       └── WHAT/                # 배포 산출물, 운영 로그
 ├── 베러먼데이-handover/         # 베먼 분리 폴더 (혼합 절대 금지)
 ├── content/                     # 외부 콘텐츠 (Threads / LinkedIn / Substack)
-├── automation/                  # Python / n8n 자동화 스크립트
-└── docs/                        # 내부 문서 (워크플로 / 템플릿)
+├── automation/
+│   └── cli/                     # `aa` CLI 패키지 (Typer + Anthropic SDK, 6 명령어)
+└── docs/
+    └── guides/                  # 셋업 가이드 (Obsidian / 모바일 / Discord)
 ```
 
 새 폴더 생성 시 부모 디렉토리 존재 여부를 먼저 확인한다.

@@ -11,6 +11,11 @@ Alien Agentic의 공유 메모리. 모든 에이전트와 세션이 이 폴더�
 | `clients/_self-*` | 자기 자신을 진단한 케이스(베먼 BLBP, 가상 클라이언트 등). 외부 클라이언트와 구별하기 위해 언더스코어 prefix. |
 | `meta/` | 회사 자체 메타 데이터 — 의사결정 / 실패 케이스 / 호출 통계. 1년 후의 진입장벽. |
 | `insights/` | 주간·월간 인사이트. `case-curator`가 매주 일요일 작성. |
+| `agents/` | 27명 각자의 4파일 메모리 (work / learnings / decisions / mistakes) — 호출 종료 시 자동 append |
+| `messages/` | 에이전트 간 대화 — *직접 통신 X*, 모두 이 폴더 경유 |
+| `tasks/` | 진행 중 업무 목록 (Kanban 패턴, `_backlog/_in-progress/_done/_blocked.md` 인덱스) |
+| `interventions/` | 기영님의 중간 개입 — 다음 세션 시작 시 *최우선* 처리 |
+| `dashboard.md` | 오늘의 한 줄 + 진행 클라이언트 + 이번 주 KPI + 위험 깃발 |
 
 ## 원칙
 1. **모든 에이전트 협업은 이 폴더 경유.** 직접 호출 결과는 여기에 산출물로 떨어진다.
