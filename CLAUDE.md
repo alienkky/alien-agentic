@@ -162,9 +162,12 @@ C:\Alien Agentic\
 ├── 베러먼데이-handover/         # 베먼 분리 폴더 (혼합 절대 금지)
 ├── content/                     # 외부 콘텐츠 (Threads / LinkedIn / Substack)
 ├── automation/
-│   └── cli/                     # `aa` CLI 패키지 (Typer + Anthropic SDK, 6 명령어)
+│   ├── cli/                     # `aa` CLI 패키지 (Typer + Claude Max 경유, 7 명령어)
+│   └── intranet/
+│       ├── multica/             # Multica 본진 (git clone, .gitignore 처리)
+│       └── alien-config/        # 우리 커스터마이즈 (27명 시드 스크립트 + 가이드)
 └── docs/
-    └── guides/                  # 셋업 가이드 (Obsidian / 모바일 / Discord)
+    └── guides/                  # 셋업 가이드 (Obsidian / 모바일 / Discord / Tailscale)
 ```
 
 새 폴더 생성 시 부모 디렉토리 존재 여부를 먼저 확인한다.

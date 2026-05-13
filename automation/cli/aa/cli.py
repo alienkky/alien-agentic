@@ -391,5 +391,126 @@ def push(
         console.print("[red]push 실패 — 네트워크 또는 인증을 확인.[/red]")
 
 
+# ──────────────────────────────────────────────────────────────────────────
+# aa serve
+# ──────────────────────────────────────────────────────────────────────────
+@app.command()
+def serve(
+    stop: bool = typer.Option(False, "--stop", help="실행 중인 Multica 중지"),
+    logs: bool = typer.Option(False, "--logs", help="실시간 로그 (Ctrl+C 종료)"),
+    pull: bool = typer.Option(True, "--pull/--no-pull", help="이미지 미리 pull"),
+) -> None:
+    """Multica 인트라넷 서버를 docker compose 로 띄움/내림."""
+    multica_dir = ROOT / "automation" / "intranet" / "multica"
+    compose_file = multica_dir / "docker-compose.selfhost.yml"
+
+    if not multica_dir.exists():
+        console.print(
+            "[red]Multica 본진 폴더 없음:[/red] "
+            f"{multica_dir}\n"
+            "[dim]먼저 git clone — automation/intranet/alien-config/README.md 참조[/dim]"
+        )
+        raise typer.Exit(1)
+
+    if not compose_file.exists():
+        console.print(
+            f"[red]docker-compose.selfhost.yml 없음: {compose_file}[/red]"
+        )
+        raise typer.Exit(1)
+
+    if stop:
+        console.print("[cyan]Multica 중지...[/cyan]")
+        result = subprocess.run(
+            [
+                "docker",
+                "compose",
+                "-f",
+                "docker-compose.selfhost.yml",
+                "down",
+            ],
+            cwd=str(multica_dir),
+        )
+        if result.returncode == 0:
+            console.print("[green]✓ 중지 완료[/green]")
+        return
+
+    if logs:
+        console.print(
+            "[cyan]실시간 로그 (Ctrl+C 로 종료)...[/cyan]"
+        )
+        subprocess.run(
+            [
+                "docker",
+                "compose",
+                "-f",
+                "docker-compose.selfhost.yml",
+                "logs",
+                "-f",
+            ],
+            cwd=str(multica_dir),
+        )
+        return
+
+    console.rule("🛸 aa serve — Multica 가동")
+    console.print(f"[dim]대상 폴더:[/dim] {multica_dir}")
+
+    # docker CLI 확인
+    docker_check = subprocess.run(
+        ["docker", "--version"], capture_output=True, text=True
+    )
+    if docker_check.returncode != 0:
+        console.print(
+            "[red]docker CLI 가 PATH에 없음.[/red] "
+            "Docker Desktop 설치 필요 — https://docker.com"
+        )
+        raise typer.Exit(1)
+    console.print(f"[dim]docker:[/dim] {docker_check.stdout.strip()}")
+
+    if pull:
+        console.print("[dim]이미지 pull (latest)...[/dim]")
+        subprocess.run(
+            [
+                "docker",
+                "compose",
+                "-f",
+                "docker-compose.selfhost.yml",
+                "pull",
+            ],
+            cwd=str(multica_dir),
+        )
+
+    console.print("[dim]서비스 가동 (detached)...[/dim]")
+    result = subprocess.run(
+        [
+            "docker",
+            "compose",
+            "-f",
+            "docker-compose.selfhost.yml",
+            "up",
+            "-d",
+        ],
+        cwd=str(multica_dir),
+    )
+
+    if result.returncode == 0:
+        console.print("[green]✓ Multica 가동 완료[/green]")
+        console.print(
+            "  Frontend: [cyan]http://localhost:3000[/cyan]"
+        )
+        console.print(
+            "  Backend:  [cyan]http://localhost:8080[/cyan]"
+        )
+        console.print()
+        console.print("[dim]로그: aa serve --logs[/dim]")
+        console.print("[dim]중지: aa serve --stop[/dim]")
+        console.print(
+            "[dim]27명 시드: automation/intranet/alien-config/README.md[/dim]"
+        )
+    else:
+        console.print(
+            "[red]가동 실패 — `aa serve --logs` 로 진단[/red]"
+        )
+
+
 if __name__ == "__main__":
     app()

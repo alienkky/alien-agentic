@@ -59,3 +59,7 @@ logs/
 
 # === External projects — Alien Agentic과 분리 유지 ===
 brain180/
+
+# === Multica 인트라넷 본진 (업스트림 추적, 우리 repo에 포함 X) ===
+# 커스터마이즈는 automation/intranet/alien-config/ 에만 두고 push
+automation/intranet/multica/
