@@ -6,20 +6,60 @@
 
 ### 1. Python 환경 확인
 
-```bash
+먼저 PowerShell 또는 터미널에서:
+
+```powershell
 python --version
-# 3.11 이상이어야 합니다. 없으면:
-#   winget install Python.Python.3.12
 ```
+
+**기대 결과**: `Python 3.11.x` 또는 그 이상.
+
+#### ⚠ 함정 — Microsoft Store stub (Windows)
+
+`python --version` 이 *아무것도 출력하지 않거나* Microsoft Store 페이지가 열린다면, Windows의 *가짜 Python stub*이 잡혀 있는 겁니다. 이 stub은 `python -m venv` 도 *조용히 실패*시켜서 `.venv` 폴더가 안 만들어집니다.
+
+확인:
+
+```powershell
+where.exe python
+```
+
+결과에 `Microsoft\WindowsApps\python.exe` 만 보이면 stub입니다.
+
+**해결 — 진짜 Python 설치**:
+
+```powershell
+winget install -e --id Python.Python.3.12
+```
+
+설치 후 **PowerShell 창을 완전히 닫고 새로 열어주세요** (PATH 갱신 필수). 새 창에서 `python --version` 이 `Python 3.12.x` 로 나오면 정상.
+
+대안: Windows Settings → *앱* → *앱 실행 별칭* → `python.exe` / `python3.exe` 둘 다 *OFF* 한 후 위 winget 명령 실행.
 
 ### 2. 가상환경 + 패키지 설치
 
-```bash
+**Windows · PowerShell** (권장):
+
+```powershell
 cd "C:/Alien Agentic/automation/cli"
 python -m venv .venv
-.venv\Scripts\activate            # Windows
-# source .venv/bin/activate       # macOS/Linux
+.\.venv\Scripts\Activate.ps1
+pip install -e .
+```
 
+활성화 성공 시 프롬프트 앞에 `(.venv)` 가 붙습니다.
+
+> **PowerShell 실행 정책 에러** (`.ps1 모듈 로드 실패`) 가 나면 1회만:
+> ```powershell
+> Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+> ```
+
+**macOS / Linux · bash**:
+
+```bash
+cd "/path/to/Alien Agentic/automation/cli"
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -e .
 ```
 
@@ -98,8 +138,12 @@ aa push "WHY Session v2 진척"
 
 | 증상 | 해결 |
 |---|---|
-| `aa: command not found` | `pip install -e .` 가 활성 venv에서 실행됐는지 확인 |
-| `ANTHROPIC_API_KEY 가 .env 에 없습니다` | `.env` 만들고 키 박기 |
+| `python --version` 이 빈 결과 또는 Microsoft Store 열림 | Python stub 함정. 위 1단계 *⚠ 함정* 섹션 참조 — `winget install -e --id Python.Python.3.12` 후 PowerShell 재시작 |
+| `.venv\Scripts\python.exe` 없음 (또는 `.venv` 폴더 자체가 비었음) | venv 생성 실패. 위 stub 확인 후 `Remove-Item -Recurse -Force .venv` → `python -m venv .venv` 다시 |
+| `.\.venv\Scripts\Activate.ps1` 가 *모듈 로드* 에러 | PowerShell 실행 정책. `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force` 1회 |
+| `.venv\Scripts\activate` (확장자 X) 가 안 됨 | PowerShell에서는 *`Activate.ps1`* 가 정답. 확장자 없는 자리는 bash 용. |
+| `aa: command not found` | `pip install -e .` 가 *활성된 venv* 안에서 실행됐는지 확인. 프롬프트에 `(.venv)` 표시 필수 |
+| `ANTHROPIC_API_KEY 가 .env 에 없습니다` | `.env` 만들고 키 박기 (`.env.example` 복사) |
 | `anthropic 패키지 미설치` | `pip install -r requirements.txt` |
 | 한국어 깨짐 (Windows) | `chcp 65001` 로 UTF-8 활성 |
 
