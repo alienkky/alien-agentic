@@ -143,8 +143,9 @@ def main() -> int:
     )
     workspace_id = os.environ.get("WORKSPACE_ID", "").strip()
     owner_id = os.environ.get("OWNER_ID", "").strip()
+    runtime_id = os.environ.get("RUNTIME_ID", "").strip()
 
-    if not workspace_id or not owner_id:
+    if not workspace_id or not owner_id or not runtime_id:
         print(
             "ERROR: WORKSPACE_ID + OWNER_ID 를 .env 에 박아주세요.\n"
             "  1) Multica web app (http://localhost:3000) 접속\n"
@@ -190,18 +191,18 @@ def main() -> int:
             continue
 
         div = division_of(a.name)
-        runtime_config = json.dumps(
-            {"provider": "claude_code", "model": a.model}
-        )
+        runtime_config = json.dumps({"provider": "claude_code"})
+        # Division 정보는 description 앞에 prefix 로 박음 (Multica UI에서 한 줄로 보임)
+        description = f"[{div}] {a.description}"
 
         cur.execute(
             """
             INSERT INTO agent (
-                workspace_id, owner_id, name, description, instructions,
-                runtime_mode, runtime_config, visibility, skills,
+                workspace_id, owner_id, runtime_id, name, description, instructions,
+                runtime_mode, runtime_config, visibility, model,
                 status, max_concurrent_tasks
             ) VALUES (
-                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s,
                 'local', %s::jsonb, 'workspace', %s,
                 'offline', 1
             )
@@ -209,11 +210,12 @@ def main() -> int:
             (
                 workspace_id,
                 owner_id,
+                runtime_id,
                 a.name,
-                a.description,
+                description,
                 a.instructions,
                 runtime_config,
-                div,
+                a.model,
             ),
         )
         print(f"  + {a.name:<22} ({div:<5}  {a.model})")

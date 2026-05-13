@@ -49,34 +49,44 @@ make selfhost
 
 ### 3. WORKSPACE_ID + OWNER_ID 확인
 
-브라우저 URL에서 또는 직접 DB 쿼리:
-
-```powershell
-docker exec -it multica-postgres-1 psql -U multica -d multica -c "SELECT id, slug FROM workspace; SELECT id, email FROM ""user"";"
+```bash
+docker exec multica-postgres-1 psql -U multica -d multica -c \
+  'SELECT id, slug FROM workspace; SELECT id, email FROM "user";'
 ```
 
 결과 메모.
 
-### 4. 시드 스크립트 환경 설정
+### 4. 시드용 fake `agent_runtime` 생성
 
-```powershell
-cd C:/Alien Agentic/automation/intranet/alien-config/seeds
-copy .env.example .env
-notepad .env
+Multica의 `agent.runtime_id` 는 NOT NULL — *daemon runtime에 묶여서* agent가 만들어지는 구조. 정식 흐름은 `multica daemon start` (Phase 2). **시드 단계만 빠르게** 가려면 fake runtime 1개 직접 INSERT:
+
+```bash
+WS_ID="여기-3단계의-workspace-id"
+OWNER_ID="여기-3단계의-owner-id"
+
+docker exec multica-postgres-1 psql -U multica -d multica -c \
+  "INSERT INTO agent_runtime (workspace_id, owner_id, name, runtime_mode, provider, status) VALUES ('$WS_ID', '$OWNER_ID', 'alien-agentic-local', 'local', 'claude_code', 'online');"
+
+# RUNTIME_ID 추출
+RUNTIME_ID=$(docker exec multica-postgres-1 psql -U multica -d multica -t -A -c \
+  "SELECT id FROM agent_runtime WHERE workspace_id = '$WS_ID' ORDER BY created_at DESC LIMIT 1;" | tr -d '\r\n ')
+echo "RUNTIME_ID = $RUNTIME_ID"
 ```
 
-`.env` 에 위 3단계의 ID 박기:
-```
-WORKSPACE_ID=실제-workspace-uuid
-OWNER_ID=실제-user-uuid
+### 5. 시드 스크립트 환경 설정
+
+```bash
+cd "C:/Alien Agentic/automation/intranet/alien-config/seeds"
+cp .env.example .env
+# .env 를 열어서 WORKSPACE_ID, OWNER_ID, RUNTIME_ID 세 자리 채우기
 ```
 
-### 5. 27명 시드 실행
+### 6. 27명 시드 실행
 
-```powershell
+```bash
 # alien-config/seeds 폴더에서
-pip install -r requirements.txt
-python seed_agents.py
+"C:/Alien Agentic/automation/cli/.venv/Scripts/python.exe" -m pip install -r requirements.txt
+PYTHONUTF8=1 "C:/Alien Agentic/automation/cli/.venv/Scripts/python.exe" seed_agents.py
 ```
 
 성공 출력 예시:
