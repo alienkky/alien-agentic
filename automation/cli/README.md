@@ -171,7 +171,8 @@ aa push "WHY Session v2 진척"
 | `aa: command not found` | `pip install -e .` 가 *활성된 venv* 안에서 실행됐는지 확인. 프롬프트에 `(.venv)` 표시 필수 |
 | `claude CLI 를 찾지 못했습니다` | Claude Code 설치 확인 (`~/.local/bin/claude.exe`) 또는 `.env` 에 `CLAUDE_BIN=절대경로` 박기 |
 | `claude CLI 에러 (exit 1)` | `claude --version` 직접 실행해서 작동 확인 / 인증 만료 시 `claude /login` |
-| 한국어 깨짐 (Windows) | `chcp 65001` 로 UTF-8 활성 |
+| 한국어·이모지에서 `UnicodeEncodeError: cp949` | `cli.py` 가 자동으로 stdout을 UTF-8로 재구성합니다. 안 되면: `$env:PYTHONIOENCODING="utf-8"` 후 재시도, 또는 PowerShell 7+ 설치 — `winget install -e --id Microsoft.PowerShell` |
+| 한국어 깨짐 (cmd.exe) | `chcp 65001` 로 UTF-8 활성 |
 
 ## 다음 버전 (v0.2 — Phase 2)
 
