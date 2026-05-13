@@ -1,0 +1,2 @@
+[console_scripts]
+aa = aa.cli:app

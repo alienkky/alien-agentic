@@ -1,7 +1,19 @@
+Metadata-Version: 2.4
+Name: alien-agentic-cli
+Version: 0.1.0
+Summary: Alien Agentic — Master Orchestrator CLI (aa)
+Author-email: Alien Kim <alienkky@users.noreply.github.com>
+License: Proprietary
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: typer[all]>=0.12
+Requires-Dist: rich>=13.7
+Requires-Dist: python-dotenv>=1.0
+Requires-Dist: anthropic>=0.40
+
 # `aa` — Alien Agentic Master Orchestrator CLI
 
 > 27명의 외계 동료를 한 명령어로 호출·확인·기록한다.
-> **Claude Max 구독 토큰 경유** — 별도 API 키 없음.
 
 ## 설치 (1회만, 약 3분)
 
@@ -66,41 +78,16 @@ pip install -e .
 
 `pip install -e .` 는 *편집 가능 모드*로 설치 — 코드 수정이 즉시 반영됩니다.
 
-### 3. Claude Code CLI 확인 — Max 구독 활용
+### 3. API 키 설정
 
-**별도 API 키 발급 불필요.** `aa call` 은 Claude Code CLI (`claude`) 를 subprocess로 호출하므로, **Max 구독에 포함된 토큰**을 그대로 사용합니다.
-
-확인:
-
-```powershell
-# PowerShell
-& "$env:USERPROFILE/.local/bin/claude.exe" --version
-```
+`.env.example` 를 복사해서 `.env` 만들고 실제 키 박기:
 
 ```bash
-# bash / Git Bash
-~/.local/bin/claude.exe --version
+cp .env.example .env
+# .env 를 열어서 ANTHROPIC_API_KEY 채우기
 ```
 
-`2.x.x (Claude Code)` 가 나오면 정상.
-
-#### 자동 감지
-
-`aa` CLI 는 다음 순서로 `claude` 바이너리를 찾습니다:
-1. `.env` 의 `CLAUDE_BIN` 환경 변수
-2. 시스템 `PATH`
-3. `~/.local/bin/claude.exe` (Windows 기본)
-4. `~/.local/bin/claude` (macOS/Linux)
-5. `Program Files/Claude/claude.exe`
-
-다른 위치라면 `.env` 에:
-```
-CLAUDE_BIN=C:/Users/AlienK/.local/bin/claude.exe
-```
-
-#### Claude Code 미설치 시
-- 데스크탑 앱: https://claude.com/download
-- 또는 npm: `npm install -g @anthropic-ai/claude-code`
+API 키 발급: https://console.anthropic.com → Settings → API Keys
 
 ### 4. 동작 확인
 
@@ -169,8 +156,8 @@ aa push "WHY Session v2 진척"
 | `.\.venv\Scripts\Activate.ps1` 가 *모듈 로드* 에러 | PowerShell 실행 정책. `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force` 1회 |
 | `.venv\Scripts\activate` (확장자 X) 가 안 됨 | PowerShell에서는 *`Activate.ps1`* 가 정답. 확장자 없는 자리는 bash 용. |
 | `aa: command not found` | `pip install -e .` 가 *활성된 venv* 안에서 실행됐는지 확인. 프롬프트에 `(.venv)` 표시 필수 |
-| `claude CLI 를 찾지 못했습니다` | Claude Code 설치 확인 (`~/.local/bin/claude.exe`) 또는 `.env` 에 `CLAUDE_BIN=절대경로` 박기 |
-| `claude CLI 에러 (exit 1)` | `claude --version` 직접 실행해서 작동 확인 / 인증 만료 시 `claude /login` |
+| `ANTHROPIC_API_KEY 가 .env 에 없습니다` | `.env` 만들고 키 박기 (`.env.example` 복사) |
+| `anthropic 패키지 미설치` | `pip install -r requirements.txt` |
 | 한국어 깨짐 (Windows) | `chcp 65001` 로 UTF-8 활성 |
 
 ## 다음 버전 (v0.2 — Phase 2)

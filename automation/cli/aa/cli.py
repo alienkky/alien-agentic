@@ -18,13 +18,13 @@ from aa.agents import DIVISIONS, division_of, load_all, load_one
 from aa.config import (
     AGENT_MEMORY,
     AGENTS_DIR,
+    CLAUDE_BIN,
     COMPANY,
     DAILY_LOGS,
     DASHBOARD,
     ENV_FILE,
     INTERVENTIONS,
     MESSAGES,
-    MODEL_MAP,
     ROOT,
     USER_NAME,
 )
@@ -186,37 +186,50 @@ def call(
         console.print(f"[dim]시스템 프롬프트 위치:[/dim] {a.path}")
         return
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
+    if CLAUDE_BIN is None:
         console.print(
-            "[red]ANTHROPIC_API_KEY 가 .env 에 없습니다.[/red]\n"
-            f"[dim]{ENV_FILE} 에 박아주세요.[/dim]\n"
-            "[dim]발급: https://console.anthropic.com[/dim]"
+            "[red]claude CLI 를 찾지 못했습니다.[/red]\n"
+            "[dim]Claude Code 가 설치되어 있어야 합니다 (Max 구독 활용).[/dim]\n"
+            "[dim]일반 위치: ~/.local/bin/claude.exe[/dim]\n"
+            "[dim]다른 위치라면 `.env` 에 CLAUDE_BIN=절대경로 박기.[/dim]"
         )
         raise typer.Exit(1)
 
-    try:
-        from anthropic import Anthropic
-    except ImportError:
+    # Claude Code CLI 호출 — Max 구독 토큰 경유, 별도 API 키 X
+    cmd = [
+        str(CLAUDE_BIN),
+        "-p", prompt,
+        "--agent", agent,
+        "--model", a.model,
+        "--output-format", "text",
+        "--no-session-persistence",
+        "--add-dir", str(ROOT),
+        "--permission-mode", "bypassPermissions",
+    ]
+
+    with console.status(
+        f"[cyan]{a.name} 호출 중 (Claude Max · {a.model})...[/cyan]"
+    ):
+        result = subprocess.run(
+            cmd,
+            cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+
+    if result.returncode != 0:
         console.print(
-            "[red]anthropic 패키지 미설치.[/red] "
-            f"[dim]cd {ENV_FILE.parent} && pip install -r requirements.txt[/dim]"
+            f"[red]claude CLI 에러 (exit {result.returncode}):[/red]"
         )
-        raise typer.Exit(1)
+        console.print(result.stderr or "(stderr 비어 있음)")
+        raise typer.Exit(result.returncode)
 
-    client_obj = Anthropic(api_key=api_key)
-    model = MODEL_MAP.get(
-        a.model, os.environ.get("ANTHROPIC_DEFAULT_MODEL", "claude-sonnet-4-5")
-    )
-
-    with console.status(f"[cyan]{a.name} 호출 중 ({model})...[/cyan]"):
-        msg = client_obj.messages.create(
-            model=model,
-            max_tokens=4096,
-            system=a.body,
-            messages=[{"role": "user", "content": prompt}],
-        )
-    response = "".join(b.text for b in msg.content if hasattr(b, "text"))
+    response = (result.stdout or "").strip()
+    if not response:
+        console.print("[yellow]응답이 비어 있습니다.[/yellow]")
+        return
 
     console.print(
         Panel(response, title=f"{a.name} 응답", border_style="cyan")
