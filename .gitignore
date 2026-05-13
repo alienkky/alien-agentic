@@ -52,3 +52,6 @@ logs/
 *.tar.gz
 *.mp4
 *.mov
+
+# === External projects — Alien Agentic과 분리 유지 ===
+brain180/
