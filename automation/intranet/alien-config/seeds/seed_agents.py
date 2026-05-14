@@ -204,7 +204,7 @@ def main() -> int:
             ) VALUES (
                 %s, %s, %s, %s, %s, %s,
                 'local', %s::jsonb, 'workspace', %s,
-                'offline', 1
+                'online', 1
             )
             """,
             (

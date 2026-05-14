@@ -836,12 +836,20 @@ def seed(
             + dq(a.name) + ", " + dq(description) + ", "
             + dq(a.body.strip()) + ", 'local', "
             + dq(runtime_config_json) + "::jsonb, 'workspace', "
-            + dq(a.model) + ", 'offline', 1 "
+            + dq(a.model) + ", 'online', 1 "
             "WHERE NOT EXISTS (SELECT 1 FROM agent WHERE "
             f"workspace_id = '{ws_id}' AND name = " + dq(a.name) + ");"
         )
 
-    sql_text = "BEGIN;\n" + "\n".join(statements) + "\nCOMMIT;\n"
+    # 신규는 online 으로 INSERT, 기존(과거 offline 시드분)도 online 으로 끌어올림
+    # → aa seed 재실행 = 전원 초록불 (idempotent)
+    online_update = (
+        "UPDATE agent SET status = 'online' "
+        f"WHERE workspace_id = '{ws_id}' AND runtime_mode = 'local';"
+    )
+    sql_text = (
+        "BEGIN;\n" + "\n".join(statements) + "\n" + online_update + "\nCOMMIT;\n"
+    )
 
     with console.status("[cyan]27명 시드 중...[/cyan]"):
         result = subprocess.run(
@@ -865,11 +873,18 @@ def seed(
 
     inserted = result.stdout.count("INSERT 0 1")
     skipped = result.stdout.count("INSERT 0 0")
+    online_match = re.search(r"UPDATE (\d+)", result.stdout)
+    online_n = online_match.group(1) if online_match else "?"
     console.print(
-        f"[green]✓ 시드 완료:[/green] 신규 {inserted}명 / 스킵 {skipped}명"
+        f"[green]✓ 시드 완료:[/green] 신규 {inserted}명 / 스킵 {skipped}명 "
+        f"· online 상태 {online_n}명"
     )
     console.print(
         "  http://localhost:3000 → Settings → Agents 에서 확인하세요."
+    )
+    console.print(
+        "[dim]초록불이 곧 다시 꺼지면 — Multica 가 실시간 데몬 연결로 "
+        "상태를 계산하는 구조입니다 (그 경우 Phase 2 데몬 작업 필요).[/dim]"
     )
 
 
