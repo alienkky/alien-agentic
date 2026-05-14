@@ -1,0 +1,667 @@
+diff --git a/apps/desktop/src/main/index.ts b/apps/desktop/src/main/index.ts
+index d128fd1..dd2c05f 100644
+--- a/apps/desktop/src/main/index.ts
++++ b/apps/desktop/src/main/index.ts
+@@ -237,10 +237,10 @@ if (is.dev) {
+   // Pin the production app name in code. Electron's Linux WM_CLASS is set
+   // from app.getName() when the first BrowserWindow is realized; the
+   // packaged ASAR's package.json `productName` already steers app.getName()
+-  // to "Multica", but anchoring it here makes WM_CLASS ↔ StartupWMClass
++  // to "Alien Agentic", but anchoring it here makes WM_CLASS ↔ StartupWMClass
+   // (declared in electron-builder.yml) survive a regression in
+   // productName / the build pipeline. Must run before requestSingleInstanceLock().
+-  app.setName("Multica");
++  app.setName("Alien Agentic");
+ }
+ 
+ // --- Protocol registration -----------------------------------------------
+diff --git a/apps/docs/app/layout.config.tsx b/apps/docs/app/layout.config.tsx
+index c68ca35..9bdc813 100644
+--- a/apps/docs/app/layout.config.tsx
++++ b/apps/docs/app/layout.config.tsx
+@@ -68,7 +68,7 @@ export const baseOptions: BaseLayoutProps = {
+     },
+     {
+       icon: <MulticaMark />,
+-      text: externalLinkText("Multica"),
++      text: externalLinkText("Alien Agentic"),
+       url: "https://multica.ai",
+       external: true,
+     },
+diff --git a/apps/docs/components/architecture-diagram.tsx b/apps/docs/components/architecture-diagram.tsx
+index 25b7039..64a8548 100644
+--- a/apps/docs/components/architecture-diagram.tsx
++++ b/apps/docs/components/architecture-diagram.tsx
+@@ -3,7 +3,7 @@
+  *
+  * Boundary-style layout: one large panel for "Your side" (where all the
+  * interesting stuff happens — code, keys, compute), one smaller panel for
+- * "Multica" (metadata store and coordinator).  The asymmetric sizes and the
++ * "Alien Agentic" (metadata store and coordinator).  The asymmetric sizes and the
+  * brand-tinted left panel visually argue Multica's core thesis: AI runs on
+  * your machine, not ours.
+  *
+diff --git a/apps/web/app/(landing)/about/page.tsx b/apps/web/app/(landing)/about/page.tsx
+index 367ad78..e5bfda4 100644
+--- a/apps/web/app/(landing)/about/page.tsx
++++ b/apps/web/app/(landing)/about/page.tsx
+@@ -6,7 +6,7 @@ export const metadata: Metadata = {
+   description:
+     "Learn about Multica — multiplexed information and computing agent. An open-source project management platform for human + agent teams.",
+   openGraph: {
+-    title: "About Multica",
++    title: "About Alien Agentic",
+     description:
+       "The story behind Multica and why we're building project management for human + agent teams.",
+     url: "/about",
+diff --git a/apps/web/app/(landing)/changelog/page.tsx b/apps/web/app/(landing)/changelog/page.tsx
+index ac28db2..861fb73 100644
+--- a/apps/web/app/(landing)/changelog/page.tsx
++++ b/apps/web/app/(landing)/changelog/page.tsx
+@@ -6,7 +6,7 @@ export const metadata: Metadata = {
+   description:
+     "See what's new in Multica — latest features, improvements, and fixes.",
+   openGraph: {
+-    title: "Changelog | Multica",
++    title: "Changelog | Alien Agentic",
+     description: "Latest updates and releases from Multica.",
+     url: "/changelog",
+   },
+diff --git a/apps/web/app/(landing)/download/page.tsx b/apps/web/app/(landing)/download/page.tsx
+index fb353c4..ede3d8a 100644
+--- a/apps/web/app/(landing)/download/page.tsx
++++ b/apps/web/app/(landing)/download/page.tsx
+@@ -9,11 +9,11 @@ import { DownloadClient } from "./download-client";
+ export const revalidate = 300;
+ 
+ export const metadata: Metadata = {
+-  title: "Download Multica",
++  title: "Download Alien Agentic",
+   description:
+-    "Download Multica for macOS, Windows, or Linux — or install the CLI for servers and remote dev boxes.",
++    "Download Alien Agentic for macOS, Windows, or Linux — or install the CLI for servers and remote dev boxes.",
+   openGraph: {
+-    title: "Download Multica",
++    title: "Download Alien Agentic",
+     description:
+       "Get the Multica desktop app with a bundled daemon, or install the CLI for servers and remote dev boxes.",
+     url: "/download",
+diff --git a/apps/web/app/(landing)/homepage/page.tsx b/apps/web/app/(landing)/homepage/page.tsx
+index b178d10..4b2dc98 100644
+--- a/apps/web/app/(landing)/homepage/page.tsx
++++ b/apps/web/app/(landing)/homepage/page.tsx
+@@ -6,7 +6,7 @@ export const metadata: Metadata = {
+   description:
+     "Multica — open-source platform that turns coding agents into real teammates. Assign tasks, track progress, compound skills.",
+   openGraph: {
+-    title: "Multica — Project Management for Human + Agent Teams",
++    title: "Alien Agentic — Project Management for Human + Agent Teams",
+     description:
+       "Manage your human + agent workforce in one place.",
+     url: "/homepage",
+diff --git a/apps/web/app/(landing)/layout.tsx b/apps/web/app/(landing)/layout.tsx
+index 97a6b06..6075cbd 100644
+--- a/apps/web/app/(landing)/layout.tsx
++++ b/apps/web/app/(landing)/layout.tsx
+@@ -21,13 +21,13 @@ const jsonLd = {
+   "@graph": [
+     {
+       "@type": "Organization",
+-      name: "Multica",
++      name: "Alien Agentic",
+       url: "https://www.multica.ai",
+       sameAs: ["https://github.com/multica-ai/multica"],
+     },
+     {
+       "@type": "SoftwareApplication",
+-      name: "Multica",
++      name: "Alien Agentic",
+       applicationCategory: "ProjectManagement",
+       operatingSystem: "Web",
+       description:
+diff --git a/apps/web/app/(landing)/page.tsx b/apps/web/app/(landing)/page.tsx
+index 2931080..72331d6 100644
+--- a/apps/web/app/(landing)/page.tsx
++++ b/apps/web/app/(landing)/page.tsx
+@@ -4,12 +4,12 @@ import { RedirectIfAuthenticated } from "@/features/landing/components/redirect-
+ 
+ export const metadata: Metadata = {
+   title: {
+-    absolute: "Multica — Project Management for Human + Agent Teams",
++    absolute: "Alien Agentic — Project Management for Human + Agent Teams",
+   },
+   description:
+     "Open-source platform that turns coding agents into real teammates. Assign tasks, track progress, compound skills.",
+   openGraph: {
+-    title: "Multica — Project Management for Human + Agent Teams",
++    title: "Alien Agentic — Project Management for Human + Agent Teams",
+     description:
+       "Manage your human + agent workforce in one place.",
+     url: "/",
+diff --git a/apps/web/app/layout.tsx b/apps/web/app/layout.tsx
+index d7cb63e..70fe1d0 100644
+--- a/apps/web/app/layout.tsx
++++ b/apps/web/app/layout.tsx
+@@ -75,7 +75,7 @@ export const viewport: Viewport = {
+ export const metadata: Metadata = {
+   metadataBase: new URL("https://www.multica.ai"),
+   title: {
+-    default: "Multica — Project Management for Human + Agent Teams",
++    default: "Alien Agentic — Project Management for Human + Agent Teams",
+     template: "%s | Multica",
+   },
+   description:
+@@ -86,7 +86,7 @@ export const metadata: Metadata = {
+   },
+   openGraph: {
+     type: "website",
+-    siteName: "Multica",
++    siteName: "Alien Agentic",
+     locale: "en_US",
+   },
+   twitter: {
+@@ -114,6 +114,7 @@ function isSupportedLocale(value: string | null): value is SupportedLocale {
+ const HTML_LANG: Record<SupportedLocale, string> = {
+   en: "en",
+   "zh-Hans": "zh-CN",
++  ko: "ko-KR",
+ };
+ 
+ export default async function RootLayout({
+diff --git a/apps/web/features/landing/i18n/en.ts b/apps/web/features/landing/i18n/en.ts
+index 00b0006..00b29ef 100644
+--- a/apps/web/features/landing/i18n/en.ts
++++ b/apps/web/features/landing/i18n/en.ts
+@@ -252,7 +252,7 @@ export function createEnDict(allowSignup: boolean): LandingDict {
+   },
+ 
+   about: {
+-    title: "About Multica",
++    title: "About Alien Agentic",
+     nameLine: {
+       prefix: "Multica \u2014 ",
+       mul: "Mul",
+@@ -276,7 +276,7 @@ export function createEnDict(allowSignup: boolean): LandingDict {
+ 
+   changelog: {
+     title: "Changelog",
+-    subtitle: "New updates and improvements to Multica.",
++    subtitle: "New updates and improvements to Alien Agentic.",
+     toc: "All releases",
+     categories: {
+       features: "New Features",
+@@ -1134,30 +1134,30 @@ export function createEnDict(allowSignup: boolean): LandingDict {
+   download: {
+     hero: {
+       macArm64: {
+-        title: "Multica for macOS",
++        title: "Alien Agentic for macOS",
+         sub: "Apple Silicon · bundled daemon, zero setup",
+         primary: "Download (.dmg)",
+         altZip: "or download .zip",
+       },
+       macIntel: {
+-        title: "Multica for macOS",
++        title: "Alien Agentic for macOS",
+         sub: "Apple Silicon required — Intel Macs not yet supported.",
+         disabledCta: "Apple Silicon required",
+         intelHint:
+           "On an Intel Mac? Use the CLI below — it runs the same daemon.",
+       },
+       winX64: {
+-        title: "Multica for Windows",
++        title: "Alien Agentic for Windows",
+         sub: "Bundled daemon, zero setup",
+         primary: "Download (.exe)",
+       },
+       winArm64: {
+-        title: "Multica for Windows",
++        title: "Alien Agentic for Windows",
+         sub: "ARM · bundled daemon, zero setup",
+         primary: "Download (.exe)",
+       },
+       linux: {
+-        title: "Multica for Linux",
++        title: "Alien Agentic for Linux",
+         sub: "Bundled daemon, zero setup",
+         primary: "Download AppImage",
+         altFormats: "or .deb / .rpm",
+diff --git a/apps/web/features/landing/i18n/zh.ts b/apps/web/features/landing/i18n/zh.ts
+index 1af5597..39f277b 100644
+--- a/apps/web/features/landing/i18n/zh.ts
++++ b/apps/web/features/landing/i18n/zh.ts
+@@ -1134,29 +1134,29 @@ export function createZhDict(allowSignup: boolean): LandingDict {
+   download: {
+     hero: {
+       macArm64: {
+-        title: "Multica for macOS",
++        title: "Alien Agentic for macOS",
+         sub: "Apple Silicon · 内置 daemon，无需配置",
+         primary: "下载 (.dmg)",
+         altZip: "或下载 .zip",
+       },
+       macIntel: {
+-        title: "Multica for macOS",
++        title: "Alien Agentic for macOS",
+         sub: "需要 Apple Silicon——暂不支持 Intel Mac。",
+         disabledCta: "需要 Apple Silicon",
+         intelHint: "在 Intel Mac 上？请使用下方 CLI——底层跑的是同一个 daemon。",
+       },
+       winX64: {
+-        title: "Multica for Windows",
++        title: "Alien Agentic for Windows",
+         sub: "内置 daemon，无需配置",
+         primary: "下载 (.exe)",
+       },
+       winArm64: {
+-        title: "Multica for Windows",
++        title: "Alien Agentic for Windows",
+         sub: "ARM · 内置 daemon，无需配置",
+         primary: "下载 (.exe)",
+       },
+       linux: {
+-        title: "Multica for Linux",
++        title: "Alien Agentic for Linux",
+         sub: "内置 daemon，无需配置",
+         primary: "下载 AppImage",
+         altFormats: "或 .deb / .rpm",
+diff --git a/packages/core/i18n/types.ts b/packages/core/i18n/types.ts
+index 92adb4b..ac227ed 100644
+--- a/packages/core/i18n/types.ts
++++ b/packages/core/i18n/types.ts
+@@ -1,6 +1,6 @@
+-export type SupportedLocale = "en" | "zh-Hans";
++export type SupportedLocale = "en" | "zh-Hans" | "ko";
+ 
+-export const SUPPORTED_LOCALES: SupportedLocale[] = ["en", "zh-Hans"];
++export const SUPPORTED_LOCALES: SupportedLocale[] = ["en", "zh-Hans", "ko"];
+ export const DEFAULT_LOCALE: SupportedLocale = "en";
+ 
+ export type LocaleResources = Record<string, Record<string, unknown>>;
+diff --git a/packages/core/workspace/hooks.ts b/packages/core/workspace/hooks.ts
+index 92f198a..09d0234 100644
+--- a/packages/core/workspace/hooks.ts
++++ b/packages/core/workspace/hooks.ts
+@@ -29,7 +29,7 @@ export function useActorName() {
+     if (type === "member") return getMemberName(id);
+     if (type === "agent") return getAgentName(id);
+     if (type === "squad") return getSquadName(id);
+-    if (type === "system") return "Multica";
++    if (type === "system") return "Alien Agentic";
+     return "System";
+   };
+ 
+diff --git a/packages/views/chat/components/chat-input.test.tsx b/packages/views/chat/components/chat-input.test.tsx
+index a61e054..2b6238b 100644
+--- a/packages/views/chat/components/chat-input.test.tsx
++++ b/packages/views/chat/components/chat-input.test.tsx
+@@ -102,7 +102,7 @@ function renderInput(props: Partial<React.ComponentProps<typeof ChatInput>> = {}
+     }));
+   render(
+     <I18nProvider locale="en" resources={TEST_RESOURCES}>
+-      <ChatInput onSend={onSend} onUploadFile={onUploadFile} agentName="Multica" {...props} />
++      <ChatInput onSend={onSend} onUploadFile={onUploadFile} agentName="Alien Agentic" {...props} />
+     </I18nProvider>,
+   );
+   return { onSend, onUploadFile };
+diff --git a/packages/views/layout/app-sidebar.tsx b/packages/views/layout/app-sidebar.tsx
+index 93f9f86..b91ee37 100644
+--- a/packages/views/layout/app-sidebar.tsx
++++ b/packages/views/layout/app-sidebar.tsx
+@@ -481,7 +481,7 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
+                         )}
+                       </span>
+                       <span className="flex-1 truncate font-medium">
+-                        {workspace?.name ?? "Multica"}
++                        {workspace?.name ?? "Alien Agentic"}
+                       </span>
+                       <ChevronDown className="size-3 text-muted-foreground" />
+                     </SidebarMenuButton>
+diff --git a/packages/views/locales/en/agents.json b/packages/views/locales/en/agents.json
+index 68fbae6..80f912c 100644
+--- a/packages/views/locales/en/agents.json
++++ b/packages/views/locales/en/agents.json
+@@ -38,7 +38,7 @@
+   },
+   "empty": {
+     "title": "No agents yet",
+-    "description": "Create an agent and assign it issues, like any teammate. Local agents run on your machine; cloud agents run on Multica's runtime."
++    "description": "Create an agent and assign it issues, like any teammate. Local agents run on your machine; cloud agents run on Alien Agentic's runtime."
+   },
+   "no_matches": {
+     "title": "No matches",
+diff --git a/packages/views/locales/en/auth.json b/packages/views/locales/en/auth.json
+index b10f429..73402cd 100644
+--- a/packages/views/locales/en/auth.json
++++ b/packages/views/locales/en/auth.json
+@@ -1,6 +1,6 @@
+ {
+   "signin": {
+-    "title": "Sign in to Multica",
++    "title": "Sign in to Alien Agentic",
+     "description": "Enter your email to get a login code",
+     "continue": "Continue",
+     "sending": "Sending code...",
+@@ -15,7 +15,7 @@
+   },
+   "cli": {
+     "title": "Authorize CLI",
+-    "description": "Allow the CLI to access Multica as {{email}}",
++    "description": "Allow the CLI to access Alien Agentic as {{email}}",
+     "authorize": "Authorize",
+     "authorizing": "Authorizing...",
+     "different_account": "Use a different account"
+@@ -38,9 +38,9 @@
+     "download": "Download",
+     "desktop_handoff": {
+       "preparing": "Preparing Desktop sign-in...",
+-      "opening_title": "Opening Multica",
+-      "opening_description": "You should see a prompt to open the Multica desktop app. If nothing happens, click the button below.",
+-      "open_button": "Open Multica Desktop",
++      "opening_title": "Opening Alien Agentic",
++      "opening_description": "You should see a prompt to open the Alien Agentic desktop app. If nothing happens, click the button below.",
++      "open_button": "Open Alien Agentic Desktop",
+       "failed_title": "Sign-in Failed",
+       "prepare_failed": "Failed to prepare Desktop sign-in"
+     }
+diff --git a/packages/views/locales/en/chat.json b/packages/views/locales/en/chat.json
+index 75e687c..79b3c4b 100644
+--- a/packages/views/locales/en/chat.json
++++ b/packages/views/locales/en/chat.json
+@@ -1,9 +1,9 @@
+ {
+   "fab": {
+-    "running": "Multica is working...",
++    "running": "Alien Agentic is working...",
+     "unread_one": "{{count}} unread chat",
+     "unread_other": "{{count}} unread chats",
+-    "default": "Ask Multica"
++    "default": "Ask Alien Agentic"
+   },
+   "input": {
+     "placeholder_no_agent": "Create an agent to start chatting",
+@@ -72,7 +72,7 @@
+     "first_time_pillars_suffix": ".",
+     "first_time_actions": "Ask for a summary, plan your day, or hand off a quick task.",
+     "returning_title_named": "Hi, I'm {{name}}",
+-    "returning_title_default": "Welcome to Multica",
++    "returning_title_default": "Welcome to Alien Agentic",
+     "returning_subtitle": "Try asking"
+   },
+   "starter_prompts": {
+@@ -81,15 +81,15 @@
+     "plan_next": "Plan what to work on next"
+   },
+   "context_anchor": {
+-    "tooltip_disabled": "Nothing to share with Multica on this page",
+-    "tooltip_off": "Let Multica know what you're viewing",
+-    "tooltip_on_issue": "Multica knows you're viewing {{label}} · Click to turn off",
+-    "tooltip_on_project": "Multica knows you're viewing project \"{{label}}\" · Click to turn off",
+-    "card_tooltip_issue_with_subtitle": "Multica knows you're viewing {{label}} — {{subtitle}}",
+-    "card_tooltip_issue": "Multica knows you're viewing {{label}}",
+-    "card_tooltip_project": "Multica knows you're viewing project \"{{label}}\"",
++    "tooltip_disabled": "Nothing to share with Alien Agentic on this page",
++    "tooltip_off": "Let Alien Agentic know what you're viewing",
++    "tooltip_on_issue": "Alien Agentic knows you're viewing {{label}} · Click to turn off",
++    "tooltip_on_project": "Alien Agentic knows you're viewing project \"{{label}}\" · Click to turn off",
++    "card_tooltip_issue_with_subtitle": "Alien Agentic knows you're viewing {{label}} — {{subtitle}}",
++    "card_tooltip_issue": "Alien Agentic knows you're viewing {{label}}",
++    "card_tooltip_project": "Alien Agentic knows you're viewing project \"{{label}}\"",
+     "aria_stop": "Stop sharing current page",
+-    "aria_start": "Share current page with Multica"
++    "aria_start": "Share current page with Alien Agentic"
+   },
+   "no_agent_banner": "You need an agent to start chatting.",
+   "offline_banner": {
+diff --git a/packages/views/locales/en/onboarding.json b/packages/views/locales/en/onboarding.json
+index e6965fa..cb4f1d0 100644
+--- a/packages/views/locales/en/onboarding.json
++++ b/packages/views/locales/en/onboarding.json
+@@ -3,7 +3,7 @@
+     "step_of": "Step {{current}} of {{total}}"
+   },
+   "welcome": {
+-    "wordmark": "Welcome to Multica",
++    "wordmark": "Welcome to Alien Agentic",
+     "headline_line1": "Your AI teammates,",
+     "headline_line2": "in",
+     "headline_emphasis": "one workspace.",
+@@ -53,7 +53,7 @@
+     "q2_writer": "Writer or content creator",
+     "q2_founder": "Founder or operator",
+     "q2_other_placeholder": "e.g. researcher, designer, ops lead",
+-    "q3_question": "What do you want to do with Multica?",
++    "q3_question": "What do you want to do with Alien Agentic?",
+     "q3_coding": "Write and ship code",
+     "q3_planning": "Plan and manage projects",
+     "q3_writing_research": "Research or write",
+@@ -88,14 +88,14 @@
+   "cli_install": {
+     "copy_aria": "Copy",
+     "intro": "You'll need an AI coding tool on this machine (Claude Code, Codex, Cursor, …) for the daemon to do real work. Also works on servers and remote dev boxes.",
+-    "step1_label": "Install the Multica CLI",
++    "step1_label": "Install the Alien Agentic CLI",
+     "step2_label": "Start the daemon"
+   },
+   "starter_content": {
+     "title": "Welcome — add starter tasks?",
+     "description_prefix": "A ",
+     "description_term": "Getting Started",
+-    "description_suffix": " project with short tasks that walk through how agents, issues, and context work in Multica.",
++    "description_suffix": " project with short tasks that walk through how agents, issues, and context work in Alien Agentic.",
+     "dismiss_action": "Start blank workspace",
+     "import_action": "Add starter tasks",
+     "success_toast": "Starter tasks added — check your sidebar",
+@@ -233,7 +233,7 @@
+   },
+   "step_runtime": {
+     "scanning_headline": "Looking for your tools…",
+-    "scanning_lede_prefix": "Multica drives local AI coding tools like ",
++    "scanning_lede_prefix": "Alien Agentic drives local AI coding tools like ",
+     "scanning_lede_suffix": ", and others. We're waiting to hear back from your machine about which ones are installed.",
+     "found_headline": "We found your runtimes.",
+     "found_lede": "We scanned your machine for AI coding tools you've already set up. Pick one for your first agent.",
+@@ -245,7 +245,7 @@
+     "online_label": "online",
+     "offline_label": "offline",
+     "empty_headline": "No supported tools detected.",
+-    "empty_lede_prefix": "Multica drives local AI coding tools like ",
++    "empty_lede_prefix": "Alien Agentic drives local AI coding tools like ",
+     "empty_lede_suffix": ", and others — we didn't find any on this machine. Install one and come back, or pick a path below.",
+     "empty_skip_title": "Skip for now",
+     "empty_skip_subtitle": "Enter your workspace in read-only mode. Agents can't execute tasks until a runtime connects — but you can still browse, plan, and invite teammates.",
+diff --git a/packages/views/locales/en/runtimes.json b/packages/views/locales/en/runtimes.json
+index 8dfcc76..2aa4af3 100644
+--- a/packages/views/locales/en/runtimes.json
++++ b/packages/views/locales/en/runtimes.json
+@@ -104,7 +104,7 @@
+   "queued_other": "{{count}} queued",
+   "connect": {
+     "title": "Connect a remote machine",
+-    "description": "Run these commands on your remote machine (e.g. AWS EC2) to install the Multica CLI and register it as a runtime.",
++    "description": "Run these commands on your remote machine (e.g. AWS EC2) to install the Alien Agentic CLI and register it as a runtime.",
+     "step1": "1. Install the CLI",
+     "step2": "2. Configure",
+     "step3": "3. Login with a personal access token",
+@@ -137,7 +137,7 @@
+     "cli_version_label": "CLI Version:",
+     "version_unknown": "unknown",
+     "managed_by_desktop": "Managed by Desktop",
+-    "managed_by_desktop_title": "The CLI binary is managed by Multica Desktop — update Desktop to upgrade the CLI.",
++    "managed_by_desktop_title": "The CLI binary is managed by Alien Agentic Desktop — update Desktop to upgrade the CLI.",
+     "latest": "Latest",
+     "available": "available",
+     "action": "Update",
+diff --git a/packages/views/locales/en/settings.json b/packages/views/locales/en/settings.json
+index a7835ee..2b70417 100644
+--- a/packages/views/locales/en/settings.json
++++ b/packages/views/locales/en/settings.json
+@@ -68,7 +68,7 @@
+     },
+     "system": {
+       "title": "System Notifications",
+-      "description": "Control native OS notification banners shown when Multica is in the background.",
++      "description": "Control native OS notification banners shown when Alien Agentic is in the background.",
+       "label": "Show system notifications",
+       "hint": "Show a banner from your operating system for new inbox items when the app isn't focused."
+     }
+diff --git a/packages/views/locales/en/workspace.json b/packages/views/locales/en/workspace.json
+index 9527ce9..ea39863 100644
+--- a/packages/views/locales/en/workspace.json
++++ b/packages/views/locales/en/workspace.json
+@@ -17,7 +17,7 @@
+   "new_page": {
+     "back": "Back",
+     "log_out": "Log out",
+-    "title": "Welcome to Multica",
++    "title": "Welcome to Alien Agentic",
+     "description": "One workspace where you and your AI teammates work side by side — taking issues, leaving comments, sharing the same context.",
+     "invite_hint": "You can invite teammates once your workspace is ready."
+   },
+diff --git a/packages/views/locales/index.ts b/packages/views/locales/index.ts
+index 114048a..5eae288 100644
+--- a/packages/views/locales/index.ts
++++ b/packages/views/locales/index.ts
+@@ -48,6 +48,31 @@ import zhHansUsage from "./zh-Hans/usage.json";
+ import zhHansUi from "./zh-Hans/ui.json";
+ import zhHansSquads from "./zh-Hans/squads.json";
+ 
++import koCommon from "./ko/common.json";
++import koAuth from "./ko/auth.json";
++import koSettings from "./ko/settings.json";
++import koIssues from "./ko/issues.json";
++import koAgents from "./ko/agents.json";
++import koEditor from "./ko/editor.json";
++import koOnboarding from "./ko/onboarding.json";
++import koInvite from "./ko/invite.json";
++import koLabels from "./ko/labels.json";
++import koMembers from "./ko/members.json";
++import koMyIssues from "./ko/my-issues.json";
++import koSearch from "./ko/search.json";
++import koInbox from "./ko/inbox.json";
++import koWorkspace from "./ko/workspace.json";
++import koProjects from "./ko/projects.json";
++import koAutopilots from "./ko/autopilots.json";
++import koSkills from "./ko/skills.json";
++import koChat from "./ko/chat.json";
++import koModals from "./ko/modals.json";
++import koRuntimes from "./ko/runtimes.json";
++import koLayout from "./ko/layout.json";
++import koUsage from "./ko/usage.json";
++import koUi from "./ko/ui.json";
++import koSquads from "./ko/squads.json";
++
+ // Single source of truth for the resource bundle. Both apps (web layout +
+ // desktop App.tsx) import from here so adding a locale or namespace happens
+ // in exactly one place.
+@@ -104,4 +129,30 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
+     ui: zhHansUi,
+     squads: zhHansSquads,
+   },
++  ko: {
++    common: koCommon,
++    auth: koAuth,
++    settings: koSettings,
++    issues: koIssues,
++    agents: koAgents,
++    editor: koEditor,
++    onboarding: koOnboarding,
++    invite: koInvite,
++    labels: koLabels,
++    members: koMembers,
++    "my-issues": koMyIssues,
++    search: koSearch,
++    inbox: koInbox,
++    workspace: koWorkspace,
++    projects: koProjects,
++    autopilots: koAutopilots,
++    skills: koSkills,
++    chat: koChat,
++    modals: koModals,
++    runtimes: koRuntimes,
++    layout: koLayout,
++    usage: koUsage,
++    ui: koUi,
++    squads: koSquads,
++  },
+ };
+diff --git a/packages/views/onboarding/utils/starter-content-content-en.ts b/packages/views/onboarding/utils/starter-content-content-en.ts
+index db921e4..0ce41ea 100644
+--- a/packages/views/onboarding/utils/starter-content-content-en.ts
++++ b/packages/views/onboarding/utils/starter-content-content-en.ts
+@@ -26,7 +26,7 @@ export function buildWelcomeIssueText(
+   const name = userName.trim() || "there";
+ 
+   const header = [
+-    `Welcome to Multica! 👋`,
++    `Welcome to Alien Agentic! 👋`,
+     ``,
+     `This is your workspace's first issue. Below, your agent will reply in a moment — that's how work happens here: you write what you want, your agent (or a teammate) picks it up and replies in the comments.`,
+     ``,
+@@ -65,22 +65,22 @@ export function buildWelcomeIssueText(
+   switch (q.use_case) {
+     case "coding":
+       return {
+-        title: "👋 Welcome to Multica — let's work together",
++        title: "👋 Welcome to Alien Agentic — let's work together",
+         description: `${header}Hi agent, this is ${name}'s first time using Multica. They plan to use you mostly for **coding work**.\n\n${sharedInstructions}`,
+       };
+     case "planning":
+       return {
+-        title: "👋 Welcome to Multica — let's work together",
++        title: "👋 Welcome to Alien Agentic — let's work together",
+         description: `${header}Hi agent, this is ${name}'s first time using Multica. They want your help with **planning and breaking down work**.\n\n${sharedInstructions}`,
+       };
+     case "writing_research":
+       return {
+-        title: "👋 Welcome to Multica — let's work together",
++        title: "👋 Welcome to Alien Agentic — let's work together",
+         description: `${header}Hi agent, this is ${name}'s first time using Multica. They'll use you for **research and writing** — drafting, summarizing, analysis.\n\n${sharedInstructions}`,
+       };
+     case "explore":
+       return {
+-        title: "👋 Welcome to Multica — let's work together",
++        title: "👋 Welcome to Alien Agentic — let's work together",
+         description: `${header}Hi agent, this is ${name}'s first time using Multica. They're **exploring** what Multica can do — no specific goal yet.\n\n${exploreInstructions}`,
+       };
+     case "other": {
+@@ -89,13 +89,13 @@ export function buildWelcomeIssueText(
+         ? `They told us they want to use you for: "${customUseCase}".`
+         : `They haven't narrowed down their use case yet.`;
+       return {
+-        title: "👋 Welcome to Multica — let's work together",
++        title: "👋 Welcome to Alien Agentic — let's work together",
+         description: `${header}Hi agent, this is ${name}'s first time using Multica. ${contextLine}\n\n${sharedInstructions}`,
+       };
+     }
+     default:
+       return {
+-        title: "👋 Welcome to Multica — let's work together",
++        title: "👋 Welcome to Alien Agentic — let's work together",
+         description: `${header}Hi agent, this is ${name}'s first time using Multica.\n\n${sharedInstructions}`,
+       };
+   }
+diff --git a/packages/views/settings/components/preferences-tab.tsx b/packages/views/settings/components/preferences-tab.tsx
+index bc45ccd..7c7427a 100644
+--- a/packages/views/settings/components/preferences-tab.tsx
++++ b/packages/views/settings/components/preferences-tab.tsx
+@@ -112,6 +112,7 @@ export function PreferencesTab() {
+   const languageOptions: { value: SupportedLocale; label: string }[] = [
+     { value: "en", label: t(($) => $.preferences.language.english) },
+     { value: "zh-Hans", label: t(($) => $.preferences.language.chinese) },
++    { value: "ko", label: "한국어" },
+   ];
+ 
+   // Persist locally → sync to user.language → reload. Reload (vs in-place
+diff --git a/server/internal/handler/auth.go b/server/internal/handler/auth.go
+index d40a50b..eda9206 100644
+--- a/server/internal/handler/auth.go
++++ b/server/internal/handler/auth.go
+@@ -45,6 +45,7 @@ const devVerificationCodeEnv = "MULTICA_DEV_VERIFICATION_CODE"
+ var supportedLanguages = map[string]struct{}{
+ 	"en":      {},
+ 	"zh-Hans": {},
++	"ko":      {},
+ }
+ 
+ type UserResponse struct {
