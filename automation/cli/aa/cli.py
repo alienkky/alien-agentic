@@ -642,5 +642,236 @@ def serve(
         )
 
 
+# ──────────────────────────────────────────────────────────────────────────
+# aa seed
+# ──────────────────────────────────────────────────────────────────────────
+_UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?"
+                      r"[0-9a-fA-F]{4}-?[0-9a-fA-F]{12}$")
+
+
+def _psql(container: str, sql: str) -> tuple[int, str, str]:
+    """Multica postgres 컨테이너 안에서 psql 단일 쿼리 — -tAc 로 값만 받는다."""
+    result = subprocess.run(
+        [
+            "docker", "exec", "-e", "PGPASSWORD=multica", container,
+            "psql", "-U", "multica", "-d", "multica", "-tAc", sql,
+        ],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+    )
+    return result.returncode, result.stdout.strip(), result.stderr.strip()
+
+
+@app.command()
+def seed(
+    slug: str = typer.Option(
+        "alien-agentic", "--slug", help="대상 워크스페이스 slug"
+    ),
+    email: str = typer.Option(
+        None, "--email", help="owner 사용자 이메일 (사용자가 여럿일 때 지정)"
+    ),
+    container: str = typer.Option(
+        "multica-postgres-1", "--container", help="Multica postgres 컨테이너 이름"
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="DB 변경 없이 발견한 ID + 계획만 출력"
+    ),
+) -> None:
+    """27명 외계 동료를 Multica DB에 시드 — ID 자동 탐색 + 런타임 자동 생성.
+
+    수작업 psql 5단계(README 3~6단계)를 한 명령으로 압축한다. 모든 DB 작업은
+    `docker exec` 로 컨테이너 안에서 처리하므로 postgres 포트 노출이 필요 없다.
+    """
+    console.rule("🛸 aa seed — 27명 외계 동료 시드")
+
+    # 0) docker + 컨테이너 확인
+    ps = subprocess.run(
+        ["docker", "ps", "--format", "{{.Names}}"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+    )
+    if ps.returncode != 0:
+        console.print(
+            "[red]docker 에 연결할 수 없습니다.[/red] "
+            "Docker Desktop 이 켜져 있고 `aa serve` 로 Multica 가 떠 있어야 합니다."
+        )
+        raise typer.Exit(1)
+    names = ps.stdout.split()
+    if container not in names:
+        console.print(
+            f"[red]컨테이너 '{container}' 를 찾을 수 없습니다.[/red]\n"
+            f"[dim]현재 실행 중: {', '.join(names) or '(없음)'}[/dim]\n"
+            "[dim]`aa serve` 로 Multica 를 먼저 띄우세요. "
+            "이름이 다르면 --container 로 지정.[/dim]"
+        )
+        raise typer.Exit(1)
+
+    # 1) WORKSPACE_ID 탐색 — slug 기준
+    rc, ws_id, err = _psql(
+        container, f"SELECT id FROM workspace WHERE slug = '{slug}'"
+    )
+    if rc != 0:
+        console.print(f"[red]workspace 조회 실패:[/red] {err}")
+        raise typer.Exit(1)
+    ws_id = ws_id.splitlines()[0].strip() if ws_id else ""
+    if not ws_id:
+        console.print(
+            f"[red]slug '{slug}' 인 워크스페이스가 없습니다.[/red]\n"
+            "[dim]http://localhost:3000 에서 회원가입 후 워크스페이스를 "
+            "먼저 만드세요 (slug 가 다르면 --slug 로 지정).[/dim]"
+        )
+        raise typer.Exit(1)
+
+    # 2) OWNER_ID 탐색 — 사용자가 하나면 자동, 여럿이면 --email 필요
+    if email:
+        rc, out, err = _psql(
+            container, f'SELECT id FROM "user" WHERE email = \'{email}\''
+        )
+    else:
+        rc, out, err = _psql(container, 'SELECT id FROM "user"')
+    if rc != 0:
+        console.print(f"[red]user 조회 실패:[/red] {err}")
+        raise typer.Exit(1)
+    user_ids = [ln.strip() for ln in out.splitlines() if ln.strip()]
+    if not user_ids:
+        console.print(
+            "[red]사용자가 없습니다.[/red] "
+            "http://localhost:3000 에서 회원가입을 먼저 하세요."
+        )
+        raise typer.Exit(1)
+    if len(user_ids) > 1:
+        console.print(
+            f"[red]사용자가 {len(user_ids)}명입니다 — "
+            "--email 로 owner 를 지정하세요.[/red]"
+        )
+        raise typer.Exit(1)
+    owner_id = user_ids[0]
+
+    # 3) RUNTIME_ID 탐색 — 없으면 fake agent_runtime 1개 생성
+    rc, rt_id, err = _psql(
+        container,
+        f"SELECT id FROM agent_runtime WHERE workspace_id = '{ws_id}' "
+        "ORDER BY created_at DESC LIMIT 1",
+    )
+    if rc != 0:
+        console.print(f"[red]agent_runtime 조회 실패:[/red] {err}")
+        raise typer.Exit(1)
+    rt_id = rt_id.splitlines()[0].strip() if rt_id else ""
+    runtime_created = False
+    if not rt_id and not dry_run:
+        rc, _, err = _psql(
+            container,
+            "INSERT INTO agent_runtime "
+            "(workspace_id, owner_id, name, runtime_mode, provider, status) "
+            f"VALUES ('{ws_id}', '{owner_id}', 'alien-agentic-local', "
+            "'local', 'claude_code', 'online')",
+        )
+        if rc != 0:
+            console.print(f"[red]agent_runtime 생성 실패:[/red] {err}")
+            raise typer.Exit(1)
+        rc, rt_id, err = _psql(
+            container,
+            f"SELECT id FROM agent_runtime WHERE workspace_id = '{ws_id}' "
+            "ORDER BY created_at DESC LIMIT 1",
+        )
+        rt_id = rt_id.splitlines()[0].strip() if rt_id else ""
+        runtime_created = True
+
+    console.print(f"[dim]WORKSPACE_ID:[/dim] {ws_id}")
+    console.print(f"[dim]OWNER_ID:    [/dim] {owner_id}")
+    console.print(
+        f"[dim]RUNTIME_ID:  [/dim] {rt_id or '(신규 생성 예정)'}"
+        + ("  [green](신규 생성)[/green]" if runtime_created else "")
+    )
+
+    agents = load_all()
+    console.print(f"[dim]발견된 외계 동료:[/dim] {len(agents)}명\n")
+
+    if dry_run:
+        console.print("[yellow]--dry-run: DB 변경 없음[/yellow]")
+        for a in agents:
+            console.print(
+                f"  + {a.name:<22} ({division_of(a.name):<5} {a.model})"
+            )
+        console.print(
+            f"\n[dim]위 {len(agents)}건이 '{slug}' 워크스페이스에 "
+            "INSERT 될 예정입니다 (이미 있는 name 은 SKIP).[/dim]"
+        )
+        return
+
+    # UUID 형식 방어 — SQL 인터폴레이션 전에 검증
+    for label, val in (
+        ("WORKSPACE_ID", ws_id), ("OWNER_ID", owner_id), ("RUNTIME_ID", rt_id)
+    ):
+        if not _UUID_RE.match(val):
+            console.print(
+                f"[red]{label} 형식이 UUID 가 아닙니다: {val}[/red]\n"
+                "[dim]스키마가 예상과 다릅니다 — 이 메시지를 알려주세요.[/dim]"
+            )
+            raise typer.Exit(1)
+
+    # 4) 27명 INSERT SQL 생성 — dollar-quoting 으로 본문(따옴표·줄바꿈) 안전 처리
+    tag = "AASEED"
+    dollar = f"${tag}$"
+    for a in agents:
+        if dollar in a.body or dollar in a.description:
+            console.print(
+                f"[red]'{a.name}' 정의에 예약어 {dollar} 가 들어 있습니다.[/red]"
+            )
+            raise typer.Exit(1)
+
+    def dq(s: str) -> str:
+        return f"{dollar}{s}{dollar}"
+
+    runtime_config_json = '{"provider": "claude_code"}'
+    statements: list[str] = []
+    for a in agents:
+        div = division_of(a.name)
+        description = f"[{div}] {a.description}"
+        statements.append(
+            "INSERT INTO agent ("
+            "workspace_id, owner_id, runtime_id, name, description, "
+            "instructions, runtime_mode, runtime_config, visibility, model, "
+            "status, max_concurrent_tasks) "
+            "SELECT "
+            f"'{ws_id}', '{owner_id}', '{rt_id}', "
+            + dq(a.name) + ", " + dq(description) + ", "
+            + dq(a.body.strip()) + ", 'local', "
+            + dq(runtime_config_json) + "::jsonb, 'workspace', "
+            + dq(a.model) + ", 'offline', 1 "
+            "WHERE NOT EXISTS (SELECT 1 FROM agent WHERE "
+            f"workspace_id = '{ws_id}' AND name = " + dq(a.name) + ");"
+        )
+
+    sql_text = "BEGIN;\n" + "\n".join(statements) + "\nCOMMIT;\n"
+
+    with console.status("[cyan]27명 시드 중...[/cyan]"):
+        result = subprocess.run(
+            [
+                "docker", "exec", "-i", "-e", "PGPASSWORD=multica", container,
+                "psql", "-U", "multica", "-d", "multica",
+                "-v", "ON_ERROR_STOP=1",
+            ],
+            input=sql_text, capture_output=True, text=True,
+            encoding="utf-8", errors="replace",
+        )
+
+    if result.returncode != 0:
+        console.print("[red]시드 실패 — psql 에러:[/red]")
+        console.print(result.stderr or "(stderr 비어 있음)")
+        console.print(
+            "[dim]스키마가 다르면 위 에러를 그대로 알려주세요 — "
+            "컬럼명을 맞추겠습니다.[/dim]"
+        )
+        raise typer.Exit(1)
+
+    inserted = result.stdout.count("INSERT 0 1")
+    skipped = result.stdout.count("INSERT 0 0")
+    console.print(
+        f"[green]✓ 시드 완료:[/green] 신규 {inserted}명 / 스킵 {skipped}명"
+    )
+    console.print(
+        "  http://localhost:3000 → Settings → Agents 에서 확인하세요."
+    )
+
+
 if __name__ == "__main__":
     app()

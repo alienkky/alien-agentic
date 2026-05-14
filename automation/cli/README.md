@@ -124,7 +124,7 @@ aa hello
 
 ---
 
-## 명령어 (v0.1.0 — 6개)
+## 명령어 (v0.1.0 — 8개)
 
 | 명령 | 무엇을 |
 |---|---|
@@ -141,6 +141,9 @@ aa hello
 | `aa daily-log yesterday` | 어제 일지 |
 | `aa daily-log today --edit` | VS Code (또는 `EDITOR`) 로 일지 편집 |
 | `aa push` | shared-memory 변경분 → GitHub 자동 commit + push |
+| `aa serve` | Multica 인트라넷 docker compose 가동 (`--stop` / `--logs`) |
+| `aa seed` | 27명 외계 동료를 Multica DB에 시드 — ID 자동 탐색 + 런타임 자동 생성 |
+| `aa seed --dry-run` | DB 변경 없이 발견한 ID + 시드 계획만 출력 |
 
 ## 자동 라우팅 — 모달리티 → 난이도
 

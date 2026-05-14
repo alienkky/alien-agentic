@@ -14,7 +14,7 @@ alien-config/
 └── migrations/                # 우리 측 추가 마이그레이션 (선택, 향후)
 ```
 
-## 셋업 흐름 (5단계, 약 30~40분)
+## 셋업 흐름 (3단계, 약 15~20분)
 
 ### 1. Multica 본진 가동
 
@@ -47,58 +47,56 @@ make selfhost
 - 워크스페이스 이름: `Alien Agentic` (slug: `alien-agentic`)
 - 본인을 owner로 자동 등록
 
-### 3. WORKSPACE_ID + OWNER_ID 확인
+### 3. 27명 시드 — `aa seed` (권장)
 
-```bash
-docker exec multica-postgres-1 psql -U multica -d multica -c \
-  'SELECT id, slug FROM workspace; SELECT id, email FROM "user";'
+옛 3~6단계(psql 수작업)를 한 명령으로 압축. `WORKSPACE_ID`·`OWNER_ID` 자동 탐색, `agent_runtime` 자동 생성, 27명 INSERT 까지 한 번에:
+
+```powershell
+cd "E:/AlienAgentic/alien-agentic/automation/cli"
+.\.venv\Scripts\aa.exe seed
 ```
 
-결과 메모.
+- 워크스페이스 slug 가 `alien-agentic` 이 아니면 → `aa seed --slug <slug>`
+- 같은 Multica 에 사용자가 여럿이면 → `aa seed --email <기영님 이메일>`
+- 미리보기 (DB 변경 없음) → `aa seed --dry-run`
 
-### 4. 시드용 fake `agent_runtime` 생성
-
-Multica의 `agent.runtime_id` 는 NOT NULL — *daemon runtime에 묶여서* agent가 만들어지는 구조. 정식 흐름은 `multica daemon start` (Phase 2). **시드 단계만 빠르게** 가려면 fake runtime 1개 직접 INSERT:
-
-```bash
-WS_ID="여기-3단계의-workspace-id"
-OWNER_ID="여기-3단계의-owner-id"
-
-docker exec multica-postgres-1 psql -U multica -d multica -c \
-  "INSERT INTO agent_runtime (workspace_id, owner_id, name, runtime_mode, provider, status) VALUES ('$WS_ID', '$OWNER_ID', 'alien-agentic-local', 'local', 'claude_code', 'online');"
-
-# RUNTIME_ID 추출
-RUNTIME_ID=$(docker exec multica-postgres-1 psql -U multica -d multica -t -A -c \
-  "SELECT id FROM agent_runtime WHERE workspace_id = '$WS_ID' ORDER BY created_at DESC LIMIT 1;" | tr -d '\r\n ')
-echo "RUNTIME_ID = $RUNTIME_ID"
+성공 출력:
 ```
-
-### 5. 시드 스크립트 환경 설정
-
-```bash
-cd "E:/AlienAgentic/alien-agentic/automation/intranet/alien-config/seeds"
-cp .env.example .env
-# .env 를 열어서 WORKSPACE_ID, OWNER_ID, RUNTIME_ID 세 자리 채우기
-```
-
-### 6. 27명 시드 실행
-
-```bash
-# alien-config/seeds 폴더에서
-"E:/AlienAgentic/alien-agentic/automation/cli/.venv/Scripts/python.exe" -m pip install -r requirements.txt
-PYTHONUTF8=1 "E:/AlienAgentic/alien-agentic/automation/cli/.venv/Scripts/python.exe" seed_agents.py
-```
-
-성공 출력 예시:
-```
+WORKSPACE_ID: 3f9a...
+OWNER_ID:     7c21...
+RUNTIME_ID:   b88e...  (신규 생성)
 발견된 외계 동료: 27명
-  + agent-architect (HOW, opus)
-  + automation-coder (WHAT, sonnet)
-  ...
-완료: 신규 27명 / 스킵 0명
+✓ 시드 완료: 신규 27명 / 스킵 0명
 ```
 
 이제 http://localhost:3000 → **Settings → Agents** 에 27명이 정렬되어 보입니다.
+
+> `aa seed` 는 모든 DB 작업을 `docker exec` 로 컨테이너 안에서 처리하므로 postgres 포트 노출이 필요 없다. 같은 `name` 이 이미 있으면 SKIP (idempotent).
+
+---
+
+### 수작업 시드 (대안 — `aa seed` 가 막힐 때)
+
+스키마가 예상과 다르거나 `aa seed` 가 실패하면, `seed_agents.py` 로 직접:
+
+```bash
+# (a) ID 확인
+docker exec multica-postgres-1 psql -U multica -d multica -c \
+  'SELECT id, slug FROM workspace; SELECT id, email FROM "user";'
+
+# (b) fake agent_runtime 생성 — agent.runtime_id 가 NOT NULL 이라 필요
+WS_ID="(a 의 workspace id)"; OWNER_ID="(a 의 owner id)"
+docker exec multica-postgres-1 psql -U multica -d multica -c \
+  "INSERT INTO agent_runtime (workspace_id, owner_id, name, runtime_mode, provider, status) VALUES ('$WS_ID', '$OWNER_ID', 'alien-agentic-local', 'local', 'claude_code', 'online');"
+docker exec multica-postgres-1 psql -U multica -d multica -t -A -c \
+  "SELECT id FROM agent_runtime WHERE workspace_id = '$WS_ID' ORDER BY created_at DESC LIMIT 1;"
+
+# (c) seeds/.env 채우고 스크립트 실행 (postgres 5432 포트가 호스트에 노출돼 있어야 함)
+cd "E:/AlienAgentic/alien-agentic/automation/intranet/alien-config/seeds"
+cp .env.example .env   # WORKSPACE_ID, OWNER_ID, RUNTIME_ID 세 자리 채우기
+"E:/AlienAgentic/alien-agentic/automation/cli/.venv/Scripts/python.exe" -m pip install -r requirements.txt
+PYTHONUTF8=1 "E:/AlienAgentic/alien-agentic/automation/cli/.venv/Scripts/python.exe" seed_agents.py
+```
 
 ## 다시 시드할 때 (idempotent)
 
@@ -127,7 +125,7 @@ docker compose -f docker-compose.selfhost.yml up -d
 
 ## 다음 자리 (Phase 1.5 이후)
 
-- `aa serve` — `aa` CLI 한 명령으로 Multica 가동
-- `aa seed` — `seed_agents.py` 를 CLI에서 호출
-- `aa sync` — `.claude/agents/*.md` 변경분을 Multica DB에 자동 반영 (양방향)
+- ~~`aa serve` — `aa` CLI 한 명령으로 Multica 가동~~ ✅ 완료
+- ~~`aa seed` — 27명 시드를 CLI 한 명령으로~~ ✅ 완료
+- `aa sync` — `.claude/agents/*.md` 변경분을 Multica DB에 자동 반영 (양방향, UPDATE 포함)
 - Tailscale 연결로 모바일 접근 (`docs/guides/tailscale-setup.md`)
