@@ -47,7 +47,9 @@ aa call ui-ux-designer "대시보드 히어로 일러스트" --modality image
 aa call ui-ux-designer "배너 시안" --dry-run
 ```
 
-`aa` 는 내부적으로 Codex 에 `$imagegen` 프롬프트를 넘기고, 생성된 이미지를 작업 폴더에 저장하도록 지시한다. 응답 패널에 저장 경로가 표시되고, 호출 기록은 에이전트 메모리 `work.md` 에 누적된다.
+`aa` 는 내부적으로 Codex 에 `$imagegen` 프롬프트를 넘긴다. Codex 는 생성한 이미지를 기본적으로 **`~/.codex/generated_images/`** 에 떨군 뒤, `aa` 의 지시에 따라 현재 작업 폴더로 옮긴다. 응답 패널에 최종 저장 경로가 표시되고, 호출 기록은 에이전트 메모리 `work.md` 에 누적된다.
+
+> `gpt-image-2` 는 2026-04-21 부터 Codex CLI 기본 이미지 모델이다. **ChatGPT 구독 사용량**으로 처리되며 별도 API 키가 필요 없다 (대량 배치는 `OPENAI_API_KEY` 를 걸어 API 과금으로 돌릴 수도 있으나 선택).
 
 ### 이미지 키워드 (자동 감지)
 
