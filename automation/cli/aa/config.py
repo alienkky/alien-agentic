@@ -92,38 +92,3 @@ CODEX_BIN = _find_codex_bin()
 # ChatGPT(Codex) 모델 — 비우면 Codex CLI 의 계정 기본 모델을 그대로 사용.
 # 모델명이 바뀌어도 깨지지 않도록 기본값은 빈 문자열.
 CODEX_MODEL = os.environ.get("CODEX_MODEL", "")
-
-
-def _find_gemini_bin() -> Path | None:
-    """Google Gemini CLI 바이너리 자동 감지 — 이미지 생성 보조 공급자."""
-    from shutil import which
-
-    env = os.environ.get("GEMINI_BIN")
-    if env and Path(env).exists():
-        return Path(env)
-
-    in_path = which("gemini")
-    if in_path:
-        return Path(in_path)
-
-    home = Path.home()
-    candidates = [
-        home / ".local" / "bin" / "gemini.exe",
-        home / ".local" / "bin" / "gemini",
-        home / "AppData" / "Roaming" / "npm" / "gemini.cmd",
-        home / "AppData" / "Roaming" / "npm" / "gemini",
-        Path("C:/Program Files/nodejs/gemini.cmd"),
-    ]
-    for p in candidates:
-        if p.exists():
-            return p
-    return None
-
-
-GEMINI_BIN = _find_gemini_bin()
-
-# Gemini 이미지 생성용 — 구독 로그인만으로는 이미지 생성이 풀리지 않아 API 키가 필요.
-# .env 에만 두고 git 추적 금지. 없으면 `--provider gemini` 이미지 호출은 막힌다.
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-# Gemini 이미지 모델 — 비우면 Gemini CLI 기본값 사용.
-GEMINI_IMAGE_MODEL = os.environ.get("GEMINI_IMAGE_MODEL", "")

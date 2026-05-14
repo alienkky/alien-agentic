@@ -35,8 +35,6 @@ from aa.config import (
     DAILY_LOGS,
     DASHBOARD,
     ENV_FILE,
-    GEMINI_API_KEY,
-    GEMINI_BIN,
     INTERVENTIONS,
     MESSAGES,
     ROOT,
@@ -175,8 +173,6 @@ def _count_open(folder) -> int:
 _PROVIDER_LABELS = {
     "claude": "Claude Max",
     "chatgpt": "ChatGPT Pro",
-    "gemini": "Gemini",
-    "none": "—",
 }
 
 
@@ -191,10 +187,10 @@ def call(
         None, "--difficulty", help="난이도 수동 지정: T1 | T2 | T3"
     ),
     provider: str = typer.Option(
-        None, "--provider", help="공급자 강제 지정: claude | chatgpt | gemini"
+        None, "--provider", help="공급자 강제 지정: claude | chatgpt"
     ),
     modality: str = typer.Option(
-        None, "--modality", help="모달리티 수동 지정: text | image | video"
+        None, "--modality", help="모달리티 수동 지정: text | image"
     ),
     dry_run: bool = typer.Option(
         False, "--dry-run", help="AI 호출 없이 라우팅 결과만 출력"
@@ -248,29 +244,12 @@ def call(
     console.print(f"[dim]판정 근거:[/dim] {r.reason}")
     console.print(f"[bold]요청:[/bold] {prompt}\n")
 
-    # 동영상 — 무-API-키 CLI 생성 경로가 없어 자동 생성하지 않고 안내만 한다
-    if r.modality == "video":
-        console.print(
-            Panel(
-                "동영상 생성은 현재 *API 키 없이 구독만으로* 굴러가는 CLI 경로가\n"
-                "없어 aa 가 자동 생성하지 않습니다.\n\n"
-                "[bold]지금 만들려면 — Gemini 앱 웹 UI[/bold]\n"
-                "  https://gemini.google.com  →  Veo 동영상 생성\n\n"
-                f"[dim]요청 내용:[/dim] {prompt}\n\n"
-                "[dim]향후 Gemini + Vertex AI 셋업이 정해지면 자동화 예정.\n"
-                "상세: docs/guides/media-generation.md[/dim]",
-                title="동영상 생성 — 현재 보류",
-                border_style="yellow",
-            )
-        )
-        return
-
     if dry_run:
         console.print("[yellow]--dry-run: AI 호출 생략[/yellow]")
         console.print(f"[dim]시스템 프롬프트 위치:[/dim] {a.path}")
         return
 
-    # 공급자별 사전 점검
+    # 공급자별 사전 점검 — 이미지는 항상 Codex(chatgpt) 경로
     if r.provider == "chatgpt":
         if CODEX_BIN is None:
             console.print(
@@ -278,24 +257,6 @@ def call(
                 "[dim]ChatGPT Pro 연동은 OpenAI Codex CLI 가 필요합니다.[/dim]\n"
                 "[dim]설치 가이드: docs/guides/codex-cli-setup.md[/dim]\n"
                 "[dim]다른 위치라면 `.env` 에 CODEX_BIN=절대경로 박기.[/dim]"
-            )
-            raise typer.Exit(1)
-    elif r.provider == "gemini":
-        if GEMINI_BIN is None:
-            console.print(
-                "[red]gemini CLI 를 찾지 못했습니다.[/red]\n"
-                "[dim]Gemini 이미지 생성은 Google Gemini CLI 가 필요합니다.[/dim]\n"
-                "[dim]설치 가이드: docs/guides/media-generation.md[/dim]\n"
-                "[dim]다른 위치라면 `.env` 에 GEMINI_BIN=절대경로 박기.[/dim]"
-            )
-            raise typer.Exit(1)
-        if not GEMINI_API_KEY:
-            console.print(
-                "[red]GEMINI_API_KEY 가 .env 에 없습니다.[/red]\n"
-                "[dim]Gemini 는 구독 로그인만으로 이미지 생성이 풀리지 않아 "
-                "API 키가 필요합니다.[/dim]\n"
-                "[dim]무-API-키로 가려면 `--provider chatgpt` (Codex $imagegen) 사용.[/dim]\n"
-                "[dim]상세: docs/guides/media-generation.md[/dim]"
             )
             raise typer.Exit(1)
     elif CLAUDE_BIN is None:
@@ -311,10 +272,7 @@ def call(
         f"[cyan]{a.name} 호출 중 ({provider_label} · {model_label})...[/cyan]"
     ):
         if r.modality == "image":
-            if r.provider == "gemini":
-                returncode, response, stderr = _run_gemini_image(prompt, r.model)
-            else:
-                returncode, response, stderr = _run_codex_image(a, prompt, r.model)
+            returncode, response, stderr = _run_codex_image(a, prompt, r.model)
         elif r.provider == "chatgpt":
             returncode, response, stderr = _run_codex(
                 _codex_text_prompt(a, client, prompt), r.model
@@ -323,9 +281,7 @@ def call(
             returncode, response, stderr = _run_claude(agent, prompt, r.model)
 
     if returncode != 0:
-        cli_name = {"chatgpt": "codex", "gemini": "gemini"}.get(
-            r.provider, "claude"
-        )
+        cli_name = "codex" if r.provider == "chatgpt" else "claude"
         console.print(f"[red]{cli_name} CLI 에러 (exit {returncode}):[/red]")
         console.print(stderr or "(stderr 비어 있음)")
         raise typer.Exit(returncode)
@@ -422,25 +378,6 @@ def _run_codex_image(a, prompt: str, model: str) -> tuple[int, str, str]:
         "생성한 이미지를 현재 작업 폴더에 저장하고, 저장 경로를 명시해줘."
     )
     return _run_codex(full_prompt, model)
-
-
-def _run_gemini_image(prompt: str, model: str) -> tuple[int, str, str]:
-    """Google Gemini CLI 이미지 생성 — GEMINI_API_KEY 필요 (.env 에서 환경으로 상속).
-
-    Gemini 는 구독 로그인만으로 이미지 생성이 풀리지 않아 API 키 경로를 쓴다.
-    """
-    cmd = [str(GEMINI_BIN), "-p", f"다음 설명대로 이미지를 생성해줘: {prompt}"]
-    if model:
-        cmd += ["-m", model]
-    result = subprocess.run(
-        cmd,
-        cwd=str(ROOT),
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
-    return result.returncode, (result.stdout or "").strip(), result.stderr or ""
 
 
 def _append_memory(agent_name: str, response: str, prompt: str, r) -> None:

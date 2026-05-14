@@ -1,13 +1,12 @@
 """모달리티·난이도 라우터 — 토큰 0으로 로컬 휴리스틱 판정.
 
 두 축으로 라우팅한다:
-1) 모달리티 — text / image / video
+1) 모달리티 — text / image
 2) (text 일 때) 난이도 — T1 경량 / T2 표준 / T3 심층
 
 정책:
 - text: "Claude 우선, GPT 보조" (중립은 Claude Sonnet)
-- image: Codex `$imagegen`(무-API-키, 기본) 또는 Gemini CLI(API 키 필요)
-- video: 깔끔한 무-API-키 CLI 경로가 없어 현재 보류 — aa 는 안내만 한다.
+- image: Codex `$imagegen` — ChatGPT Pro 구독 사용량, 별도 API 키 X
 """
 
 from __future__ import annotations
@@ -15,21 +14,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from aa.agents import Agent
-from aa.config import CODEX_MODEL, GEMINI_IMAGE_MODEL
+from aa.config import CODEX_MODEL
 
 # ── 모달리티 ────────────────────────────────────────────────────────────────
-MODALITIES = ("text", "image", "video")
+MODALITIES = ("text", "image")
 
 # 이미지 생성 의도 키워드 — 오탐을 줄이려 "생성 맥락"이 분명한 단어만
 IMAGE_KEYWORDS = (
     "로고", "배너", "썸네일", "일러스트", "삽화", "포스터", "목업",
     "그려줘", "그려 줘", "이미지 생성", "이미지 만들", "그림 생성",
     "그림 그려", "그림으로", "아이콘 만들", "이미지로 만들",
-)
-# 동영상 생성 의도 키워드
-VIDEO_KEYWORDS = (
-    "동영상", "비디오", "영상 생성", "영상으로", "영상 만들",
-    "모션 그래픽", "애니메이션 만들",
 )
 
 # ── 난이도 ──────────────────────────────────────────────────────────────────
@@ -53,17 +47,16 @@ TIER_ROUTING: dict[str, tuple[str, str]] = {
     "T3": ("claude", "opus"),    # 심층 → Claude Opus
 }
 
-# 공급자 — text: claude/chatgpt · image: chatgpt(Codex $imagegen)/gemini
-PROVIDERS = ("claude", "chatgpt", "gemini")
-IMAGE_PROVIDERS = ("chatgpt", "gemini")
+# 공급자 — text: claude/chatgpt · image: chatgpt(Codex $imagegen)
+PROVIDERS = ("claude", "chatgpt")
 
 
 @dataclass
 class Route:
-    modality: str    # text | image | video
-    tier: str        # T1 | T2 | T3 · 이미지/동영상은 "-"
-    provider: str    # claude | chatgpt | gemini | none
-    model: str       # claude: sonnet/opus · chatgpt/gemini: 모델명 (빈 값이면 기본)
+    modality: str    # text | image
+    tier: str        # T1 | T2 | T3 · 이미지는 "-"
+    provider: str    # claude | chatgpt
+    model: str       # claude: sonnet/opus · chatgpt: CODEX_MODEL (빈 값이면 기본)
     reason: str      # 판정 근거 한 줄
 
 
@@ -72,15 +65,11 @@ def classify_modality(prompt: str, override: str | None) -> tuple[str, str]:
     if override:
         return override, f"수동 지정 (--modality {override})"
 
-    v_hits = [k for k in VIDEO_KEYWORDS if k in prompt]
-    if v_hits:
-        return "video", f"동영상 키워드 {v_hits}"
-
     i_hits = [k for k in IMAGE_KEYWORDS if k in prompt]
     if i_hits:
         return "image", f"이미지 키워드 {i_hits}"
 
-    return "text", "미디어 키워드 없음 → 텍스트"
+    return "text", "이미지 키워드 없음 → 텍스트"
 
 
 def classify(agent: Agent, prompt: str, override: str | None) -> tuple[str, str]:
@@ -139,37 +128,20 @@ def route(
     """모달리티·난이도·수동 오버라이드를 받아 최종 라우팅을 결정한다."""
     mod, mod_reason = classify_modality(prompt, modality)
 
-    # 동영상 — 무-API-키 CLI 경로가 없어 생성하지 않고 안내만 한다
-    if mod == "video":
-        return Route(
-            modality="video", tier="-", provider="none", model="",
-            reason=mod_reason + " · 현재 자동 생성 보류 (안내만)",
-        )
-
-    # 이미지 — Codex $imagegen(무-API-키, 기본) 또는 Gemini CLI(API 키 필요)
+    # 이미지 — Codex `$imagegen` 한 경로. ChatGPT Pro 구독, 별도 API 키 X.
     if mod == "image":
-        if provider == "gemini":
-            chosen = "gemini"
-        else:
-            chosen = "chatgpt"
-            if provider == "claude":
-                mod_reason += " · claude는 이미지 생성 불가 → chatgpt(Codex)로 대체"
-        model = GEMINI_IMAGE_MODEL if chosen == "gemini" else CODEX_MODEL
+        if provider == "claude":
+            mod_reason += " · claude는 이미지 생성 불가 → chatgpt(Codex)로 대체"
         return Route(
-            modality="image", tier="-", provider=chosen, model=model,
-            reason=mod_reason,
+            modality="image", tier="-", provider="chatgpt",
+            model=CODEX_MODEL, reason=mod_reason,
         )
 
     # 텍스트 — 난이도 라우팅
     tier, reason = classify(agent, prompt, difficulty)
     base_provider, base_model = TIER_ROUTING[tier]
 
-    if provider == "gemini":
-        # 텍스트는 "Claude 우선" 정책 — gemini 텍스트 라우팅은 미지원
-        chosen = "claude"
-        model = "opus" if tier == "T3" else "sonnet"
-        reason += " · gemini 텍스트 미지원 → claude 대체"
-    elif provider == "claude":
+    if provider == "claude":
         chosen = "claude"
         model = "opus" if tier == "T3" else "sonnet"
         reason += " · 공급자 수동 지정(claude)"
