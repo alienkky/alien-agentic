@@ -136,11 +136,11 @@ aa list
 # WHY Division만
 aa list -d WHY
 
-# 베먼 BLBP 가상 클라이언트로 원인 진단 시뮬레이션 (dry-run, API 호출 X)
-aa call origin-reader "베먼 BLBP의 4층 진단" --dry-run
+# Alien Agentic 자체 진단 시뮬레이션 (dry-run, API 호출 X)
+aa call origin-reader "Alien Agentic의 4층 진단" --dry-run
 
-# 실제 API 호출 (.env 의 키 사용)
-aa call origin-reader "베먼 BLBP의 4층 진단" -c _self-baremonday-blbp
+# 실제 호출 (Claude Max 토큰 경유)
+aa call origin-reader "Alien Agentic의 4층 진단" -c _self-alien-agentic
 
 # 오늘 진척 GitHub 푸시
 aa push "WHY Session v2 진척"

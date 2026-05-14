@@ -15,7 +15,7 @@
 {YYYYMMDD-HHMM}-{slug}.md
 ```
 
-예: `20260513-2230-blbp-pivot-pause.md`
+예: `20260513-2230-pivot-pause.md`
 
 ## 표준 포맷
 

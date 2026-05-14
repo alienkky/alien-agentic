@@ -51,6 +51,7 @@ HERE = Path(__file__).resolve().parent
 # alien-config/seeds/ → alien-config/ → intranet/ → automation/ → 루트
 ROOT = HERE.parent.parent.parent.parent
 AGENTS_DIR = ROOT / ".claude" / "agents"
+CONSTITUTION_PATH = ROOT / "CONSTITUTION.md"
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -166,10 +167,17 @@ def main() -> int:
         (parse_agent(p) for p in AGENTS_DIR.glob("*.md")),
         key=lambda a: a.name,
     )
+
+    # 회사 헌법 — 모든 에이전트의 instructions 앞에 prepend 하여 27명 전원이 숙지하도록.
+    constitution = ""
+    if CONSTITUTION_PATH.exists():
+        constitution = CONSTITUTION_PATH.read_text(encoding="utf-8").strip()
+
     print(f"발견된 외계 동료: {len(agents)}명")
     print(f"대상 DB: {db_url.split('@')[-1]}")
     print(f"WORKSPACE_ID: {workspace_id}")
     print(f"OWNER_ID:     {owner_id}")
+    print(f"헌법 prepend: {'O (' + str(len(constitution)) + ' chars)' if constitution else 'X (CONSTITUTION.md 없음)'}")
     print()
 
     conn = psycopg2.connect(db_url)
@@ -195,6 +203,19 @@ def main() -> int:
         # Division 정보는 description 앞에 prefix 로 박음 (Multica UI에서 한 줄로 보임)
         description = f"[{div}] {a.description}"
 
+        # 헌법 + 개별 정의 — 27명 전원이 회사 헌법을 숙지한 채로 일하도록.
+        if constitution:
+            instructions = (
+                f"{constitution}\n\n"
+                f"{'=' * 72}\n"
+                f"# 위는 Alien Agentic 회사 헌법 전문이다. 항상 이 헌법을 따른다.\n"
+                f"# 아래는 당신({a.name}, {div} Division)의 개별 역할 정의다.\n"
+                f"{'=' * 72}\n\n"
+                f"{a.instructions}"
+            )
+        else:
+            instructions = a.instructions
+
         cur.execute(
             """
             INSERT INTO agent (
@@ -213,7 +234,7 @@ def main() -> int:
                 runtime_id,
                 a.name,
                 description,
-                a.instructions,
+                instructions,
                 runtime_config,
                 a.model,
             ),

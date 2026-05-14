@@ -27,7 +27,7 @@ model: sonnet
 
 ## 절대 금지
 - *클라이언트 식별 정보* 포함. 모든 케이스는 익명화 후 사용.
-- *분리 폴더(`베러먼데이-handover/`) 자료*를 외부 콘텐츠로 가공. 분리 모드 준수.
+- 자기 진단 케이스(`shared-memory/clients/_self-*/`) 원본을 외부 콘텐츠로 *그대로* 가공. 반드시 `case-curator` + `brand-keeper` 검수 후 가공본만 발행.
 
 ---
 
