@@ -7,6 +7,8 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
+from pathlib import Path
 
 # Windows 콘솔 UTF-8 보장 — cp949 (한국 Windows 기본) 이모지 인코딩 에러 방지
 if sys.platform == "win32":
@@ -28,6 +30,7 @@ from aa.config import (
     AGENT_MEMORY,
     AGENTS_DIR,
     CLAUDE_BIN,
+    CODEX_BIN,
     COMPANY,
     DAILY_LOGS,
     DASHBOARD,
@@ -37,6 +40,7 @@ from aa.config import (
     ROOT,
     USER_NAME,
 )
+from aa.router import PROVIDERS, TIERS, route
 
 app = typer.Typer(
     name="aa",
@@ -173,11 +177,17 @@ def call(
     client: str = typer.Option(
         "_self", "--client", "-c", help="클라이언트 이름 (없으면 _self)"
     ),
+    difficulty: str = typer.Option(
+        None, "--difficulty", help="난이도 수동 지정: T1 | T2 | T3"
+    ),
+    provider: str = typer.Option(
+        None, "--provider", help="공급자 강제 지정: claude | chatgpt"
+    ),
     dry_run: bool = typer.Option(
-        False, "--dry-run", help="API 호출 없이 컨텍스트만 출력"
+        False, "--dry-run", help="AI 호출 없이 라우팅 결과만 출력"
     ),
 ) -> None:
-    """단일 에이전트 호출 (Anthropic API)."""
+    """단일 에이전트 호출 — 난이도에 따라 Claude / ChatGPT 자동 라우팅."""
     try:
         a = load_one(agent)
     except FileNotFoundError:
@@ -185,17 +195,53 @@ def call(
         console.print("[dim]`aa list` 로 명단 확인.[/dim]")
         raise typer.Exit(1)
 
-    console.rule(f"🛸 Call · {a.name} ({a.model})")
+    # 수동 오버라이드 값 검증
+    if difficulty is not None:
+        difficulty = difficulty.upper()
+        if difficulty not in TIERS:
+            console.print(
+                f"[red]잘못된 난이도: {difficulty}[/red] "
+                f"[dim](가능: {', '.join(TIERS)})[/dim]"
+            )
+            raise typer.Exit(1)
+    if provider is not None:
+        provider = provider.lower()
+        if provider not in PROVIDERS:
+            console.print(
+                f"[red]잘못된 공급자: {provider}[/red] "
+                f"[dim](가능: {', '.join(PROVIDERS)})[/dim]"
+            )
+            raise typer.Exit(1)
+
+    r = route(a, prompt, difficulty, provider)
+    model_label = r.model or "계정 기본"
+    provider_label = "Claude Max" if r.provider == "claude" else "ChatGPT Pro"
+
+    console.rule(f"🛸 Call · {a.name}")
     console.print(f"[dim]Division:[/dim] {division_of(a.name)}")
     console.print(f"[dim]Client:[/dim] {client}")
+    console.print(
+        f"[dim]Route:[/dim] [bold]{r.tier}[/bold] · "
+        f"{provider_label} · {model_label}"
+    )
+    console.print(f"[dim]판정 근거:[/dim] {r.reason}")
     console.print(f"[bold]요청:[/bold] {prompt}\n")
 
     if dry_run:
-        console.print("[yellow]--dry-run: API 호출 생략[/yellow]")
+        console.print("[yellow]--dry-run: AI 호출 생략[/yellow]")
         console.print(f"[dim]시스템 프롬프트 위치:[/dim] {a.path}")
         return
 
-    if CLAUDE_BIN is None:
+    if r.provider == "chatgpt":
+        if CODEX_BIN is None:
+            console.print(
+                "[red]codex CLI 를 찾지 못했습니다.[/red]\n"
+                "[dim]ChatGPT Pro 연동은 OpenAI Codex CLI 가 필요합니다.[/dim]\n"
+                "[dim]설치 가이드: docs/guides/codex-cli-setup.md[/dim]\n"
+                "[dim]다른 위치라면 `.env` 에 CODEX_BIN=절대경로 박기.[/dim]"
+            )
+            raise typer.Exit(1)
+    elif CLAUDE_BIN is None:
         console.print(
             "[red]claude CLI 를 찾지 못했습니다.[/red]\n"
             "[dim]Claude Code 가 설치되어 있어야 합니다 (Max 구독 활용).[/dim]\n"
@@ -204,21 +250,83 @@ def call(
         )
         raise typer.Exit(1)
 
-    # Claude Code CLI 호출 — Max 구독 토큰 경유, 별도 API 키 X
+    with console.status(
+        f"[cyan]{a.name} 호출 중 ({provider_label} · {model_label})...[/cyan]"
+    ):
+        if r.provider == "chatgpt":
+            returncode, response, stderr = _run_codex(a, client, prompt, r.model)
+        else:
+            returncode, response, stderr = _run_claude(agent, prompt, r.model)
+
+    if returncode != 0:
+        cli_name = "codex" if r.provider == "chatgpt" else "claude"
+        console.print(f"[red]{cli_name} CLI 에러 (exit {returncode}):[/red]")
+        console.print(stderr or "(stderr 비어 있음)")
+        raise typer.Exit(returncode)
+
+    if not response:
+        console.print("[yellow]응답이 비어 있습니다.[/yellow]")
+        return
+
+    console.print(
+        Panel(
+            response,
+            title=f"{a.name} 응답 · {provider_label}",
+            border_style="cyan",
+        )
+    )
+
+    _append_memory(a.name, response, prompt, r)
+    console.print(
+        f"\n[green]✓ 메모리 4파일 갱신:[/green] "
+        f"shared-memory/agents/{a.name}/"
+    )
+
+
+def _run_claude(agent: str, prompt: str, model: str) -> tuple[int, str, str]:
+    """Claude Code CLI 호출 — Max 구독 토큰 경유, 별도 API 키 X."""
     cmd = [
         str(CLAUDE_BIN),
         "-p", prompt,
         "--agent", agent,
-        "--model", a.model,
+        "--model", model,
         "--output-format", "text",
         "--no-session-persistence",
         "--add-dir", str(ROOT),
         "--permission-mode", "bypassPermissions",
     ]
+    result = subprocess.run(
+        cmd,
+        cwd=str(ROOT),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    return result.returncode, (result.stdout or "").strip(), result.stderr or ""
 
-    with console.status(
-        f"[cyan]{a.name} 호출 중 (Claude Max · {a.model})...[/cyan]"
-    ):
+
+def _run_codex(a, client: str, prompt: str, model: str) -> tuple[int, str, str]:
+    """OpenAI Codex CLI 호출 — ChatGPT Pro 구독 사용량 경유, 별도 API 키 X.
+
+    Codex 는 `--agent` 개념이 없으므로 에이전트 정의를 프롬프트에 직접 주입한다.
+    최종 답변은 `--output-last-message` 로 파일에 받아 군더더기 로그를 걸러낸다.
+    """
+    full_prompt = (
+        f"너는 아래 정의된 '{a.name}' 외계 에이전트로서 응답한다. "
+        "에이전트 정의를 시스템 프롬프트로 삼아라.\n\n"
+        f"=== 에이전트 정의 ===\n{a.body.strip()}\n=== 정의 끝 ===\n\n"
+        f"클라이언트: {client}\n사용자 요청: {prompt}"
+    )
+    with tempfile.NamedTemporaryFile(
+        suffix=".txt", delete=False, encoding="utf-8", mode="w"
+    ) as tf:
+        out_path = Path(tf.name)
+    try:
+        cmd = [str(CODEX_BIN), "exec", "-C", str(ROOT), "--skip-git-repo-check"]
+        if model:
+            cmd += ["--model", model]
+        cmd += ["--output-last-message", str(out_path), full_prompt]
         result = subprocess.run(
             cmd,
             cwd=str(ROOT),
@@ -227,31 +335,16 @@ def call(
             encoding="utf-8",
             errors="replace",
         )
-
-    if result.returncode != 0:
-        console.print(
-            f"[red]claude CLI 에러 (exit {result.returncode}):[/red]"
-        )
-        console.print(result.stderr or "(stderr 비어 있음)")
-        raise typer.Exit(result.returncode)
-
-    response = (result.stdout or "").strip()
-    if not response:
-        console.print("[yellow]응답이 비어 있습니다.[/yellow]")
-        return
-
-    console.print(
-        Panel(response, title=f"{a.name} 응답", border_style="cyan")
-    )
-
-    _append_memory(a.name, response, prompt)
-    console.print(
-        f"\n[green]✓ 메모리 4파일 갱신:[/green] "
-        f"shared-memory/agents/{a.name}/"
-    )
+        response = out_path.read_text(encoding="utf-8", errors="replace").strip()
+        if not response:
+            # --output-last-message 가 비면 stdout 으로 폴백
+            response = (result.stdout or "").strip()
+        return result.returncode, response, result.stderr or ""
+    finally:
+        out_path.unlink(missing_ok=True)
 
 
-def _append_memory(agent_name: str, response: str, prompt: str) -> None:
+def _append_memory(agent_name: str, response: str, prompt: str, r) -> None:
     """응답에서 MEMORY UPDATE 섹션을 파싱해 4파일에 append."""
     folder = AGENT_MEMORY / agent_name
     folder.mkdir(parents=True, exist_ok=True)
@@ -264,6 +357,7 @@ def _append_memory(agent_name: str, response: str, prompt: str) -> None:
         f"\n### {now} · {slug}\n"
         f"- 입력: {prompt}\n"
         f"- 호출자: cli\n"
+        f"- 라우팅: {r.tier} · {r.provider} · {r.model or '계정 기본'}\n"
         f"- 응답 길이: {len(response)} chars\n"
     )
     work.write_text(
