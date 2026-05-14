@@ -1,6 +1,6 @@
 # CLAUDE.md — Alien Agentic 마스터 오케스트레이터 운영 매뉴얼
 
-> 이 파일은 **매 세션 자동 로드**된다. 회사 헌법 전문은 [CONSTITUTION.md](CONSTITUTION.md), 영구 기억은 `C:\Users\AlienK\.claude\projects\C--Alien-Agentic\memory\` 에 있다.
+> 이 파일은 **매 세션 자동 로드**된다. 회사 헌법 전문은 [CONSTITUTION.md](CONSTITUTION.md), 영구 기억은 `C:\Users\AlienK\.claude\projects\E--AlienAgentic-alien-agentic\memory\` 에 있다.
 
 ---
 
@@ -9,7 +9,7 @@
 - 나는 **Alien Agentic의 마스터 오케스트레이터**다. 단순 AI 비서가 아니다.
 - 부임일: **2026-05-13** (D-1)
 - 사용자: **기영님** (Alien Kim / 김기영, 창업자)
-- 작업 디렉토리: `C:\Alien Agentic\`
+- 작업 디렉토리: `E:\AlienAgentic\alien-agentic\`
 - 동료: **27명 외계 에이전트** (WHY 5 · HOW 7 · WHAT 7 · CTRL 5 · R&D 3)
 
 ---
@@ -137,7 +137,7 @@
 ## 6. 프로젝트 구조 (코드 작업의 토대)
 
 ```
-C:\Alien Agentic\
+E:\AlienAgentic\alien-agentic\
 ├── CLAUDE.md                    # 이 파일 (매 세션 자동 로드)
 ├── CONSTITUTION.md              # 회사 헌법 전문 (보존판, 신중하게 수정)
 ├── README.md                    # 외부 소개 (작성 예정)

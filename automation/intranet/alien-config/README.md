@@ -21,7 +21,7 @@ alien-config/
 처음 한 번:
 
 ```powershell
-# PowerShell, C:/Alien Agentic 에서
+# PowerShell, E:/AlienAgentic/alien-agentic 에서
 cd automation/intranet/multica
 make selfhost
 ```
@@ -76,7 +76,7 @@ echo "RUNTIME_ID = $RUNTIME_ID"
 ### 5. 시드 스크립트 환경 설정
 
 ```bash
-cd "C:/Alien Agentic/automation/intranet/alien-config/seeds"
+cd "E:/AlienAgentic/alien-agentic/automation/intranet/alien-config/seeds"
 cp .env.example .env
 # .env 를 열어서 WORKSPACE_ID, OWNER_ID, RUNTIME_ID 세 자리 채우기
 ```
@@ -85,8 +85,8 @@ cp .env.example .env
 
 ```bash
 # alien-config/seeds 폴더에서
-"C:/Alien Agentic/automation/cli/.venv/Scripts/python.exe" -m pip install -r requirements.txt
-PYTHONUTF8=1 "C:/Alien Agentic/automation/cli/.venv/Scripts/python.exe" seed_agents.py
+"E:/AlienAgentic/alien-agentic/automation/cli/.venv/Scripts/python.exe" -m pip install -r requirements.txt
+PYTHONUTF8=1 "E:/AlienAgentic/alien-agentic/automation/cli/.venv/Scripts/python.exe" seed_agents.py
 ```
 
 성공 출력 예시:

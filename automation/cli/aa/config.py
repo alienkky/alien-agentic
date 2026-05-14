@@ -15,7 +15,7 @@ def _find_root() -> Path:
     for parent in [here, *here.parents]:
         if (parent / "CLAUDE.md").exists() and (parent / ".claude" / "agents").exists():
             return parent
-    return Path("C:/Alien Agentic")
+    return Path("E:/AlienAgentic/alien-agentic")
 
 
 ROOT = _find_root()

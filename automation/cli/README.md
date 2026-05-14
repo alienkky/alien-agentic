@@ -43,7 +43,7 @@ winget install -e --id Python.Python.3.12
 **Windows · PowerShell** (권장):
 
 ```powershell
-cd "C:/Alien Agentic/automation/cli"
+cd "E:/AlienAgentic/alien-agentic/automation/cli"
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -e .
