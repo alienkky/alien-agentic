@@ -132,18 +132,32 @@ aa hello
 | `aa list` | 27명 외계 동료 명단 (Division · Name · Model · Description) |
 | `aa list -d WHY` | Division 필터 (WHY / HOW / WHAT / CTRL / R&D) |
 | `aa status` | 오늘 일지 + dashboard + 미해결 개입/메시지 카운트 |
-| `aa call <agent> "<prompt>"` | 단일 에이전트 호출 — 난이도 자동 라우팅(Claude/ChatGPT) + 메모리 4파일 자동 갱신 |
+| `aa call <agent> "<prompt>"` | 단일 에이전트 호출 — 모달리티·난이도 자동 라우팅 + 메모리 4파일 자동 갱신 |
 | `aa call <agent> "<prompt>" --difficulty T3` | 난이도 수동 지정 (T1 경량 / T2 표준 / T3 심층) |
-| `aa call <agent> "<prompt>" --provider claude` | 공급자 강제 지정 (claude / chatgpt) |
+| `aa call <agent> "<prompt>" --provider claude` | 공급자 강제 지정 (claude / chatgpt / gemini) |
+| `aa call <agent> "<prompt>" --modality image` | 모달리티 수동 지정 (text / image / video) |
 | `aa call <agent> "<prompt>" --dry-run` | AI 호출 없이 라우팅 결과만 출력 |
 | `aa daily-log` | 오늘 일지 보기 |
 | `aa daily-log yesterday` | 어제 일지 |
 | `aa daily-log today --edit` | VS Code (또는 `EDITOR`) 로 일지 편집 |
 | `aa push` | shared-memory 변경분 → GitHub 자동 commit + push |
 
-## 난이도 자동 라우팅 — 토큰 낭비 줄이기
+## 자동 라우팅 — 모달리티 → 난이도
 
-`aa call` 은 매 호출마다 **로컬 휴리스틱(토큰 0)** 으로 난이도를 3티어로 판정하고, 정책 *"Claude 우선, GPT 보조"* 에 따라 공급자를 고른다:
+`aa call` 은 매 호출마다 **로컬 휴리스틱(토큰 0)** 으로 두 축을 판정한다.
+
+### 1축 — 모달리티 (text / image / video)
+
+| 모달리티 | 공급자 | API 키 | 상태 |
+|---|---|---|---|
+| **image** | ChatGPT(Codex `$imagegen`) · 기본 | ❌ 불필요 | ✅ 권장 |
+| **image** | Gemini CLI (`--provider gemini`) | ⚠️ 필요 | ✅ 선택지 |
+| **video** | — | — | ⏸ 보류 (자동 생성 안 함, 안내만) |
+| **text** | 아래 난이도 라우터로 | — | ✅ |
+
+이미지·동영상 상세는 [docs/guides/media-generation.md](../../docs/guides/media-generation.md) 참조.
+
+### 2축 — 난이도 (text 일 때만) · "Claude 우선, GPT 보조"
 
 | 티어 | 작업 성격 | 라우팅 |
 |---|---|---|
@@ -151,7 +165,7 @@ aa hello
 | **T2 표준** | 일반 추론·초안 작성·대부분의 에이전트 작업 | Claude Sonnet |
 | **T3 심층** | 4층 진단·비전 설계·복잡 전략 추론 | Claude Opus |
 
-판정 신호 (전부 로컬): ① 에이전트 프론트매터 `model`(opus면 심층 가중) ② 심층/경량 키워드 ③ 프롬프트 길이. 중립이면 T2(Claude)로 둔다. `--difficulty` / `--provider` 로 언제든 덮어쓸 수 있다.
+판정 신호 (전부 로컬): ① 에이전트 프론트매터 `model`(opus면 심층 가중) ② 심층/경량 키워드 ③ 프롬프트 길이. 중립이면 T2(Claude)로 둔다. `--modality` / `--difficulty` / `--provider` 로 언제든 덮어쓸 수 있다.
 
 ## 사용 예시
 
@@ -173,6 +187,15 @@ aa call case-curator "지난주 케이스 목록 정리" --provider claude
 
 # 난이도 강제 — 심층 추론으로 끌어올리기
 aa call story-weaver "BLBP 마스터 내러티브" --difficulty T3
+
+# 이미지 생성 — 키워드 자동 감지 (Codex $imagegen, 무-API-키)
+aa call content-scout "쓰레드 게시물용 외계인 로고 이미지 만들어줘"
+
+# 이미지 생성 — Gemini 강제 (GEMINI_API_KEY 필요)
+aa call ui-ux-designer "대시보드 히어로 일러스트" --modality image --provider gemini
+
+# 동영상 요청 — 자동 생성 보류, 안내만 표시
+aa call content-scout "회사 소개 동영상 만들어줘"
 
 # 오늘 진척 GitHub 푸시
 aa push "WHY Session v2 진척"
@@ -205,6 +228,9 @@ aa push "WHY Session v2 진척"
 | `claude CLI 에러 (exit 1)` | `claude --version` 직접 실행해서 작동 확인 / 인증 만료 시 `claude /login` |
 | `codex CLI 를 찾지 못했습니다` | Codex CLI 미설치 — [codex-cli-setup.md](../../docs/guides/codex-cli-setup.md) 참조. 급하면 `--provider claude` 로 Claude 만 사용 |
 | `codex CLI 에러 (exit 1)` | `codex exec "테스트"` 직접 실행해서 작동 확인 / 인증 만료 시 `codex login` |
+| `gemini CLI 를 찾지 못했습니다` | `npm install -g @google/gemini-cli` 후 PowerShell 재시작 — [media-generation.md](../../docs/guides/media-generation.md) 참조 |
+| `GEMINI_API_KEY 가 .env 에 없습니다` | Gemini 이미지 생성은 API 키 필요. 키 발급 후 `.env` 등록, 또는 `--provider chatgpt` 로 Codex 사용 |
+| 동영상을 자동 생성하고 싶음 | 현재 무-API-키 CLI 경로 없음 — 안내 패널의 웹 UI 사용. [media-generation.md](../../docs/guides/media-generation.md) 참조 |
 | 한국어·이모지에서 `UnicodeEncodeError: cp949` | `cli.py` 가 자동으로 stdout을 UTF-8로 재구성합니다. 안 되면: `$env:PYTHONIOENCODING="utf-8"` 후 재시도, 또는 PowerShell 7+ 설치 — `winget install -e --id Microsoft.PowerShell` |
 | 한국어 깨짐 (cmd.exe) | `chcp 65001` 로 UTF-8 활성 |
 
