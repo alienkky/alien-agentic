@@ -27,6 +27,7 @@ INTERVENTIONS = SHARED_MEMORY / "interventions"
 TASKS = SHARED_MEMORY / "tasks"
 DASHBOARD = SHARED_MEMORY / "dashboard.md"
 AGENT_MEMORY = SHARED_MEMORY / "agents"
+USAGE_DIR = SHARED_MEMORY / "usage"
 ENV_FILE = ROOT / "automation" / "cli" / ".env"
 
 # 호칭·회사명 — 헌법 응답 규칙 1번
