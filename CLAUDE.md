@@ -196,18 +196,29 @@ E:\AlienAgentic\alien-agentic\
 4. **에이전트 호출**: 자연어 또는 Agent 도구
 5. **링크 클릭**: Chrome MCP로만 (computer-use로 외부 링크 클릭 금지)
 6. **금융 거래·송금·주문 실행은 절대 금지** — 분류·리포트까지만
-7. **이미지 생성** — 모든 에이전트가 Codex CLI 의 `$imagegen` 스킬을 Bash 로 호출해 이미지를 만들 수 있다. gpt-image-2 모델, **ChatGPT Pro 구독 사용량으로 처리되며 API 키가 필요 없다.**
+7. **이미지·동영상 생성** — 모든 에이전트가 두 경로로 미디어를 만들 수 있다. **둘 다 API 키 불필요.**
 
+   **(a) 빠른 이미지 — Codex `$imagegen`** (ChatGPT Pro 구독 사용량)
    ```bash
-   codex exec "$imagegen <한국어 또는 영어 설명>. 생성한 이미지를 현재 작업 폴더에 저장하고 경로를 알려줘."
+   codex exec "$imagegen <설명>. 생성한 이미지를 현재 작업 폴더에 저장하고 경로를 알려줘."
    ```
+   - gpt-image-2 모델, 수 초 안에 결과
+   - 기본 저장: `~/.codex/generated_images/` → 작업 폴더로 이동
 
-   - 결과 이미지는 기본 `~/.codex/generated_images/` 에 떨어진 뒤, 위 지시로 현재 작업 폴더로 옮겨진다.
-   - 산출물 폴더 권장: 클라이언트 작업이면 `clients/{client}/WHAT/images/`, 회사 자체용이면 `content/images/`.
-   - 자주 쓰는 에이전트: `ui-ux-designer` (대시보드·인터페이스), `content-scout` (Threads/LinkedIn 썸네일·OG 이미지), `brand-keeper` (브랜드 시안), `story-weaver` (내러티브 일러스트), `case-curator` (케이스 카드). 다른 에이전트도 필요하면 동일하게 사용.
-   - 직접 호출도 가능: `aa call <agent> "<프롬프트>" --modality image` — 같은 경로(Codex `$imagegen`)로 라우팅된다.
-   - 동영상 생성은 현재 무-API-키 CLI 경로가 없어 `aa` 범위 밖. 필요하면 각 서비스 웹 UI 사용.
-   - 상세: `docs/guides/image-generation.md`
+   **(b) 고품질 이미지·동영상 — ComfyUI (4090 로컬 GPU)**
+   ```bash
+   aa call <agent> "<설명>" --provider comfyui              # 이미지 (Codex 대신 ComfyUI)
+   aa call <agent> "<설명 + 영상 키워드>"                    # 동영상 (자동 라우팅)
+   ```
+   - 4090 PC 에 ComfyUI 가 돌고 있어야 함 (http://localhost:8188)
+   - 모델·해상도 풀 제어 (Flux/SDXL/Hunyuan/LTX 등 워크플로별)
+   - 동영상은 이 경로가 *유일* — Codex 는 동영상 미지원
+
+   **공통 규칙**
+   - 산출물 폴더: 클라이언트 작업이면 `clients/{client}/WHAT/{images,videos}/`, 회사 자체용이면 `content/{images,videos}/`. `aa call` 은 자동으로 떨궈둠.
+   - 자주 쓰는 에이전트: `ui-ux-designer` (대시보드·인터페이스), `content-scout` (Threads/LinkedIn 썸네일·OG 이미지·짧은 동영상), `brand-keeper` (브랜드 시안), `story-weaver` (내러티브 일러스트), `case-curator` (케이스 카드).
+   - 사용량은 자동으로 `shared-memory/usage/<date>.jsonl` 에 누적 (`aa usage --by cli` 로 확인).
+   - 상세: `docs/guides/image-generation.md`, `docs/guides/comfyui-integration.md`
 
 ---
 
