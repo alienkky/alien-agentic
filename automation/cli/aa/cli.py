@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 import os
 import re
 import subprocess
 import sys
 import tempfile
+import time
+from collections import defaultdict
 from pathlib import Path
 
 # Windows 콘솔 UTF-8 보장 — cp949 (한국 Windows 기본) 이모지 인코딩 에러 방지
@@ -38,6 +41,7 @@ from aa.config import (
     INTERVENTIONS,
     MESSAGES,
     ROOT,
+    USAGE_DIR,
     USER_NAME,
 )
 from aa.router import MODALITIES, PROVIDERS, TIERS, route
@@ -268,6 +272,7 @@ def call(
         )
         raise typer.Exit(1)
 
+    _t0 = time.time()
     with console.status(
         f"[cyan]{a.name} 호출 중 ({provider_label} · {model_label})...[/cyan]"
     ):
@@ -279,6 +284,8 @@ def call(
             )
         else:
             returncode, response, stderr = _run_claude(agent, prompt, r.model)
+    _duration_ms = int((time.time() - _t0) * 1000)
+    _log_usage(a, r, prompt, response, returncode, _duration_ms, client)
 
     if returncode != 0:
         cli_name = "codex" if r.provider == "chatgpt" else "claude"
@@ -419,6 +426,148 @@ def _append_memory(agent_name: str, response: str, prompt: str, r) -> None:
             (fpath.read_text(encoding="utf-8") if fpath.exists() else "") + entry,
             encoding="utf-8",
         )
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# aa usage — CLI·모델·에이전트별 사용량 집계
+# ──────────────────────────────────────────────────────────────────────────
+def _log_usage(
+    a, r, prompt: str, response: str, returncode: int, duration_ms: int, client: str
+) -> None:
+    """호출 결과를 JSONL 로 누적 — CLI/모델/모달리티 분리 추적.
+
+    각 줄은 한 호출의 메타데이터. 신규 CLI(예: gemma) 가 추가되면 그 이름이
+    `cli` 필드에 자동으로 들어가므로 집계 코드는 손댈 필요가 없다.
+    """
+    USAGE_DIR.mkdir(parents=True, exist_ok=True)
+    date_str = dt.date.today().isoformat()
+    log_file = USAGE_DIR / f"{date_str}.jsonl"
+    entry = {
+        "ts": dt.datetime.now().isoformat(timespec="seconds"),
+        "agent": a.name,
+        "division": division_of(a.name),
+        "client": client,
+        "cli": r.provider,            # claude | chatgpt | (gemma 등 미래 CLI)
+        "model": r.model or "default",
+        "modality": r.modality,       # text | image
+        "tier": r.tier,               # T1 | T2 | T3 | -
+        "prompt_chars": len(prompt),
+        "response_chars": len(response or ""),
+        "exit_code": returncode,
+        "duration_ms": duration_ms,
+    }
+    with log_file.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
+def _parse_when(when: str) -> list[dt.date]:
+    """today | yesterday | YYYY-MM-DD | week → 날짜 리스트."""
+    today = dt.date.today()
+    if when == "today":
+        return [today]
+    if when == "yesterday":
+        return [today - dt.timedelta(days=1)]
+    if when == "week":
+        return [today - dt.timedelta(days=i) for i in range(7)]
+    try:
+        return [dt.date.fromisoformat(when)]
+    except ValueError:
+        console.print(f"[red]잘못된 날짜: {when}[/red]")
+        raise typer.Exit(1)
+
+
+@app.command()
+def usage(
+    when: str = typer.Argument("today", help="today | yesterday | YYYY-MM-DD | week"),
+    by: str = typer.Option(
+        "cli", "--by",
+        help="집계 기준: cli (기본, 모달리티 분리) | agent | model | modality",
+    ),
+) -> None:
+    """`aa call` 호출의 CLI·모델·에이전트별 사용량 보기."""
+    dates = _parse_when(when)
+    rows: list[dict] = []
+    for d in dates:
+        f = USAGE_DIR / f"{d.isoformat()}.jsonl"
+        if not f.exists():
+            continue
+        for line in f.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+
+    if not rows:
+        console.print(
+            f"[yellow]{when}: 사용 기록 없음[/yellow]\n"
+            f"[dim](로그 위치: {USAGE_DIR})[/dim]"
+        )
+        return
+
+    key_fn = {
+        "cli": lambda r: f"{r['cli']} ({r['modality']})",  # 모달리티까지 분리
+        "agent": lambda r: r["agent"],
+        "model": lambda r: f"{r['cli']} · {r['model']}",
+        "modality": lambda r: r["modality"],
+    }.get(by)
+    if not key_fn:
+        console.print(
+            f"[red]잘못된 --by 값: {by}[/red] "
+            "[dim](가능: cli | agent | model | modality)[/dim]"
+        )
+        raise typer.Exit(1)
+
+    grouped: dict[str, dict] = defaultdict(
+        lambda: {
+            "calls": 0,
+            "prompt_chars": 0,
+            "response_chars": 0,
+            "duration_ms": 0,
+            "errors": 0,
+        }
+    )
+    for rec in rows:
+        k = key_fn(rec)
+        g = grouped[k]
+        g["calls"] += 1
+        g["prompt_chars"] += rec.get("prompt_chars", 0)
+        g["response_chars"] += rec.get("response_chars", 0)
+        g["duration_ms"] += rec.get("duration_ms", 0)
+        if rec.get("exit_code", 0) != 0:
+            g["errors"] += 1
+
+    period = (
+        f"{dates[0]}"
+        if len(dates) == 1
+        else f"{dates[-1]} ~ {dates[0]} ({len(dates)}일)"
+    )
+    console.rule(f"🛸 사용량 · {period} · by={by}")
+    console.print(f"[dim]전체 호출:[/dim] {len(rows)}회\n")
+
+    table = Table(show_header=True)
+    table.add_column(by, no_wrap=True)
+    table.add_column("호출", justify="right")
+    table.add_column("평균 응답", justify="right")
+    table.add_column("평균 시간", justify="right")
+    table.add_column("에러", justify="right")
+
+    for k in sorted(grouped.keys(), key=lambda x: -grouped[x]["calls"]):
+        g = grouped[k]
+        avg_resp = (g["response_chars"] // g["calls"]) if g["calls"] else 0
+        avg_time = (g["duration_ms"] / 1000 / g["calls"]) if g["calls"] else 0
+        err = f"[red]{g['errors']}[/red]" if g["errors"] else "0"
+        table.add_row(
+            k, str(g["calls"]), f"{avg_resp} chars", f"{avg_time:.1f}s", err
+        )
+    console.print(table)
+
+    console.print(
+        f"\n[dim]raw 로그: {USAGE_DIR}/[/dim]\n"
+        "[dim]신규 CLI(예: gemma) 가 추가되면 자동으로 이 표에 잡힙니다.[/dim]"
+    )
 
 
 # ──────────────────────────────────────────────────────────────────────────

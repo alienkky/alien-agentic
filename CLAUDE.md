@@ -153,6 +153,7 @@ E:\AlienAgentic\alien-agentic\
 │   ├── messages/                # 에이전트 간 대화 (직접 통신 X, 모두 경유)
 │   ├── tasks/                   # 진행 중 업무 (Kanban)
 │   ├── interventions/           # 기영님 중간 개입
+│   ├── usage/                   # `aa call` 호출 로그 (JSONL, 일자 파티션) — finance-tracker 의 원천 데이터
 │   └── dashboard.md             # 오늘 한 줄 + KPI + 위험 깃발
 ├── clients/                     # 진행 클라이언트 작업물 (계약 후)
 │   └── {client-name}/
@@ -162,7 +163,7 @@ E:\AlienAgentic\alien-agentic\
 ├── 베러먼데이-handover/         # 베먼 분리 폴더 (혼합 절대 금지)
 ├── content/                     # 외부 콘텐츠 (Threads / LinkedIn / Substack)
 ├── automation/
-│   ├── cli/                     # `aa` CLI 패키지 (Typer + Claude Max 경유, 8 명령어)
+│   ├── cli/                     # `aa` CLI 패키지 (Typer + Claude Max 경유, 9 명령어)
 │   └── intranet/
 │       ├── multica/             # Multica 본진 (git clone, .gitignore 처리)
 │       └── alien-config/        # 우리 커스터마이즈 (27명 시드 스크립트 + 가이드)
@@ -215,7 +216,7 @@ E:\AlienAgentic\alien-agentic\
 ### 매일 아침 (08:00 ~ 09:00)
 1. `shared-memory/daily-logs/` 어제 활동 요약
 2. `client-concierge` → 모든 클라이언트 진행 상태 확인
-3. `finance-tracker` → 어제 Claude Max 토큰 잔량 보고
+3. `finance-tracker` → 어제 사용량(`aa usage yesterday`)·Claude Max 토큰 잔량 보고
 4. `trend-hunter` → 밤사이 새 AI 뉴스 3개 (**월요일만**)
 5. 기영님에게 **"오늘의 1가지 핵심 미션"** 제안
 
@@ -230,7 +231,7 @@ E:\AlienAgentic\alien-agentic\
 - 이번 주 우선순위 3가지 확정
 
 ### 매주 일요일
-- `finance-tracker` → 주간 매출 / 비용 / 토큰 사용량 보고
+- `finance-tracker` → 주간 매출 / 비용 / 토큰 사용량 보고 (`aa usage week --by cli` + 모달리티별 합계)
 - `case-curator` → 이번 주 인사이트 1개 정리
 - `shared-memory` 백업 상태 확인 (GitHub Private Repo 예정)
 

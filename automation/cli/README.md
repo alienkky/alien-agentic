@@ -124,7 +124,7 @@ aa hello
 
 ---
 
-## 명령어 (v0.1.0 — 8개)
+## 명령어 (v0.1.0 — 9개)
 
 | 명령 | 무엇을 |
 |---|---|
@@ -144,6 +144,9 @@ aa hello
 | `aa serve` | Multica 인트라넷 docker compose 가동 (`--stop` / `--logs`) |
 | `aa seed` | 27명 외계 동료를 Multica DB에 시드 — ID 자동 탐색 + 런타임 자동 생성 |
 | `aa seed --dry-run` | DB 변경 없이 발견한 ID + 시드 계획만 출력 |
+| `aa usage` | CLI·모델·에이전트별 호출 사용량 (오늘 기본, `--by cli/agent/model/modality`) |
+| `aa usage week` | 최근 7일 누적 사용량 |
+| `aa usage 2026-05-14` | 특정 날짜 사용량 |
 
 ## 자동 라우팅 — 모달리티 → 난이도
 
