@@ -4,7 +4,7 @@
 agent 테이블에 INSERT 한다. 같은 workspace 안에 같은 name 이 이미 있으면 SKIP.
 
 사용법:
-    cd C:/Alien Agentic/automation/intranet/alien-config/seeds
+    cd E:/AlienAgentic/alien-agentic/automation/intranet/alien-config/seeds
     pip install -r requirements.txt
     copy .env.example .env
     # .env 에 WORKSPACE_ID 와 OWNER_ID 박기 (README 참조)

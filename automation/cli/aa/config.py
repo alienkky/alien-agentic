@@ -15,7 +15,7 @@ def _find_root() -> Path:
     for parent in [here, *here.parents]:
         if (parent / "CLAUDE.md").exists() and (parent / ".claude" / "agents").exists():
             return parent
-    return Path("C:/Alien Agentic")
+    return Path("E:/AlienAgentic/alien-agentic")
 
 
 ROOT = _find_root()
@@ -59,3 +59,36 @@ def _find_claude_bin() -> Path | None:
 
 
 CLAUDE_BIN = _find_claude_bin()
+
+
+def _find_codex_bin() -> Path | None:
+    """OpenAI Codex CLI 바이너리 자동 감지 — ChatGPT Pro 구독 사용량 경유."""
+    from shutil import which
+
+    env = os.environ.get("CODEX_BIN")
+    if env and Path(env).exists():
+        return Path(env)
+
+    in_path = which("codex")
+    if in_path:
+        return Path(in_path)
+
+    home = Path.home()
+    candidates = [
+        home / ".local" / "bin" / "codex.exe",
+        home / ".local" / "bin" / "codex",
+        home / "AppData" / "Roaming" / "npm" / "codex.cmd",
+        home / "AppData" / "Roaming" / "npm" / "codex",
+        Path("C:/Program Files/nodejs/codex.cmd"),
+    ]
+    for p in candidates:
+        if p.exists():
+            return p
+    return None
+
+
+CODEX_BIN = _find_codex_bin()
+
+# ChatGPT(Codex) 모델 — 비우면 Codex CLI 의 계정 기본 모델을 그대로 사용.
+# 모델명이 바뀌어도 깨지지 않도록 기본값은 빈 문자열.
+CODEX_MODEL = os.environ.get("CODEX_MODEL", "")

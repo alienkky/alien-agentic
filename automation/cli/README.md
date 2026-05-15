@@ -1,7 +1,8 @@
 # `aa` — Alien Agentic Master Orchestrator CLI
 
 > 27명의 외계 동료를 한 명령어로 호출·확인·기록한다.
-> **Claude Max 구독 토큰 경유** — 별도 API 키 없음.
+> **Claude Max + ChatGPT Pro 구독 경유** — 별도 API 키 없음.
+> `aa call` 은 난이도를 판정해 Claude(표준·심층)와 ChatGPT(경량)를 자동으로 골라 쓴다.
 
 ## 설치 (1회만, 약 3분)
 
@@ -42,7 +43,7 @@ winget install -e --id Python.Python.3.12
 **Windows · PowerShell** (권장):
 
 ```powershell
-cd "C:/Alien Agentic/automation/cli"
+cd "E:/AlienAgentic/alien-agentic/automation/cli"
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -e .
@@ -102,7 +103,18 @@ CLAUDE_BIN=C:/Users/AlienK/.local/bin/claude.exe
 - 데스크탑 앱: https://claude.com/download
 - 또는 npm: `npm install -g @anthropic-ai/claude-code`
 
-### 4. 동작 확인
+### 4. (선택) ChatGPT Pro 연동 — Codex CLI
+
+`aa call` 은 난이도가 낮은 *경량 작업(T1)* 을 ChatGPT Pro 구독으로 덜어내 Claude Max 토큰을 아낀다. 이 두 번째 두뇌를 붙이려면 OpenAI **Codex CLI** 설치 + ChatGPT 로그인이 필요하다 — **API 키 없이** ChatGPT 구독 사용량을 그대로 쓴다.
+
+```powershell
+npm install -g @openai/codex
+codex login   # 브라우저로 ChatGPT 계정 로그인
+```
+
+상세 절차·트러블슈팅·주의점은 [docs/guides/codex-cli-setup.md](../../docs/guides/codex-cli-setup.md) 참조. **이 단계를 건너뛰면** `aa call` 은 모든 작업을 Claude 로만 처리한다 (`--provider claude` 강제와 동일).
+
+### 5. 동작 확인
 
 ```bash
 aa hello
@@ -112,7 +124,7 @@ aa hello
 
 ---
 
-## 명령어 (v0.1.0 — 6개)
+## 명령어 (v0.1.0 — 8개)
 
 | 명령 | 무엇을 |
 |---|---|
@@ -120,12 +132,41 @@ aa hello
 | `aa list` | 27명 외계 동료 명단 (Division · Name · Model · Description) |
 | `aa list -d WHY` | Division 필터 (WHY / HOW / WHAT / CTRL / R&D) |
 | `aa status` | 오늘 일지 + dashboard + 미해결 개입/메시지 카운트 |
-| `aa call <agent> "<prompt>"` | 단일 에이전트 호출 (Anthropic API) + 메모리 4파일 자동 갱신 |
-| `aa call <agent> "<prompt>" --dry-run` | API 호출 없이 컨텍스트만 출력 |
+| `aa call <agent> "<prompt>"` | 단일 에이전트 호출 — 모달리티·난이도 자동 라우팅 + 메모리 4파일 자동 갱신 |
+| `aa call <agent> "<prompt>" --difficulty T3` | 난이도 수동 지정 (T1 경량 / T2 표준 / T3 심층) |
+| `aa call <agent> "<prompt>" --provider claude` | 공급자 강제 지정 (claude / chatgpt) |
+| `aa call <agent> "<prompt>" --modality image` | 모달리티 수동 지정 (text / image) |
+| `aa call <agent> "<prompt>" --dry-run` | AI 호출 없이 라우팅 결과만 출력 |
 | `aa daily-log` | 오늘 일지 보기 |
 | `aa daily-log yesterday` | 어제 일지 |
 | `aa daily-log today --edit` | VS Code (또는 `EDITOR`) 로 일지 편집 |
 | `aa push` | shared-memory 변경분 → GitHub 자동 commit + push |
+| `aa serve` | Multica 인트라넷 docker compose 가동 (`--stop` / `--logs`) |
+| `aa seed` | 27명 외계 동료를 Multica DB에 시드 — ID 자동 탐색 + 런타임 자동 생성 |
+| `aa seed --dry-run` | DB 변경 없이 발견한 ID + 시드 계획만 출력 |
+
+## 자동 라우팅 — 모달리티 → 난이도
+
+`aa call` 은 매 호출마다 **로컬 휴리스틱(토큰 0)** 으로 두 축을 판정한다.
+
+### 1축 — 모달리티 (text / image)
+
+| 모달리티 | 공급자 | API 키 | 상태 |
+|---|---|---|---|
+| **image** | ChatGPT(Codex `$imagegen`, gpt-image-2) | ❌ 불필요 | ✅ |
+| **text** | 아래 난이도 라우터로 | — | ✅ |
+
+이미지 생성 상세는 [docs/guides/image-generation.md](../../docs/guides/image-generation.md) 참조. 동영상은 무-API-키 CLI 경로가 없어 `aa` 범위 밖이다.
+
+### 2축 — 난이도 (text 일 때만) · "Claude 우선, GPT 보조"
+
+| 티어 | 작업 성격 | 라우팅 |
+|---|---|---|
+| **T1 경량** | 포맷 변환·목록 정리·요약·결정론적 작업 | ChatGPT Pro (Codex CLI) |
+| **T2 표준** | 일반 추론·초안 작성·대부분의 에이전트 작업 | Claude Sonnet |
+| **T3 심층** | 4층 진단·비전 설계·복잡 전략 추론 | Claude Opus |
+
+판정 신호 (전부 로컬): ① 에이전트 프론트매터 `model`(opus면 심층 가중) ② 심층/경량 키워드 ③ 프롬프트 길이. 중립이면 T2(Claude)로 둔다. `--modality` / `--difficulty` / `--provider` 로 언제든 덮어쓸 수 있다.
 
 ## 사용 예시
 
@@ -136,11 +177,23 @@ aa list
 # WHY Division만
 aa list -d WHY
 
-# Alien Agentic 자체 진단 시뮬레이션 (dry-run, API 호출 X)
+# 라우팅 미리보기 (AI 호출 X) — 어느 티어·공급자로 갈지 확인
 aa call origin-reader "Alien Agentic의 4층 진단" --dry-run
 
-# 실제 호출 (Claude Max 토큰 경유)
-aa call origin-reader "Alien Agentic의 4층 진단" -c _self-alien-agentic
+# 실제 호출 — 난이도 자동 라우팅
+aa call origin-reader "Alien Agentic의 4층 진단과 비전 설계" -c _self-alien-agentic
+
+# 경량 작업을 강제로 Claude 로 (ChatGPT 미설치 시)
+aa call case-curator "지난주 케이스 목록 정리" --provider claude
+
+# 난이도 강제 — 심층 추론으로 끌어올리기
+aa call story-weaver "Alien Agentic 마스터 내러티브" --difficulty T3
+
+# 이미지 생성 — 키워드 자동 감지 (Codex $imagegen, 무-API-키)
+aa call content-scout "쓰레드 게시물용 외계인 로고 이미지 만들어줘"
+
+# 이미지 생성 — 키워드가 안 걸릴 때 모달리티 강제
+aa call ui-ux-designer "대시보드 히어로 일러스트" --modality image
 
 # 오늘 진척 GitHub 푸시
 aa push "WHY Session v2 진척"
@@ -171,6 +224,9 @@ aa push "WHY Session v2 진척"
 | `aa: command not found` | `pip install -e .` 가 *활성된 venv* 안에서 실행됐는지 확인. 프롬프트에 `(.venv)` 표시 필수 |
 | `claude CLI 를 찾지 못했습니다` | Claude Code 설치 확인 (`~/.local/bin/claude.exe`) 또는 `.env` 에 `CLAUDE_BIN=절대경로` 박기 |
 | `claude CLI 에러 (exit 1)` | `claude --version` 직접 실행해서 작동 확인 / 인증 만료 시 `claude /login` |
+| `codex CLI 를 찾지 못했습니다` | Codex CLI 미설치 — [codex-cli-setup.md](../../docs/guides/codex-cli-setup.md) 참조. 급하면 `--provider claude` 로 Claude 만 사용 |
+| `codex CLI 에러 (exit 1)` | `codex exec "테스트"` 직접 실행해서 작동 확인 / 인증 만료 시 `codex login` |
+| 이미지 요청인데 text 로 라우팅됨 | `--modality image` 로 강제 — [image-generation.md](../../docs/guides/image-generation.md) 참조 |
 | 한국어·이모지에서 `UnicodeEncodeError: cp949` | `cli.py` 가 자동으로 stdout을 UTF-8로 재구성합니다. 안 되면: `$env:PYTHONIOENCODING="utf-8"` 후 재시도, 또는 PowerShell 7+ 설치 — `winget install -e --id Microsoft.PowerShell` |
 | 한국어 깨짐 (cmd.exe) | `chcp 65001` 로 UTF-8 활성 |
 
@@ -181,5 +237,7 @@ aa push "WHY Session v2 진척"
 - `aa intervene "<msg>"` — 중간 개입 메시지 작성
 - `aa serve` — 로컬 인트라넷 서버 (그룹웨어 UI)
 - `aa mobile` — 모바일 접속 URL + QR
+- 라우팅 휴리스틱 오판률을 메타 데이터로 추적 → 키워드 사전 자동 보정
+- `finance-tracker` 가 Claude Max 토큰 + ChatGPT Pro 사용량을 한 화면에 통합 보고
 
 🛸

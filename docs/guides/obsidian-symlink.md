@@ -10,7 +10,7 @@
 
 **Windows**:
 1. Obsidian 실행 → *"기존 폴더 열기 (Open folder as vault)"*
-2. `C:/Alien Agentic/shared-memory/` 선택
+2. `E:/AlienAgentic/alien-agentic/shared-memory/` 선택
 3. 끝.
 
 장점: 가장 간단. 단점: Obsidian이 만드는 `.obsidian/` 설정 폴더가 `shared-memory/` 안에 생김 → 이건 `.gitignore` 처리.
@@ -22,13 +22,13 @@
 **Windows (관리자 권한 PowerShell)**:
 ```powershell
 cd "D:/내Vault위치"
-New-Item -ItemType SymbolicLink -Path "alien-agentic" -Target "C:/Alien Agentic/shared-memory"
+New-Item -ItemType SymbolicLink -Path "alien-agentic" -Target "E:/AlienAgentic/alien-agentic/shared-memory"
 ```
 
 또는 cmd.exe (관리자):
 ```cmd
 cd /d D:\내Vault위치
-mklink /D alien-agentic "C:\Alien Agentic\shared-memory"
+mklink /D alien-agentic "E:\AlienAgentic\alien-agentic\shared-memory"
 ```
 
 **macOS/Linux**:

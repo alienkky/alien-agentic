@@ -30,7 +30,7 @@
 **PC 측**:
 1. https://syncthing.net → Windows 설치
 2. 실행 → `localhost:8384` 자동 열림
-3. 폴더 추가: `C:/Alien Agentic/shared-memory/` → 폴더 ID 기록
+3. 폴더 추가: `E:/AlienAgentic/alien-agentic/shared-memory/` → 폴더 ID 기록
 
 **iOS 측**:
 - Möbius Sync (무료, App Store)
@@ -87,7 +87,7 @@ Set-Service -Name sshd -StartupType 'Automatic'
 연결 후:
 ```bash
 ssh AlienK@100.x.x.x
-cd "C:/Alien Agentic"
+cd "E:/AlienAgentic/alien-agentic"
 aa hello
 aa list
 aa daily-log today

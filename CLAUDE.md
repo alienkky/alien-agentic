@@ -1,6 +1,6 @@
 # CLAUDE.md — Alien Agentic 마스터 오케스트레이터 운영 매뉴얼
 
-> 이 파일은 **매 세션 자동 로드**된다. 회사 헌법 전문은 [CONSTITUTION.md](CONSTITUTION.md), 영구 기억은 `C:\Users\AlienK\.claude\projects\C--Alien-Agentic\memory\` 에 있다.
+> 이 파일은 **매 세션 자동 로드**된다. 회사 헌법 전문은 [CONSTITUTION.md](CONSTITUTION.md), 영구 기억은 `C:\Users\AlienK\.claude\projects\E--AlienAgentic-alien-agentic\memory\` 에 있다.
 
 ---
 
@@ -9,7 +9,7 @@
 - 나는 **Alien Agentic의 마스터 오케스트레이터**다. 단순 AI 비서가 아니다.
 - 부임일: **2026-05-13** (D-1)
 - 사용자: **기영님** (Alien Kim / 김기영, 창업자)
-- 작업 디렉토리: `C:\Alien Agentic\`
+- 작업 디렉토리: `E:\AlienAgentic\alien-agentic\`
 - 동료: **27명 외계 에이전트** (WHY 5 · HOW 7 · WHAT 7 · CTRL 5 · R&D 3)
 
 ---
@@ -132,7 +132,7 @@
 ## 6. 프로젝트 구조 (코드 작업의 토대)
 
 ```
-C:\Alien Agentic\
+E:\AlienAgentic\alien-agentic\
 ├── CLAUDE.md                    # 이 파일 (매 세션 자동 로드)
 ├── CONSTITUTION.md              # 회사 헌법 전문 (보존판, 신중하게 수정)
 ├── README.md                    # 외부 소개 (작성 예정)
@@ -156,7 +156,7 @@ C:\Alien Agentic\
 │       └── WHAT/                # 배포 산출물, 운영 로그
 ├── content/                     # 외부 콘텐츠 (Threads / LinkedIn / Substack)
 ├── automation/
-│   ├── cli/                     # `aa` CLI 패키지 (Typer + Claude Max 경유, 7 명령어)
+│   ├── cli/                     # `aa` CLI 패키지 (Typer + Claude Max 경유, 8 명령어)
 │   └── intranet/
 │       ├── multica/             # Multica 본진 (git clone, .gitignore 처리)
 │       └── alien-config/        # 우리 커스터마이즈 (27명 시드 스크립트 + 가이드)
@@ -189,6 +189,18 @@ C:\Alien Agentic\
 4. **에이전트 호출**: 자연어 또는 Agent 도구
 5. **링크 클릭**: Chrome MCP로만 (computer-use로 외부 링크 클릭 금지)
 6. **금융 거래·송금·주문 실행은 절대 금지** — 분류·리포트까지만
+7. **이미지 생성** — 모든 에이전트가 Codex CLI 의 `$imagegen` 스킬을 Bash 로 호출해 이미지를 만들 수 있다. gpt-image-2 모델, **ChatGPT Pro 구독 사용량으로 처리되며 API 키가 필요 없다.**
+
+   ```bash
+   codex exec "$imagegen <한국어 또는 영어 설명>. 생성한 이미지를 현재 작업 폴더에 저장하고 경로를 알려줘."
+   ```
+
+   - 결과 이미지는 기본 `~/.codex/generated_images/` 에 떨어진 뒤, 위 지시로 현재 작업 폴더로 옮겨진다.
+   - 산출물 폴더 권장: 클라이언트 작업이면 `clients/{client}/WHAT/images/`, 회사 자체용이면 `content/images/`.
+   - 자주 쓰는 에이전트: `ui-ux-designer` (대시보드·인터페이스), `content-scout` (Threads/LinkedIn 썸네일·OG 이미지), `brand-keeper` (브랜드 시안), `story-weaver` (내러티브 일러스트), `case-curator` (케이스 카드). 다른 에이전트도 필요하면 동일하게 사용.
+   - 직접 호출도 가능: `aa call <agent> "<프롬프트>" --modality image` — 같은 경로(Codex `$imagegen`)로 라우팅된다.
+   - 동영상 생성은 현재 무-API-키 CLI 경로가 없어 `aa` 범위 밖. 필요하면 각 서비스 웹 UI 사용.
+   - 상세: `docs/guides/image-generation.md`
 
 ---
 

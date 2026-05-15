@@ -4,8 +4,8 @@
 Max 구독에 포함.
 
 사용:
-    cd C:/Alien Agentic/automation/intranet/alien-config/scripts
-    "C:/Alien Agentic/automation/cli/.venv/Scripts/python.exe" translate_locale_ko.py
+    cd E:/AlienAgentic/alien-agentic/automation/intranet/alien-config/scripts
+    "E:/AlienAgentic/alien-agentic/automation/cli/.venv/Scripts/python.exe" translate_locale_ko.py
 
 idempotent: 이미 ko/ 안에 같은 파일이 *non-empty* 면 SKIP.
 

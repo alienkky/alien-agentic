@@ -49,7 +49,7 @@ PC의 Tailscale IP가 `100.x.x.x` 형태로 나옵니다. 이 IP를 다른 디�
 
 PC에서:
 ```powershell
-cd "C:/Alien Agentic/automation/cli"
+cd "E:/AlienAgentic/alien-agentic/automation/cli"
 .\.venv\Scripts\aa.exe serve
 ```
 
