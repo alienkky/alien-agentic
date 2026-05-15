@@ -32,9 +32,13 @@ codex exec "$imagegen 간단한 테스트 아이콘 하나"
 
 ---
 
-## 사용 — 키워드 자동 감지 + 수동 오버라이드
+## 두 가지 진입 경로
 
-`aa` 는 프롬프트를 로컬 키워드로 본다 (토큰 0). 이미지 의도가 보이면 자동으로 Codex `$imagegen` 으로 라우팅한다.
+`aa` 시스템에서 이미지는 두 갈래로 만들어진다. 모두 같은 종착지(`codex exec "$imagegen ..."`)로 흘러간다.
+
+### 경로 ① — 기영님이 `aa call` 로 직접 호출
+
+`aa` 가 프롬프트를 로컬 키워드로 본다 (토큰 0). 이미지 의도가 보이면 자동으로 Codex `$imagegen` 으로 라우팅한다.
 
 ```bash
 # 자동 감지 — "로고", "배너", "이미지 만들" 같은 키워드를 보면 이미지로 라우팅
@@ -46,6 +50,21 @@ aa call ui-ux-designer "대시보드 히어로 일러스트" --modality image
 # 라우팅 미리보기 (생성 안 함)
 aa call ui-ux-designer "배너 시안" --dry-run
 ```
+
+### 경로 ② — 에이전트가 작업 중 *자율적으로* 호출 (Multica 데몬 경로)
+
+Multica 에서 에이전트가 작업(issue/task)을 픽업하면 Multica 데몬이 `claude` CLI 로 그 에이전트를 실행한다. 그 `claude` 인스턴스는 CLAUDE.md 를 자동 로드하므로 — **§8.7 의 이미지 생성 규칙을 자동 상속한다.** 에이전트는 작업 중 필요할 때 Bash 도구로 직접 호출하면 된다:
+
+```bash
+codex exec "$imagegen 외계인 마스코트 아이콘 하나, 64x64, 투명배경. 현재 작업 폴더에 저장."
+```
+
+따로 에이전트 정의를 건드릴 필요 없이 27명 전원이 이미 사용 가능하다. 자주 쓰는 직원:
+- `ui-ux-designer` — 대시보드·인터페이스 시안
+- `content-scout` — Threads/LinkedIn 썸네일, OG 이미지
+- `brand-keeper` — 브랜드 시안 검토 + 생성
+- `story-weaver` — 내러티브 일러스트
+- `case-curator` — 케이스 카드
 
 `aa` 는 내부적으로 Codex 에 `$imagegen` 프롬프트를 넘긴다. Codex 는 생성한 이미지를 기본적으로 **`~/.codex/generated_images/`** 에 떨군 뒤, `aa` 의 지시에 따라 현재 작업 폴더로 옮긴다. 응답 패널에 최종 저장 경로가 표시되고, 호출 기록은 에이전트 메모리 `work.md` 에 누적된다.
 

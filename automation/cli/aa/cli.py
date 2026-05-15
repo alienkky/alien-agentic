@@ -745,42 +745,31 @@ def seed(
         raise typer.Exit(1)
     owner_id = user_ids[0]
 
-    # 3) RUNTIME_ID 탐색 — 없으면 fake agent_runtime 1개 생성
+    # 3) RUNTIME_ID 탐색 — 살아 있는 데몬 런타임 우선, 그다음 최신
+    #    가짜 런타임은 만들지 않는다 — 데몬이 없으면 27명이 죽은 런타임에
+    #    영구히 묶여 오프라인이 된다 (2026-05-14 학습).
     rc, rt_id, err = _psql(
         container,
         f"SELECT id FROM agent_runtime WHERE workspace_id = '{ws_id}' "
-        "ORDER BY created_at DESC LIMIT 1",
+        "ORDER BY (status = 'online') DESC, created_at DESC LIMIT 1",
     )
     if rc != 0:
         console.print(f"[red]agent_runtime 조회 실패:[/red] {err}")
         raise typer.Exit(1)
     rt_id = rt_id.splitlines()[0].strip() if rt_id else ""
-    runtime_created = False
-    if not rt_id and not dry_run:
-        rc, _, err = _psql(
-            container,
-            "INSERT INTO agent_runtime "
-            "(workspace_id, owner_id, name, runtime_mode, provider, status) "
-            f"VALUES ('{ws_id}', '{owner_id}', 'alien-agentic-local', "
-            "'local', 'claude_code', 'online')",
+    if not rt_id:
+        console.print(
+            "[red]agent_runtime 가 하나도 없습니다.[/red]\n"
+            "[dim]Multica 데몬을 먼저 띄우세요 — 데몬이 진짜 런타임을 등록합니다:\n"
+            "  multica daemon start\n"
+            "  multica daemon status\n"
+            "그 후 다시 `aa seed` 를 실행하면 진짜 런타임에 27명을 묶습니다.[/dim]"
         )
-        if rc != 0:
-            console.print(f"[red]agent_runtime 생성 실패:[/red] {err}")
-            raise typer.Exit(1)
-        rc, rt_id, err = _psql(
-            container,
-            f"SELECT id FROM agent_runtime WHERE workspace_id = '{ws_id}' "
-            "ORDER BY created_at DESC LIMIT 1",
-        )
-        rt_id = rt_id.splitlines()[0].strip() if rt_id else ""
-        runtime_created = True
+        raise typer.Exit(1)
 
     console.print(f"[dim]WORKSPACE_ID:[/dim] {ws_id}")
     console.print(f"[dim]OWNER_ID:    [/dim] {owner_id}")
-    console.print(
-        f"[dim]RUNTIME_ID:  [/dim] {rt_id or '(신규 생성 예정)'}"
-        + ("  [green](신규 생성)[/green]" if runtime_created else "")
-    )
+    console.print(f"[dim]RUNTIME_ID:  [/dim] {rt_id}")
 
     agents = load_all()
     console.print(f"[dim]발견된 외계 동료:[/dim] {len(agents)}명\n")

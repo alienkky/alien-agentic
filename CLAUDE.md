@@ -195,6 +195,18 @@ E:\AlienAgentic\alien-agentic\
 4. **에이전트 호출**: 자연어 또는 Agent 도구
 5. **링크 클릭**: Chrome MCP로만 (computer-use로 외부 링크 클릭 금지)
 6. **금융 거래·송금·주문 실행은 절대 금지** — 분류·리포트까지만
+7. **이미지 생성** — 모든 에이전트가 Codex CLI 의 `$imagegen` 스킬을 Bash 로 호출해 이미지를 만들 수 있다. gpt-image-2 모델, **ChatGPT Pro 구독 사용량으로 처리되며 API 키가 필요 없다.**
+
+   ```bash
+   codex exec "$imagegen <한국어 또는 영어 설명>. 생성한 이미지를 현재 작업 폴더에 저장하고 경로를 알려줘."
+   ```
+
+   - 결과 이미지는 기본 `~/.codex/generated_images/` 에 떨어진 뒤, 위 지시로 현재 작업 폴더로 옮겨진다.
+   - 산출물 폴더 권장: 클라이언트 작업이면 `clients/{client}/WHAT/images/`, 회사 자체용이면 `content/images/`.
+   - 자주 쓰는 에이전트: `ui-ux-designer` (대시보드·인터페이스), `content-scout` (Threads/LinkedIn 썸네일·OG 이미지), `brand-keeper` (브랜드 시안), `story-weaver` (내러티브 일러스트), `case-curator` (케이스 카드). 다른 에이전트도 필요하면 동일하게 사용.
+   - 직접 호출도 가능: `aa call <agent> "<프롬프트>" --modality image` — 같은 경로(Codex `$imagegen`)로 라우팅된다.
+   - 동영상 생성은 현재 무-API-키 CLI 경로가 없어 `aa` 범위 밖. 필요하면 각 서비스 웹 UI 사용.
+   - 상세: `docs/guides/image-generation.md`
 
 ---
 
