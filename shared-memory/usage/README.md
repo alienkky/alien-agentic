@@ -46,14 +46,22 @@
 ## 보는 법 — `aa usage`
 
 ```bash
-aa usage                       # 오늘, CLI(모달리티 포함)별
+aa usage                       # 오늘, 클로드/코덱스 분리 (기본)
 aa usage yesterday             # 어제
 aa usage week                  # 최근 7일
 aa usage 2026-05-14            # 특정 날짜
+aa usage --by provider         # 클로드 vs 코덱스 분리 (기본값, 모델·모달리티 상세 포함)
+aa usage --by cli              # CLI + 모달리티별 (claude text, chatgpt image 등)
 aa usage --by agent            # 에이전트별 집계
 aa usage --by model            # CLI · 모델별 집계
 aa usage --by modality         # 모달리티(text/image) 별 집계
 ```
+
+### 클로드 / 코덱스 분리 보기
+
+`--by provider` (기본값)는 **Claude Max**와 **Codex (ChatGPT Pro)** 사용량을 명확히 분리하여 표시한다:
+- 각 제공자별 총 호출 수, 비율(%), 사용 모델 상세, 모달리티 분포를 한눈에 볼 수 있다.
+- 어떤 구독 사용량이 얼마나 소비되고 있는지 한 표에서 확인 가능.
 
 ## 새 CLI 추가 시 (예: Gemma 4)
 

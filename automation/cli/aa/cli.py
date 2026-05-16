@@ -179,6 +179,11 @@ _PROVIDER_LABELS = {
     "chatgpt": "ChatGPT Pro",
 }
 
+_PROVIDER_LABELS_KR = {
+    "claude": "🟣 클로드 (Claude Max)",
+    "chatgpt": "🟢 코덱스 (Codex / ChatGPT Pro)",
+}
+
 
 @app.command()
 def call(
@@ -460,6 +465,53 @@ def _log_usage(
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
+def _print_provider_summary(console: Console, rows: list[dict], grouped: dict) -> None:
+    """클로드 vs 코덱스 사용량을 명확히 분리하여 표시."""
+    total_calls = len(rows)
+
+    provider_details: dict[str, dict] = defaultdict(
+        lambda: {"calls": 0, "models": defaultdict(int), "modalities": defaultdict(int),
+                 "prompt_chars": 0, "response_chars": 0, "duration_ms": 0, "errors": 0}
+    )
+    for rec in rows:
+        cli = rec["cli"]
+        p = provider_details[cli]
+        p["calls"] += 1
+        p["models"][rec.get("model", "default")] += 1
+        p["modalities"][rec.get("modality", "text")] += 1
+        p["prompt_chars"] += rec.get("prompt_chars", 0)
+        p["response_chars"] += rec.get("response_chars", 0)
+        p["duration_ms"] += rec.get("duration_ms", 0)
+        if rec.get("exit_code", 0) != 0:
+            p["errors"] += 1
+
+    table = Table(show_header=True, title="클로드 / 코덱스 사용량 분리")
+    table.add_column("제공자", no_wrap=True)
+    table.add_column("호출", justify="right")
+    table.add_column("비율", justify="right")
+    table.add_column("모델 상세", no_wrap=False)
+    table.add_column("모달리티", no_wrap=True)
+    table.add_column("평균 응답", justify="right")
+    table.add_column("평균 시간", justify="right")
+    table.add_column("에러", justify="right")
+
+    for cli in sorted(provider_details.keys()):
+        p = provider_details[cli]
+        label = _PROVIDER_LABELS_KR.get(cli, cli)
+        pct = f"{p['calls'] / total_calls * 100:.0f}%" if total_calls else "0%"
+        models_str = ", ".join(f"{m}×{c}" for m, c in sorted(p["models"].items(), key=lambda x: -x[1]))
+        modality_str = ", ".join(f"{m}×{c}" for m, c in sorted(p["modalities"].items(), key=lambda x: -x[1]))
+        avg_resp = (p["response_chars"] // p["calls"]) if p["calls"] else 0
+        avg_time = (p["duration_ms"] / 1000 / p["calls"]) if p["calls"] else 0
+        err = f"[red]{p['errors']}[/red]" if p["errors"] else "0"
+        table.add_row(
+            label, str(p["calls"]), pct, models_str, modality_str,
+            f"{avg_resp} chars", f"{avg_time:.1f}s", err
+        )
+
+    console.print(table)
+
+
 def _parse_when(when: str) -> list[dt.date]:
     """today | yesterday | YYYY-MM-DD | week → 날짜 리스트."""
     today = dt.date.today()
@@ -480,8 +532,8 @@ def _parse_when(when: str) -> list[dt.date]:
 def usage(
     when: str = typer.Argument("today", help="today | yesterday | YYYY-MM-DD | week"),
     by: str = typer.Option(
-        "cli", "--by",
-        help="집계 기준: cli (기본, 모달리티 분리) | agent | model | modality",
+        "provider", "--by",
+        help="집계 기준: provider (기본, 클로드/코덱스 분리) | cli (모달리티 분리) | agent | model | modality",
     ),
 ) -> None:
     """`aa call` 호출의 CLI·모델·에이전트별 사용량 보기."""
@@ -508,7 +560,8 @@ def usage(
         return
 
     key_fn = {
-        "cli": lambda r: f"{r['cli']} ({r['modality']})",  # 모달리티까지 분리
+        "provider": lambda r: _PROVIDER_LABELS_KR.get(r["cli"], r["cli"]),
+        "cli": lambda r: f"{r['cli']} ({r['modality']})",
         "agent": lambda r: r["agent"],
         "model": lambda r: f"{r['cli']} · {r['model']}",
         "modality": lambda r: r["modality"],
@@ -516,7 +569,7 @@ def usage(
     if not key_fn:
         console.print(
             f"[red]잘못된 --by 값: {by}[/red] "
-            "[dim](가능: cli | agent | model | modality)[/dim]"
+            "[dim](가능: provider | cli | agent | model | modality)[/dim]"
         )
         raise typer.Exit(1)
 
@@ -547,22 +600,28 @@ def usage(
     console.rule(f"🛸 사용량 · {period} · by={by}")
     console.print(f"[dim]전체 호출:[/dim] {len(rows)}회\n")
 
-    table = Table(show_header=True)
-    table.add_column(by, no_wrap=True)
-    table.add_column("호출", justify="right")
-    table.add_column("평균 응답", justify="right")
-    table.add_column("평균 시간", justify="right")
-    table.add_column("에러", justify="right")
+    if by == "provider":
+        _print_provider_summary(console, rows, grouped)
+    else:
+        table = Table(show_header=True)
+        table.add_column(by, no_wrap=True)
+        table.add_column("호출", justify="right")
+        table.add_column("비율", justify="right")
+        table.add_column("평균 응답", justify="right")
+        table.add_column("평균 시간", justify="right")
+        table.add_column("에러", justify="right")
 
-    for k in sorted(grouped.keys(), key=lambda x: -grouped[x]["calls"]):
-        g = grouped[k]
-        avg_resp = (g["response_chars"] // g["calls"]) if g["calls"] else 0
-        avg_time = (g["duration_ms"] / 1000 / g["calls"]) if g["calls"] else 0
-        err = f"[red]{g['errors']}[/red]" if g["errors"] else "0"
-        table.add_row(
-            k, str(g["calls"]), f"{avg_resp} chars", f"{avg_time:.1f}s", err
-        )
-    console.print(table)
+        total_calls = len(rows)
+        for k in sorted(grouped.keys(), key=lambda x: -grouped[x]["calls"]):
+            g = grouped[k]
+            avg_resp = (g["response_chars"] // g["calls"]) if g["calls"] else 0
+            avg_time = (g["duration_ms"] / 1000 / g["calls"]) if g["calls"] else 0
+            err = f"[red]{g['errors']}[/red]" if g["errors"] else "0"
+            pct = f"{g['calls'] / total_calls * 100:.0f}%" if total_calls else "0%"
+            table.add_row(
+                k, str(g["calls"]), pct, f"{avg_resp} chars", f"{avg_time:.1f}s", err
+            )
+        console.print(table)
 
     console.print(
         f"\n[dim]raw 로그: {USAGE_DIR}/[/dim]\n"
