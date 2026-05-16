@@ -41,10 +41,12 @@ from aa.config import (
     INTERVENTIONS,
     MESSAGES,
     ROOT,
+    SQUADS_DIR,
     USAGE_DIR,
     USER_NAME,
 )
 from aa.router import MODALITIES, PROVIDERS, TIERS, route
+from aa.squads import VALID_STATUSES, load_all_squads, load_squad, scaffold_squad
 
 app = typer.Typer(
     name="aa",
@@ -1015,6 +1017,200 @@ def seed(
     console.print(
         "[dim]27명은 'offline' 로 들어갑니다 — 실제 작업 실행은 살아 있는 "
         "Multica 런타임 데몬이 붙어야 합니다 (Phase 2).[/dim]"
+    )
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# aa squad — 미션 단위 스쿼드 등록 · 조회
+# ──────────────────────────────────────────────────────────────────────────
+squad_app = typer.Typer(
+    name="squad",
+    help="스쿼드 — 27명 카탈로그에서 미션 단위로 추려낸 협업 단위 (등록 · 조회 · 신규).",
+    no_args_is_help=True,
+)
+app.add_typer(squad_app, name="squad")
+
+
+_STATUS_STYLE = {
+    "DRAFT":     "dim",
+    "FORMED":    "cyan",
+    "ACTIVE":    "bold green",
+    "DORMANT":   "yellow",
+    "DISBANDED": "red",
+}
+
+
+@squad_app.command("list")
+def squad_list_cmd(
+    status: str = typer.Option(
+        None, "--status", "-s",
+        help=f"상태 필터: {' | '.join(VALID_STATUSES)}",
+    ),
+) -> None:
+    """등록된 모든 스쿼드 명단."""
+    squads = load_all_squads()
+    if status:
+        wanted = status.upper()
+        if wanted not in VALID_STATUSES:
+            console.print(
+                f"[red]잘못된 상태: {status}[/red] "
+                f"[dim](가능: {', '.join(VALID_STATUSES)})[/dim]"
+            )
+            raise typer.Exit(1)
+        squads = [s for s in squads if s.status == wanted]
+
+    if not squads:
+        console.print(
+            f"[yellow]등록된 스쿼드가 없습니다.[/yellow]\n"
+            f"[dim](경로: {SQUADS_DIR})[/dim]\n"
+            f"[dim]`aa squad register <slug> --name ... --lead ...` 로 첫 스쿼드 등록.[/dim]"
+        )
+        return
+
+    table = Table(
+        title=f"🛸 등록된 스쿼드 ({len(squads)}개)",
+        show_lines=False,
+        title_style="bold cyan",
+    )
+    table.add_column("Slug", style="bold cyan", no_wrap=True)
+    table.add_column("Name")
+    table.add_column("Status", no_wrap=True)
+    table.add_column("Lead", no_wrap=True)
+    table.add_column("Cells", justify="right")
+    table.add_column("Members", justify="right")
+    table.add_column("HQ Issue", no_wrap=True)
+
+    for s in squads:
+        style = _STATUS_STYLE.get(s.status, "")
+        status_cell = f"[{style}]{s.status}[/{style}]" if style else s.status
+        table.add_row(
+            s.slug,
+            s.name,
+            status_cell,
+            s.lead or "-",
+            str(len(s.cells)),
+            str(s.member_count),
+            s.hq_issue or "-",
+        )
+
+    console.print(table)
+
+
+@squad_app.command("show")
+def squad_show_cmd(
+    slug: str = typer.Argument(..., help="스쿼드 슬러그 (예: brand-system)"),
+) -> None:
+    """스쿼드 상세 — 미션 · 로스터 · 본부 이슈."""
+    try:
+        s = load_squad(slug)
+    except FileNotFoundError as e:
+        console.print(f"[red]{e}[/red]")
+        console.print("[dim]`aa squad list` 로 등록 목록 확인.[/dim]")
+        raise typer.Exit(1)
+
+    style = _STATUS_STYLE.get(s.status, "")
+    status_line = f"[{style}]{s.status}[/{style}]" if style else s.status
+
+    header = (
+        f"[bold cyan]🛸 {s.name}[/bold cyan]\n\n"
+        f"[dim]Slug:[/dim]        {s.slug}\n"
+        f"[dim]Status:[/dim]      {status_line}\n"
+        f"[dim]Lead:[/dim]        {s.lead or '-'}\n"
+        f"[dim]Formed on:[/dim]   {s.formed_on or '-'}\n"
+        f"[dim]Label:[/dim]       {s.label or '-'}\n"
+        f"[dim]HQ Issue:[/dim]    {s.hq_issue or '-'}"
+    )
+    if s.hq_issue_uuid:
+        header += f"  [dim]({s.hq_issue_uuid})[/dim]"
+    console.print(Panel.fit(header, border_style="cyan", title=f"aa squad show {slug}"))
+
+    if s.mission:
+        console.print("\n[bold cyan]Mission[/bold cyan]")
+        console.print(Panel(s.mission, border_style="dim"))
+
+    if not s.cells:
+        console.print(
+            "\n[yellow]Cell 이 비어 있습니다.[/yellow] "
+            f"[dim]({s.path} 의 [[cells]] 블록을 채워주세요.)[/dim]"
+        )
+        return
+
+    for i, cell in enumerate(s.cells, start=1):
+        console.print(f"\n[bold]Cell {i} — {cell.name}[/bold]")
+        if cell.lead:
+            console.print(f"  [dim]Lead:[/dim] {cell.lead}")
+        if not cell.members:
+            console.print("  [dim](멤버 없음)[/dim]")
+            continue
+        t = Table(show_header=True, header_style="dim")
+        t.add_column("Agent", style="cyan", no_wrap=True)
+        t.add_column("Division", style="dim", no_wrap=True)
+        t.add_column("Role")
+        for m in cell.members:
+            t.add_row(m.agent, division_of(m.agent), m.role or "-")
+        console.print(t)
+
+    console.print(
+        f"\n[dim]총 멤버 (중복 제외):[/dim] {s.member_count}명"
+        f"\n[dim]등록부 파일:[/dim] {s.path}"
+    )
+
+
+@squad_app.command("register")
+def squad_register_cmd(
+    slug: str = typer.Argument(..., help="스쿼드 슬러그 (kebab-case, 예: brand-system)"),
+    name: str = typer.Option(..., "--name", help="스쿼드 표시 이름"),
+    lead: str = typer.Option(..., "--lead", help="Squad Lead 의 agent name (27명 중 하나)"),
+) -> None:
+    """신규 스쿼드 폴더 스캐폴딩 — squad.toml + README.md 를 DRAFT 상태로 생성.
+
+    멤버는 squad.toml 의 [[cells]] / [[cells.members]] 블록을 직접 편집해 채운다.
+    채운 뒤 status 를 FORMED 로 올리면 `aa squad list` 에 상태가 반영된다.
+    """
+    if not slug or any(c.isspace() for c in slug) or slug != slug.lower():
+        console.print(
+            f"[red]잘못된 slug: '{slug}'[/red] "
+            "[dim](소문자 kebab-case 권장, 공백 금지)[/dim]"
+        )
+        raise typer.Exit(1)
+
+    # lead 가 실제 27명 중 하나인지 확인 (오타 방지)
+    try:
+        load_one(lead)
+    except FileNotFoundError:
+        console.print(
+            f"[red]Lead 에이전트 '{lead}' 가 27명 카탈로그에 없습니다.[/red]\n"
+            "[dim]`aa list` 로 정확한 이름을 확인하세요.[/dim]"
+        )
+        raise typer.Exit(1)
+
+    formed_on = dt.date.today().isoformat()
+    try:
+        folder = scaffold_squad(slug, name, lead, formed_on)
+    except FileExistsError:
+        console.print(
+            f"[red]이미 등록된 스쿼드: {slug}[/red]\n"
+            f"[dim]경로: {SQUADS_DIR / slug}[/dim]\n"
+            f"[dim]`aa squad show {slug}` 로 현재 상태 확인.[/dim]"
+        )
+        raise typer.Exit(1)
+
+    console.print(
+        Panel.fit(
+            f"[green]✓ 스쿼드 등록[/green]\n\n"
+            f"[dim]Slug:[/dim]    {slug}\n"
+            f"[dim]Name:[/dim]    {name}\n"
+            f"[dim]Lead:[/dim]    {lead}\n"
+            f"[dim]Status:[/dim]  DRAFT\n\n"
+            f"[bold]다음 단계:[/bold]\n"
+            f"  1. {folder / 'squad.toml'} 편집 — [[cells]] 블록에 멤버 채우기\n"
+            f"  2. {folder / 'README.md'} 편집 — 사람용 헌장 작성\n"
+            f"  3. squad.toml 의 status 를 [bold cyan]FORMED[/bold cyan] 로 변경\n"
+            f"  4. 워크스페이스에 라벨 생성 + 본부 이슈 지정 (Multica)\n"
+            f"  5. [dim]aa squad show {slug}[/dim] 로 검증",
+            border_style="cyan",
+            title=f"aa squad register {slug}",
+        )
     )
 
 

@@ -1,0 +1,94 @@
+# BRAND-SYSTEM SQUAD — 스쿼드 등록부 (머신 판독)
+# 사람용 헌장은 같은 폴더의 README.md.
+
+[meta]
+slug = "brand-system"
+name = "BRAND-SYSTEM SQUAD"
+status = "FORMED"                                            # DRAFT | FORMED | ACTIVE | DORMANT | DISBANDED
+formed_on = "2026-05-16"
+lead = "origin-reader"                                       # Squad Lead — 27명 카탈로그의 agent name
+label = "스쿼드: 브랜드시스템"                                # 워크스페이스 라벨
+hq_issue = "ALI-19"                                          # 본부 이슈 identifier
+hq_issue_uuid = "5fe3b259-00ff-4589-8be8-83b298342414"
+mission = """
+브랜드가 *말로 끝나는 정체성*이 아니라 *매일 행동으로 굴러가는 시스템*이 되도록 직조한다.
+WHY(존재 이유) → STORY(마스터 내러티브) → EXPRESSION(목소리·시각·채널) → OPERATIONS(조직·워크플로·KPI)
+의 4단 직조를 한 호흡으로 책임진다.
+"""
+
+# ──────────────────────────────────────────────────────────────────────────
+# Phase 1 — 정체성 코어 (Identity Core)
+# ──────────────────────────────────────────────────────────────────────────
+[[cells]]
+name = "Phase 1 — Identity Core"
+lead = "origin-reader"
+
+[[cells.members]]
+agent = "origin-reader"
+role = "Phase Lead · 4층 진단서 (표면/작동/신념/매듭)"
+
+[[cells.members]]
+agent = "vision-architect"
+role = "5/10년 비전 시나리오 3종"
+
+[[cells.members]]
+agent = "culture-linguist"
+role = "Culture Code 7~9개"
+
+[[cells.members]]
+agent = "story-weaver"
+role = "30초/3분/30분 마스터 내러티브 (Phase 1→2 브릿지)"
+
+[[cells.members]]
+agent = "pain-interpreter"
+role = "표면 페인 vs 구조적 페인 분리"
+
+# ──────────────────────────────────────────────────────────────────────────
+# Phase 2 — 표현 시스템 (Expression System)
+# ──────────────────────────────────────────────────────────────────────────
+[[cells]]
+name = "Phase 2 — Expression System"
+lead = "story-weaver"
+
+[[cells.members]]
+agent = "story-weaver"
+role = "Phase Lead · 톤·메시지 일관성 단일 진실원 (Phase 1에서 이월)"
+
+[[cells.members]]
+agent = "ui-ux-designer"
+role = "Visual Identity · 대시보드 적용"
+
+[[cells.members]]
+agent = "prompt-engineer"
+role = "System Prompt Voice — AI 에이전트의 목소리로서의 브랜드"
+
+[[cells.members]]
+agent = "content-scout"
+role = "Threads/LinkedIn/Substack 채널 포맷"
+
+[[cells.members]]
+agent = "brand-keeper"
+role = "Always-on 가드레일 · 모든 외부 산출물 톤 검수"
+
+# ──────────────────────────────────────────────────────────────────────────
+# Phase 3 — 운영 시스템 (Operations System)
+# ──────────────────────────────────────────────────────────────────────────
+[[cells]]
+name = "Phase 3 — Operations System"
+lead = "org-designer"
+
+[[cells.members]]
+agent = "org-designer"
+role = "Phase Lead · 인간+AI 공존 조직도에서 브랜드 책임의 자리"
+
+[[cells.members]]
+agent = "agent-architect"
+role = "브랜드를 굴리는 에이전트 팀 구성"
+
+[[cells.members]]
+agent = "workflow-engineer"
+role = "산출물 검수·발행·아카이브 워크플로"
+
+[[cells.members]]
+agent = "kpi-translator"
+role = "브랜드 성과 측정 (North Star → 분기 → 주간)"
