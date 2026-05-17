@@ -1,0 +1,100 @@
+diff --git a/packages/views/editor/content-editor.tsx b/packages/views/editor/content-editor.tsx
+index 7fb5cde..07dbac6 100644
+--- a/packages/views/editor/content-editor.tsx
++++ b/packages/views/editor/content-editor.tsx
+@@ -118,6 +118,7 @@ interface ContentEditorRef {
+   uploadFile: (file: File) => void;
+   /** True when file uploads are still in progress. */
+   hasActiveUploads: () => boolean;
++  insertText: (text: string) => void;
+ }
+ 
+ // ---------------------------------------------------------------------------
+@@ -250,6 +251,9 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
+         });
+         return uploading;
+       },
++      insertText: (text: string) => {
++        editor?.commands.insertContent(text);
++      },
+     }));
+ 
+     // Link hover card — disabled when BubbleMenu is active (has selection)
+diff --git a/packages/views/issues/components/comment-input.tsx b/packages/views/issues/components/comment-input.tsx
+index 7392933..28ceb6b 100644
+--- a/packages/views/issues/components/comment-input.tsx
++++ b/packages/views/issues/components/comment-input.tsx
+@@ -1,7 +1,7 @@
+ "use client";
+ 
+ import { useRef, useState, useCallback, useEffect } from "react";
+-import { Maximize2, Minimize2 } from "lucide-react";
++import { Maximize2, Mic, MicOff, Minimize2 } from "lucide-react";
+ import { Tooltip, TooltipTrigger, TooltipContent } from "@multica/ui/components/ui/tooltip";
+ import { cn } from "@multica/ui/lib/utils";
+ import { ContentEditor, type ContentEditorRef, useFileDropZone, FileDropOverlay } from "../../editor";
+@@ -30,6 +30,8 @@ function CommentInput({ issueId, onSubmit }: CommentInputProps) {
+   const [isEmpty, setIsEmpty] = useState(() => !initialDraft?.trim());
+   const [submitting, setSubmitting] = useState(false);
+   const [isExpanded, setIsExpanded] = useState(false);
++  const [isListening, setIsListening] = useState(false);
++  const recognitionRef = useRef<any>(null);
+   const uploadMapRef = useRef<Map<string, string>>(new Map());
+   const { uploadWithToast } = useFileUpload(api);
+   const { isDragOver, dropZoneProps } = useFileDropZone({
+@@ -84,6 +86,29 @@ function CommentInput({ issueId, onSubmit }: CommentInputProps) {
+     }
+   };
+ 
++  const toggleVoice = useCallback(() => {
++    if (isListening) {
++      recognitionRef.current?.stop();
++      return;
++    }
++    const SpeechRecognition = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
++    if (!SpeechRecognition) return;
++    const recognition = new SpeechRecognition();
++    recognition.lang = "ko-KR";
++    recognition.interimResults = false;
++    recognition.continuous = false;
++    recognition.maxAlternatives = 1;
++    recognition.onresult = (e: any) => {
++      const transcript = e.results[0]?.[0]?.transcript;
++      if (transcript) editorRef.current?.insertText(transcript);
++    };
++    recognition.onend = () => setIsListening(false);
++    recognition.onerror = () => setIsListening(false);
++    recognitionRef.current = recognition;
++    recognition.start();
++    setIsListening(true);
++  }, [isListening]);
++
+   return (
+     <div
+       {...dropZoneProps}
+@@ -128,6 +153,25 @@ function CommentInput({ issueId, onSubmit }: CommentInputProps) {
+           />
+           <TooltipContent side="top">{isExpanded ? t(($) => $.comment.collapse_tooltip) : t(($) => $.comment.expand_tooltip)}</TooltipContent>
+         </Tooltip>
++        <Tooltip>
++          <TooltipTrigger
++            render={
++              <button
++                type="button"
++                onClick={toggleVoice}
++                className={cn(
++                  "rounded-sm p-1.5 transition-all cursor-pointer",
++                  isListening
++                    ? "text-destructive animate-pulse opacity-100 hover:opacity-80"
++                    : "text-muted-foreground opacity-70 hover:opacity-100 hover:bg-accent/60",
++                )}
++              >
++                {isListening ? <MicOff className="size-4" /> : <Mic className="size-4" />}
++              </button>
++            }
++          />
++          <TooltipContent side="top">{isListening ? "음성 입력 중지" : "음성 입력"}</TooltipContent>
++        </Tooltip>
+         <FileUploadButton
+           size="sm"
+           onSelect={(file) => editorRef.current?.uploadFile(file)}
