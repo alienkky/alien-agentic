@@ -93,3 +93,8 @@ CODEX_BIN = _find_codex_bin()
 # ChatGPT(Codex) 모델 — 비우면 Codex CLI 의 계정 기본 모델을 그대로 사용.
 # 모델명이 바뀌어도 깨지지 않도록 기본값은 빈 문자열.
 CODEX_MODEL = os.environ.get("CODEX_MODEL", "")
+
+# ComfyUI — 4090 로컬 GPU 경유. 무-API-키, 이미지·동영상 둘 다.
+COMFYUI_URL = os.environ.get("COMFYUI_URL", "http://localhost:8188")
+COMFYUI_WORKFLOWS_DIR = ROOT / "automation" / "cli" / "aa" / "comfyui_workflows"
+COMFYUI_OUTPUT_TIMEOUT = int(os.environ.get("COMFYUI_OUTPUT_TIMEOUT", "600"))

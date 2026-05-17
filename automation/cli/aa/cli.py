@@ -10,6 +10,9 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from collections import defaultdict
 from pathlib import Path
 
@@ -34,6 +37,9 @@ from aa.config import (
     AGENTS_DIR,
     CLAUDE_BIN,
     CODEX_BIN,
+    COMFYUI_OUTPUT_TIMEOUT,
+    COMFYUI_URL,
+    COMFYUI_WORKFLOWS_DIR,
     COMPANY,
     DAILY_LOGS,
     DASHBOARD,
@@ -177,6 +183,7 @@ def _count_open(folder) -> int:
 _PROVIDER_LABELS = {
     "claude": "Claude Max",
     "chatgpt": "ChatGPT Pro",
+    "comfyui": "ComfyUI (4090 로컬)",
 }
 
 
@@ -191,10 +198,14 @@ def call(
         None, "--difficulty", help="난이도 수동 지정: T1 | T2 | T3"
     ),
     provider: str = typer.Option(
-        None, "--provider", help="공급자 강제 지정: claude | chatgpt"
+        None, "--provider", help="공급자 강제 지정: claude | chatgpt | comfyui"
     ),
     modality: str = typer.Option(
-        None, "--modality", help="모달리티 수동 지정: text | image"
+        None, "--modality", help="모달리티 수동 지정: text | image | video"
+    ),
+    workflow: str = typer.Option(
+        None, "--workflow",
+        help="ComfyUI 워크플로 파일명 (확장자 없이, comfyui_workflows/ 안)",
     ),
     dry_run: bool = typer.Option(
         False, "--dry-run", help="AI 호출 없이 라우팅 결과만 출력"
@@ -253,8 +264,17 @@ def call(
         console.print(f"[dim]시스템 프롬프트 위치:[/dim] {a.path}")
         return
 
-    # 공급자별 사전 점검 — 이미지는 항상 Codex(chatgpt) 경로
-    if r.provider == "chatgpt":
+    # 공급자별 사전 점검
+    if r.provider == "comfyui":
+        if not _comfyui_alive(COMFYUI_URL):
+            console.print(
+                f"[red]ComfyUI 가 응답하지 않습니다 ({COMFYUI_URL}).[/red]\n"
+                "[dim]4090 PC 에서 ComfyUI 가 실행 중이어야 합니다.[/dim]\n"
+                "[dim]포트가 다르면 `.env` 에 COMFYUI_URL=http://localhost:XXXX 박기.[/dim]\n"
+                "[dim]설치·연동 가이드: docs/guides/comfyui-integration.md[/dim]"
+            )
+            raise typer.Exit(1)
+    elif r.provider == "chatgpt":
         if CODEX_BIN is None:
             console.print(
                 "[red]codex CLI 를 찾지 못했습니다.[/red]\n"
@@ -272,11 +292,19 @@ def call(
         )
         raise typer.Exit(1)
 
+    # 출력 폴더 결정 — 클라이언트 작업이면 그쪽, 아니면 content/
+    output_dir = _media_output_dir(client, r.modality)
+
     _t0 = time.time()
     with console.status(
         f"[cyan]{a.name} 호출 중 ({provider_label} · {model_label})...[/cyan]"
     ):
-        if r.modality == "image":
+        if r.provider == "comfyui":
+            wf_name = workflow or ("text-to-video" if r.modality == "video" else "text-to-image")
+            returncode, response, stderr = _run_comfyui(
+                prompt, wf_name, output_dir, r.modality,
+            )
+        elif r.modality == "image":
             returncode, response, stderr = _run_codex_image(a, prompt, r.model)
         elif r.provider == "chatgpt":
             returncode, response, stderr = _run_codex(
@@ -288,8 +316,10 @@ def call(
     _log_usage(a, r, prompt, response, returncode, _duration_ms, client)
 
     if returncode != 0:
-        cli_name = "codex" if r.provider == "chatgpt" else "claude"
-        console.print(f"[red]{cli_name} CLI 에러 (exit {returncode}):[/red]")
+        cli_name = {
+            "chatgpt": "codex", "claude": "claude", "comfyui": "ComfyUI",
+        }.get(r.provider, r.provider)
+        console.print(f"[red]{cli_name} 에러 (exit {returncode}):[/red]")
         console.print(stderr or "(stderr 비어 있음)")
         raise typer.Exit(returncode)
 
@@ -387,6 +417,138 @@ def _run_codex_image(a, prompt: str, model: str) -> tuple[int, str, str]:
     return _run_codex(full_prompt, model)
 
 
+# ── ComfyUI HTTP 클라이언트 — 4090 로컬 GPU, 무-API-키, 이미지·동영상 ────────
+def _media_output_dir(client: str, modality: str) -> Path:
+    """ComfyUI/Codex 결과 파일을 떨굴 자리.
+
+    클라이언트 작업이면 `clients/{client}/WHAT/{images|videos}/`,
+    자체용이면 `content/{images|videos}/`. 둘 다 없으면 만든다.
+    """
+    sub = "videos" if modality == "video" else "images"
+    if client and client != "_self" and not client.startswith("_self"):
+        base = ROOT / "clients" / client / "WHAT" / sub
+    else:
+        base = ROOT / "content" / sub
+    base.mkdir(parents=True, exist_ok=True)
+    return base
+
+
+def _comfyui_alive(url: str) -> bool:
+    """ComfyUI 서버가 응답하는지 — 2초 안에 stats 가 떠야 OK."""
+    try:
+        with urllib.request.urlopen(f"{url}/system_stats", timeout=2) as resp:
+            return resp.status == 200
+    except (urllib.error.URLError, urllib.error.HTTPError, OSError):
+        return False
+
+
+def _comfyui_submit(url: str, workflow: dict) -> str:
+    """워크플로를 큐에 넣고 prompt_id 반환."""
+    data = json.dumps({"prompt": workflow}).encode("utf-8")
+    req = urllib.request.Request(
+        f"{url}/prompt",
+        data=data,
+        headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        result = json.loads(resp.read())
+    if "prompt_id" not in result:
+        raise RuntimeError(f"ComfyUI 응답에 prompt_id 없음: {result}")
+    return result["prompt_id"]
+
+
+def _comfyui_wait(url: str, prompt_id: str, timeout: int) -> dict:
+    """history 를 폴링해서 outputs 반환. 큰 모델·동영상은 분 단위 걸린다."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(
+                f"{url}/history/{prompt_id}", timeout=10
+            ) as resp:
+                hist = json.loads(resp.read())
+            if prompt_id in hist:
+                return hist[prompt_id].get("outputs", {})
+        except (urllib.error.URLError, urllib.error.HTTPError, OSError):
+            pass
+        time.sleep(2)
+    raise TimeoutError(
+        f"ComfyUI 작업이 {timeout}초 안에 끝나지 않음 (prompt_id: {prompt_id})"
+    )
+
+
+def _comfyui_download(url: str, item: dict, save_dir: Path) -> Path:
+    """outputs 의 한 항목을 로컬 파일로 다운로드, 저장 경로 반환."""
+    qs = urllib.parse.urlencode({
+        "filename": item["filename"],
+        "subfolder": item.get("subfolder", ""),
+        "type": item.get("type", "output"),
+    })
+    target = save_dir / item["filename"]
+    with urllib.request.urlopen(f"{url}/view?{qs}", timeout=60) as resp:
+        target.write_bytes(resp.read())
+    return target
+
+
+def _run_comfyui(
+    prompt: str, workflow_name: str, output_dir: Path, modality: str,
+) -> tuple[int, str, str]:
+    """ComfyUI 워크플로 템플릿에 프롬프트 치환 + 큐잉 + 결과 다운로드.
+
+    워크플로 JSON 안의 `{PROMPT}` 자리에 사용자 프롬프트가 들어간다.
+    템플릿은 ComfyUI UI 의 'Save (API Format)' 으로 내보낸 후
+    프롬프트 텍스트만 {PROMPT} 로 바꿔서 comfyui_workflows/ 에 둔다.
+    """
+    wf_path = COMFYUI_WORKFLOWS_DIR / f"{workflow_name}.json"
+    if not wf_path.exists():
+        available = sorted(p.stem for p in COMFYUI_WORKFLOWS_DIR.glob("*.json"))
+        return 1, "", (
+            f"워크플로 템플릿 없음: {wf_path}\n"
+            f"사용 가능: {available or '(없음)'}\n"
+            "ComfyUI UI 에서 워크플로를 'Save (API Format)' 으로 내보내고\n"
+            "프롬프트 텍스트를 {PROMPT} 로 바꿔서 위 경로에 저장하세요.\n"
+            "상세: docs/guides/comfyui-integration.md"
+        )
+
+    # JSON 안 문자열에 안전하게 박기 위해 json.dumps 로 이스케이프 후 따옴표 제거
+    safe_prompt = json.dumps(prompt, ensure_ascii=False)[1:-1]
+    workflow_text = wf_path.read_text(encoding="utf-8")
+    workflow_text = workflow_text.replace("{PROMPT}", safe_prompt)
+    try:
+        workflow = json.loads(workflow_text)
+    except json.JSONDecodeError as e:
+        return 1, "", f"워크플로 JSON 파싱 실패 (프롬프트 치환 후): {e}"
+
+    try:
+        prompt_id = _comfyui_submit(COMFYUI_URL, workflow)
+    except Exception as e:
+        return 1, "", f"ComfyUI 큐잉 실패: {e}"
+
+    try:
+        outputs = _comfyui_wait(COMFYUI_URL, prompt_id, COMFYUI_OUTPUT_TIMEOUT)
+    except Exception as e:
+        return 1, "", str(e)
+
+    saved: list[str] = []
+    for node_id, node_out in outputs.items():
+        for key in ("images", "gifs", "videos"):
+            for item in node_out.get(key, []):
+                try:
+                    p = _comfyui_download(COMFYUI_URL, item, output_dir)
+                    saved.append(str(p))
+                except Exception as e:
+                    saved.append(f"[다운로드 실패] {item.get('filename', '?')} — {e}")
+
+    if not saved:
+        return 1, "", "ComfyUI 가 출력 파일을 생성하지 않았습니다 (워크플로 확인)."
+
+    response = (
+        f"ComfyUI 생성 완료 — {len(saved)} 파일 ({modality})\n"
+        f"워크플로: {workflow_name}\n\n"
+        + "\n".join(f"  • {p}" for p in saved)
+    )
+    return 0, response, ""
+
+
 def _append_memory(agent_name: str, response: str, prompt: str, r) -> None:
     """응답에서 MEMORY UPDATE 섹션을 파싱해 4파일에 append."""
     folder = AGENT_MEMORY / agent_name
@@ -426,6 +588,89 @@ def _append_memory(agent_name: str, response: str, prompt: str, r) -> None:
             (fpath.read_text(encoding="utf-8") if fpath.exists() else "") + entry,
             encoding="utf-8",
         )
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# aa voice
+# ──────────────────────────────────────────────────────────────────────────
+@app.command()
+def voice(
+    agent: str = typer.Argument(
+        None, help="에이전트 이름 (없으면 텍스트만 출력)"
+    ),
+    language: str = typer.Option(
+        "ko-KR", "--lang", "-l",
+        help="STT 언어 코드 (기본: ko-KR, 영어: en-US)",
+    ),
+    client: str = typer.Option(
+        "_self", "--client", "-c", help="클라이언트 이름 (에이전트 호출 시)"
+    ),
+    difficulty: str = typer.Option(
+        None, "--difficulty", help="난이도 수동 지정: T1 | T2 | T3"
+    ),
+    provider: str = typer.Option(
+        None, "--provider", help="공급자 강제 지정: claude | chatgpt"
+    ),
+    offline: bool = typer.Option(
+        False, "--offline",
+        help="오프라인 STT (faster-whisper, 첫 실행 시 모델 다운로드)",
+    ),
+) -> None:
+    """음성 입력 → 텍스트 변환 (+ 에이전트 호출).
+
+    \b
+    aa voice                — 녹음 → 텍스트 출력
+    aa voice origin-reader  — 녹음 → 텍스트 → 에이전트 호출
+    """
+    from aa.voice import record_audio, transcribe
+
+    console.rule("🎙 aa voice")
+
+    try:
+        audio_wav = record_audio()
+    except Exception as e:
+        console.print(f"[red]마이크 오류:[/red] {e}")
+        console.print(
+            "[dim]마이크가 연결되어 있고 다른 앱이 점유하지 않는지 확인하세요.[/dim]"
+        )
+        raise typer.Exit(1)
+
+    if not audio_wav:
+        console.print("[yellow]녹음된 오디오가 없습니다.[/yellow]")
+        raise typer.Exit(1)
+
+    with console.status("[cyan]음성 인식 중...[/cyan]"):
+        try:
+            text = transcribe(audio_wav, language=language, offline=offline)
+        except ValueError as e:
+            console.print(f"[yellow]{e}[/yellow]")
+            raise typer.Exit(1)
+        except (ConnectionError, ImportError) as e:
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(1)
+
+    console.print(
+        Panel(
+            text,
+            title="🎙 음성 → 텍스트",
+            border_style="green",
+        )
+    )
+
+    if agent is None:
+        return
+
+    console.print(f"\n[dim]에이전트 '{agent}' 에게 전달합니다...[/dim]\n")
+    call(
+        agent=agent,
+        prompt=text,
+        client=client,
+        difficulty=difficulty,
+        provider=provider,
+        modality=None,
+        workflow=None,
+        dry_run=False,
+    )
 
 
 # ──────────────────────────────────────────────────────────────────────────
