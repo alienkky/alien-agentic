@@ -66,6 +66,43 @@ if ENV_FILE.exists():
     load_dotenv(ENV_FILE)
 
 
+def _count_open(folder) -> int:
+    """folder 안의 *.md 중 'status: open' 포함된 자리 수."""
+    if not folder.exists():
+        return 0
+    count = 0
+    for p in folder.glob("*.md"):
+        if p.name == "README.md":
+            continue
+        try:
+            text = p.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if "status: open" in text:
+            count += 1
+    return count
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# 공용 — 하단 네비게이션 푸터
+# ──────────────────────────────────────────────────────────────────────────
+def _nav_footer() -> None:
+    """결과물 하단에 받은함·이슈·대시보드 바로가기 표시."""
+    open_msgs = _count_open(MESSAGES)
+    open_issues = _count_open(INTERVENTIONS)
+
+    msg_badge = f"[bold yellow]{open_msgs}[/bold yellow]" if open_msgs else "[dim]0[/dim]"
+    issue_badge = f"[bold red]{open_issues}[/bold red]" if open_issues else "[dim]0[/dim]"
+
+    console.print()
+    console.print(
+        f"[dim]───[/dim] "
+        f"📨 받은함 {msg_badge} [dim]aa inbox[/dim]  │  "
+        f"⚠ 이슈 {issue_badge} [dim]aa issues[/dim]  │  "
+        f"📊 [dim]aa status[/dim]"
+    )
+
+
 # ──────────────────────────────────────────────────────────────────────────
 # aa hello
 # ──────────────────────────────────────────────────────────────────────────
@@ -160,22 +197,63 @@ def status() -> None:
     open_messages = _count_open(MESSAGES)
     console.print(f"[bold]미응답 메시지:[/bold] {open_messages}건")
 
+    _nav_footer()
 
-def _count_open(folder) -> int:
-    """folder 안의 *.md 중 'status: open' 포함된 자리 수."""
-    if not folder.exists():
-        return 0
-    count = 0
-    for p in folder.glob("*.md"):
-        if p.name == "README.md":
-            continue
-        try:
-            text = p.read_text(encoding="utf-8", errors="ignore")
-        except OSError:
-            continue
-        if "status: open" in text:
-            count += 1
-    return count
+
+# ──────────────────────────────────────────────────────────────────────────
+# aa inbox / aa issues — 받은함·이슈 바로 확인
+# ──────────────────────────────────────────────────────────────────────────
+def _list_open_items(folder, title: str, emoji: str) -> None:
+    """폴더 안의 status:open 항목을 테이블로 표시."""
+    items = []
+    if folder.exists():
+        for p in sorted(folder.glob("*.md"), reverse=True):
+            if p.name == "README.md":
+                continue
+            try:
+                text = p.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+            if "status: open" in text:
+                lines = text.splitlines()
+                summary = ""
+                for ln in lines:
+                    if ln.strip() and not ln.startswith("---") and not ln.startswith("#") and "status:" not in ln:
+                        summary = ln.strip()[:80]
+                        break
+                items.append((p.name, summary))
+
+    console.rule(f"{emoji} {title} ({len(items)}건 열림)")
+
+    if not items:
+        console.print(f"[green]열린 항목 없음[/green] — 깨끗합니다!")
+        console.print(f"[dim]폴더: {folder}[/dim]")
+        return
+
+    tbl = Table(show_header=True, header_style="bold")
+    tbl.add_column("#", width=3)
+    tbl.add_column("파일", style="cyan")
+    tbl.add_column("요약")
+
+    for idx, (name, summary) in enumerate(items, 1):
+        tbl.add_row(str(idx), name, summary)
+
+    console.print(tbl)
+    console.print(f"\n[dim]폴더: {folder}[/dim]")
+
+
+@app.command()
+def inbox() -> None:
+    """받은함 — 에이전트 간 미응답 메시지 확인."""
+    _list_open_items(MESSAGES, "받은함 (에이전트 메시지)", "📨")
+    _nav_footer()
+
+
+@app.command()
+def issues() -> None:
+    """이슈 — 미해결 개입(interventions) 확인."""
+    _list_open_items(INTERVENTIONS, "이슈 (기영님 개입)", "⚠")
+    _nav_footer()
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -350,6 +428,8 @@ def call(
         f"\n[green]✓ 메모리 4파일 갱신:[/green] "
         f"shared-memory/agents/{a.name}/"
     )
+
+    _nav_footer()
 
 
 def _run_claude(agent: str, prompt: str, model: str) -> tuple[int, str, str]:
