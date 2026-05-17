@@ -37,6 +37,7 @@ from aa.config import (
     AGENTS_DIR,
     CLAUDE_BIN,
     CODEX_BIN,
+    CODEX_MODEL,
     COMFYUI_OUTPUT_TIMEOUT,
     COMFYUI_URL,
     COMFYUI_WORKFLOWS_DIR,
@@ -50,7 +51,7 @@ from aa.config import (
     USAGE_DIR,
     USER_NAME,
 )
-from aa.router import MODALITIES, PROVIDERS, TIERS, route
+from aa.router import MODALITIES, PROVIDERS, TIERS, Route, route
 
 app = typer.Typer(
     name="aa",
@@ -207,10 +208,6 @@ def call(
         None, "--workflow",
         help="ComfyUI 워크플로 파일명 (확장자 없이, comfyui_workflows/ 안)",
     ),
-    no_enhance: bool = typer.Option(
-        False, "--no-enhance",
-        help="프롬프트 자동 증강(번역+품질 키워드) 비활성화",
-    ),
     dry_run: bool = typer.Option(
         False, "--dry-run", help="AI 호출 없이 라우팅 결과만 출력"
     ),
@@ -271,13 +268,22 @@ def call(
     # 공급자별 사전 점검
     if r.provider == "comfyui":
         if not _comfyui_alive(COMFYUI_URL):
-            console.print(
-                f"[red]ComfyUI 가 응답하지 않습니다 ({COMFYUI_URL}).[/red]\n"
-                "[dim]4090 PC 에서 ComfyUI 가 실행 중이어야 합니다.[/dim]\n"
-                "[dim]포트가 다르면 `.env` 에 COMFYUI_URL=http://localhost:XXXX 박기.[/dim]\n"
-                "[dim]설치·연동 가이드: docs/guides/comfyui-integration.md[/dim]"
-            )
-            raise typer.Exit(1)
+            if r.modality == "image":
+                console.print(
+                    f"[yellow]ComfyUI 미응답 ({COMFYUI_URL}) → gpt-image-2 로 폴백[/yellow]\n"
+                )
+                r = Route(
+                    modality=r.modality, tier=r.tier, provider="chatgpt",
+                    model=CODEX_MODEL, reason=r.reason + " · ComfyUI 미응답 → gpt-image-2 폴백",
+                )
+            else:
+                console.print(
+                    f"[red]ComfyUI 가 응답하지 않습니다 ({COMFYUI_URL}).[/red]\n"
+                    "[dim]4090 PC 에서 ComfyUI 가 실행 중이어야 합니다.[/dim]\n"
+                    "[dim]포트가 다르면 `.env` 에 COMFYUI_URL=http://localhost:XXXX 박기.[/dim]\n"
+                    "[dim]설치·연동 가이드: docs/guides/comfyui-integration.md[/dim]"
+                )
+                raise typer.Exit(1)
     elif r.provider == "chatgpt":
         if CODEX_BIN is None:
             console.print(
@@ -298,16 +304,6 @@ def call(
 
     # 출력 폴더 결정 — 클라이언트 작업이면 그쪽, 아니면 content/
     output_dir = _media_output_dir(client, r.modality)
-
-    # 프롬프트 증강 — ComfyUI 이미지/동영상 전용 (한국어→영어 + 품질 키워드)
-    if r.provider == "comfyui" and not no_enhance:
-        enhanced, enhance_reason = _enhance_media_prompt(prompt, r.modality)
-        if enhanced != prompt:
-            console.print(
-                f"[dim]프롬프트 증강 ({enhance_reason}):[/dim]\n"
-                f"[green]{enhanced}[/green]\n"
-            )
-            prompt = enhanced
 
     _t0 = time.time()
     with console.status(
@@ -429,69 +425,6 @@ def _run_codex_image(a, prompt: str, model: str) -> tuple[int, str, str]:
         "생성한 이미지를 현재 작업 폴더에 저장하고, 저장 경로를 명시해줘."
     )
     return _run_codex(full_prompt, model)
-
-
-# ── 프롬프트 증강 — 한국어→영어 번역 + 품질 키워드 ────────────────────────────
-_IMAGE_QUALITY_SUFFIX = (
-    "masterful composition, professional photography, "
-    "sharp focus, detailed textures, natural lighting, high resolution"
-)
-_VIDEO_QUALITY_SUFFIX = (
-    "cinematic, smooth camera movement, professional color grading, "
-    "high production value, detailed, consistent motion"
-)
-
-
-def _has_korean(text: str) -> bool:
-    """한글 음절 포함 여부."""
-    import re
-    return bool(re.search(r'[가-힣]', text))
-
-
-def _translate_via_claude(prompt: str, modality: str) -> str | None:
-    """Claude CLI 로 한국어 프롬프트를 영어 이미지/동영상 프롬프트로 변환."""
-    if CLAUDE_BIN is None:
-        return None
-
-    mod_hint = "image generation" if modality == "image" else "video generation"
-    system_msg = (
-        f"Translate the Korean text into an English {mod_hint} prompt. "
-        "Output ONLY the English prompt — no explanation, no quotes. "
-        "Be vivid and specific. Add visual/cinematic details that enhance the scene."
-    )
-    try:
-        result = subprocess.run(
-            [str(CLAUDE_BIN), "-p", prompt,
-             "--system-prompt", system_msg,
-             "--model", "haiku"],
-            capture_output=True, text=True, timeout=30,
-            encoding="utf-8", stdin=subprocess.DEVNULL,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            out = result.stdout.strip()
-            if out.startswith("Warning:"):
-                out = out.split("\n", 1)[-1].strip()
-            return out
-    except (subprocess.TimeoutExpired, OSError):
-        pass
-    return None
-
-
-def _enhance_media_prompt(prompt: str, modality: str) -> tuple[str, str]:
-    """프롬프트 증강: 한국어→영어 번역 + 품질 키워드 추가.
-
-    Returns (enhanced_prompt, reason_label).
-    """
-    suffix = _IMAGE_QUALITY_SUFFIX if modality == "image" else _VIDEO_QUALITY_SUFFIX
-
-    if _has_korean(prompt):
-        translated = _translate_via_claude(prompt, modality)
-        if translated:
-            enhanced = f"{translated}, {suffix}"
-            return enhanced, "한국어→영어 번역 + 품질 증강"
-        return f"{prompt}, {suffix}", "품질 키워드 추가 (번역 실패)"
-
-    return f"{prompt}, {suffix}", "품질 키워드 추가"
 
 
 # ── ComfyUI HTTP 클라이언트 — 4090 로컬 GPU, 무-API-키, 이미지·동영상 ────────
