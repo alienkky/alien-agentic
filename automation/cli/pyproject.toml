@@ -12,6 +12,15 @@ dependencies = [
   "python-dotenv>=1.0",
 ]
 
+[project.optional-dependencies]
+# 음성 명령 (`aa voice`) — 4090 GPU 에서 Whisper 로컬 실행, 무-API-키.
+# 첫 설치 시 PyTorch + Whisper 모델 다운로드로 ~3GB 추가.
+voice = [
+  "openai-whisper>=20231117",
+  "sounddevice>=0.4.6",
+  "numpy>=1.24",
+]
+
 [project.scripts]
 aa = "aa.cli:app"
 

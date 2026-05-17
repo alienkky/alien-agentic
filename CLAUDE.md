@@ -163,7 +163,7 @@ E:\AlienAgentic\alien-agentic\
 ├── 베러먼데이-handover/         # 베먼 분리 폴더 (혼합 절대 금지)
 ├── content/                     # 외부 콘텐츠 (Threads / LinkedIn / Substack)
 ├── automation/
-│   ├── cli/                     # `aa` CLI 패키지 (Typer + Claude Max 경유, 9 명령어)
+│   ├── cli/                     # `aa` CLI 패키지 (Typer + Claude Max 경유, 10 명령어)
 │   └── intranet/
 │       ├── multica/             # Multica 본진 (git clone, .gitignore 처리)
 │       └── alien-config/        # 우리 커스터마이즈 (27명 시드 스크립트 + 가이드)

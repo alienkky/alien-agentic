@@ -909,6 +909,211 @@ def usage(
 
 
 # ──────────────────────────────────────────────────────────────────────────
+# aa voice — 음성 명령 (4090 GPU + Whisper, 무-API-키)
+# ──────────────────────────────────────────────────────────────────────────
+def _guess_agent_from_text(text: str) -> str | None:
+    """전사 텍스트에서 27명 중 하나를 자동 감지.
+
+    한국어 발음(스토리위버, 콘텐트스카웃 …) 과 영어 슬러그 둘 다 매칭.
+    """
+    text_norm = text.lower().replace(" ", "").replace("-", "").replace("_", "")
+    all_agents = [p.stem for p in AGENTS_DIR.glob("*.md")]
+
+    # 영어 슬러그 직접 매칭 (가장 신뢰)
+    for name in all_agents:
+        norm = name.replace("-", "").replace("_", "")
+        if norm in text_norm:
+            return name
+
+    # 한국어 발음 매핑 — 자주 호명될 직원만, 나머지는 영어 슬러그로
+    KR_MAP = {
+        "스토리위버": "story-weaver", "스토리": "story-weaver",
+        "콘텐트스카웃": "content-scout", "컨텐트스카웃": "content-scout",
+        "콘텐츠스카웃": "content-scout", "콘텐트스카우트": "content-scout",
+        "케이스큐레이터": "case-curator", "케이스": "case-curator",
+        "유아이": "ui-ux-designer", "유엑스": "ui-ux-designer", "디자이너": "ui-ux-designer",
+        "브랜드키퍼": "brand-keeper", "브랜드": "brand-keeper",
+        "오리진리더": "origin-reader", "오리진": "origin-reader",
+        "비전아키텍트": "vision-architect", "비전": "vision-architect",
+        "페인": "pain-interpreter", "페인인터프리터": "pain-interpreter",
+        "컬쳐": "culture-linguist", "컬처": "culture-linguist",
+        "에이전트아키텍트": "agent-architect", "에이전트설계": "agent-architect",
+        "프로세스": "process-cartographer",
+        "워크플로": "workflow-engineer", "워크플로우": "workflow-engineer",
+        "데이터": "data-strategist",
+        "케이피아이": "kpi-translator", "KPI": "kpi-translator",
+        "조직": "org-designer",
+        "통합": "integration-specialist", "인테그레이션": "integration-specialist",
+        "프롬프트": "prompt-engineer",
+        "서브에이전트": "subagent-builder", "에이전트빌더": "subagent-builder",
+        "엠씨피": "mcp-connector", "MCP": "mcp-connector",
+        "오토메이션": "automation-coder", "자동화": "automation-coder",
+        "지식": "knowledge-architect", "옵시디언": "knowledge-architect",
+        "테스터": "qa-tester", "큐에이": "qa-tester", "QA": "qa-tester",
+        "세일즈": "sales-closer", "영업": "sales-closer",
+        "컨시어지": "client-concierge", "클라이언트": "client-concierge",
+        "파이낸스": "finance-tracker", "재무": "finance-tracker",
+        "트렌드": "trend-hunter",
+        "퓨처": "future-forecaster", "예측": "future-forecaster",
+    }
+    for kr, en in KR_MAP.items():
+        if kr.lower().replace(" ", "") in text_norm:
+            return en
+    return None
+
+
+@app.command()
+def voice(
+    agent: str = typer.Option(
+        None, "--agent", "-a", help="에이전트 미리 지정 (없으면 음성에서 자동 감지 + 묻기)"
+    ),
+    seconds: int = typer.Option(
+        0, "--seconds", "-s",
+        help="녹음 시간(초). 0 = Enter 키로 직접 종료 (권장)",
+    ),
+    language: str = typer.Option(
+        "ko", "--language", help="음성 언어 (ko / en / auto)"
+    ),
+    model: str = typer.Option(
+        "base", "--model",
+        help="Whisper 모델: tiny / base / small / medium / large / large-v3",
+    ),
+    no_execute: bool = typer.Option(
+        False, "--no-execute", help="전사만 — aa call 실행 생략"
+    ),
+    client: str = typer.Option(
+        "_self", "--client", "-c", help="클라이언트 (자동 실행 시 aa call 에 전달)"
+    ),
+) -> None:
+    """🎤 음성으로 27명 외계 동료에게 명령 (Whisper 로컬 STT, 무-API-키)."""
+    # Lazy import — voice 안 쓰는 사용자에게 의존성 강요 X
+    try:
+        import sounddevice as sd
+        import numpy as np
+        import whisper
+    except ImportError as e:
+        missing = getattr(e, "name", "(unknown)")
+        console.print(
+            f"[red]음성 의존성 미설치: {missing}[/red]\n"
+            "[dim]설치: .\\.venv\\Scripts\\pip.exe install -e .[voice][/dim]\n"
+            "[dim](첫 설치 시 PyTorch + Whisper 모델로 ~3GB)[/dim]\n"
+            "[dim]상세: docs/guides/voice-commands.md[/dim]"
+        )
+        raise typer.Exit(1)
+
+    console.rule("🎤 음성 명령")
+    sample_rate = 16000  # Whisper 권장값
+
+    # ── 1) 녹음 ─────────────────────────────────────────────────────────
+    if seconds > 0:
+        console.print(f"[cyan]🎤 {seconds}초 녹음 중...[/cyan]")
+        rec = sd.rec(int(seconds * sample_rate), samplerate=sample_rate,
+                     channels=1, dtype="int16")
+        sd.wait()
+        audio = rec.flatten()
+    else:
+        import queue as _queue
+        q: "_queue.Queue" = _queue.Queue()
+
+        def _cb(indata, frames, time_info, status):
+            q.put(indata.copy())
+
+        try:
+            with sd.InputStream(
+                samplerate=sample_rate, channels=1,
+                callback=_cb, dtype="int16",
+            ):
+                input("⏺ 녹음 중... [Enter 키로 종료] ")
+        except sd.PortAudioError as e:
+            console.print(f"[red]마이크 접근 실패: {e}[/red]")
+            console.print(
+                "[dim]Windows 설정 → 개인정보 → 마이크 → 앱 액세스 허용 필요[/dim]"
+            )
+            raise typer.Exit(1)
+        chunks = []
+        while not q.empty():
+            chunks.append(q.get())
+        if not chunks:
+            console.print("[red]녹음된 데이터가 없습니다.[/red]")
+            raise typer.Exit(1)
+        audio = np.concatenate(chunks).flatten()
+
+    duration = len(audio) / sample_rate
+    console.print(f"[dim]녹음 완료 — {duration:.1f}초[/dim]")
+
+    # ── 2) WAV 저장 (stdlib wave 사용, 추가 dep 없음) ────────────────────
+    import wave
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
+        wav_path = Path(tf.name)
+    try:
+        with wave.open(str(wav_path), "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)  # int16
+            wf.setframerate(sample_rate)
+            wf.writeframes(audio.tobytes())
+
+        # ── 3) STT — Whisper ────────────────────────────────────────────
+        console.print(f"[cyan]🔍 음성 인식 중 (Whisper {model})...[/cyan]")
+        try:
+            w = whisper.load_model(model)
+        except Exception as e:
+            console.print(f"[red]Whisper 모델 로드 실패: {e}[/red]")
+            raise typer.Exit(1)
+        kwargs: dict = {}
+        if language and language != "auto":
+            kwargs["language"] = language
+        try:
+            result = w.transcribe(str(wav_path), **kwargs)
+        except Exception as e:
+            console.print(f"[red]전사 실패: {e}[/red]")
+            raise typer.Exit(1)
+        text = (result.get("text") or "").strip()
+    finally:
+        wav_path.unlink(missing_ok=True)
+
+    if not text:
+        console.print("[yellow]인식된 텍스트가 비어 있습니다. 다시 시도해주세요.[/yellow]")
+        return
+
+    console.print(Panel(text, title="✓ 인식 결과", border_style="green"))
+
+    # ── 4) 에이전트 선택 ────────────────────────────────────────────────
+    if not agent:
+        guess = _guess_agent_from_text(text)
+        if guess:
+            console.print(f"[dim]자동 감지된 에이전트:[/dim] [bold cyan]{guess}[/bold cyan]")
+            agent = typer.prompt("어느 에이전트?", default=guess)
+        else:
+            console.print(
+                "[dim]자동 감지 실패 — `aa list` 로 명단 확인 가능[/dim]"
+            )
+            agent = typer.prompt("어느 에이전트?")
+
+    # ── 5) aa call 실행 ─────────────────────────────────────────────────
+    if no_execute:
+        console.print(
+            f"\n[yellow]--no-execute: aa call 실행 생략[/yellow]\n"
+            f"[dim]직접 실행하려면:[/dim] [cyan]aa call {agent} \"{text}\" -c {client}[/cyan]"
+        )
+        return
+
+    if not typer.confirm(f"\naa call {agent} 호출할까요?", default=True):
+        console.print(
+            f"[dim]취소됨. 직접 실행:[/dim] "
+            f"[cyan]aa call {agent} \"{text}\" -c {client}[/cyan]"
+        )
+        return
+
+    # 같은 Python 으로 self-call — 격리·안정성 우선 (typer 컨텍스트 재진입 회피)
+    console.print(f"\n[dim]aa call {agent} 호출 중...[/dim]\n")
+    result = subprocess.run(
+        [sys.executable, "-m", "aa.cli", "call", agent, text, "-c", client],
+        cwd=str(ROOT),
+    )
+    raise typer.Exit(result.returncode)
+
+
+# ──────────────────────────────────────────────────────────────────────────
 # aa daily-log
 # ──────────────────────────────────────────────────────────────────────────
 @app.command(name="daily-log")
