@@ -49,6 +49,54 @@ def record_audio(sample_rate: int = 16000, channels: int = 1) -> bytes:
     return buf.getvalue()
 
 
+def record_audio_auto(
+    sample_rate: int = 16000,
+    channels: int = 1,
+    stop_event_check=None,
+    poll_interval: float = 0.05,
+    min_duration: float = 0.3,
+) -> bytes:
+    """핫키용 녹음 — stop_event_check() 가 True 를 반환하면 중지.
+
+    Enter 가 아닌 외부 조건(핫키 릴리스)으로 녹음을 멈춘다.
+    min_duration 초 미만이면 빈 bytes 반환 (오발 방지).
+    """
+    import time as _time
+
+    frames: list[np.ndarray] = []
+    start_time = _time.monotonic()
+
+    def callback(indata, _frame_count, _time_info, status):
+        frames.append(indata.copy())
+
+    stream = sd.InputStream(
+        samplerate=sample_rate,
+        channels=channels,
+        dtype="int16",
+        callback=callback,
+    )
+    stream.start()
+
+    try:
+        while True:
+            _time.sleep(poll_interval)
+            if stop_event_check and stop_event_check():
+                break
+    finally:
+        stream.stop()
+        stream.close()
+
+    elapsed = _time.monotonic() - start_time
+    if elapsed < min_duration or not frames:
+        return b""
+
+    audio_data = np.concatenate(frames, axis=0)
+
+    buf = io.BytesIO()
+    sf.write(buf, audio_data, sample_rate, format="WAV", subtype="PCM_16")
+    return buf.getvalue()
+
+
 def transcribe_google(audio_wav: bytes, language: str = "ko-KR") -> str:
     """Google Free STT — API 키 불필요, 인터넷 필요."""
     import speech_recognition as sr

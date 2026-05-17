@@ -684,6 +684,43 @@ def voice(
 
 
 # ──────────────────────────────────────────────────────────────────────────
+# aa hotkey — 글로벌 단축키 음성 입력 (백그라운드 데몬)
+# ──────────────────────────────────────────────────────────────────────────
+@app.command()
+def hotkey(
+    agent: str = typer.Argument(
+        None, help="Ctrl+Shift+A 로 호출할 기본 에이전트 (없으면 클립보드만)"
+    ),
+    language: str = typer.Option(
+        "ko-KR", "--lang", "-l",
+        help="STT 언어 코드 (기본: ko-KR, 영어: en-US)",
+    ),
+    offline: bool = typer.Option(
+        False, "--offline",
+        help="오프라인 STT (faster-whisper)",
+    ),
+) -> None:
+    """글로벌 단축키로 음성 입력 — 어디서든 Ctrl+Shift+V.
+
+    \b
+    Ctrl+Shift+V  녹음 → 텍스트 → 클립보드 복사
+    Ctrl+Shift+A  녹음 → 텍스트 → 에이전트 호출 (agent 지정 시)
+    """
+    try:
+        import keyboard as _kb  # noqa: F401
+    except ImportError:
+        console.print(
+            "[red]keyboard 패키지가 필요합니다.[/red]\n"
+            "[dim]  pip install keyboard[/dim]"
+        )
+        raise typer.Exit(1)
+
+    from aa.hotkey import run_listener
+
+    run_listener(language=language, offline=offline, agent=agent)
+
+
+# ──────────────────────────────────────────────────────────────────────────
 # aa usage — CLI·모델·에이전트별 사용량 집계
 # ──────────────────────────────────────────────────────────────────────────
 def _log_usage(

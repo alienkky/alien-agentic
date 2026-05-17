@@ -13,6 +13,7 @@ dependencies = [
   "SpeechRecognition>=3.10",
   "sounddevice>=0.4",
   "soundfile>=0.12",
+  "keyboard>=0.13",
 ]
 
 [project.scripts]
