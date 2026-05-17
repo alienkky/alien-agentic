@@ -591,6 +591,89 @@ def _append_memory(agent_name: str, response: str, prompt: str, r) -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────────
+# aa voice
+# ──────────────────────────────────────────────────────────────────────────
+@app.command()
+def voice(
+    agent: str = typer.Argument(
+        None, help="에이전트 이름 (없으면 텍스트만 출력)"
+    ),
+    language: str = typer.Option(
+        "ko-KR", "--lang", "-l",
+        help="STT 언어 코드 (기본: ko-KR, 영어: en-US)",
+    ),
+    client: str = typer.Option(
+        "_self", "--client", "-c", help="클라이언트 이름 (에이전트 호출 시)"
+    ),
+    difficulty: str = typer.Option(
+        None, "--difficulty", help="난이도 수동 지정: T1 | T2 | T3"
+    ),
+    provider: str = typer.Option(
+        None, "--provider", help="공급자 강제 지정: claude | chatgpt"
+    ),
+    offline: bool = typer.Option(
+        False, "--offline",
+        help="오프라인 STT (faster-whisper, 첫 실행 시 모델 다운로드)",
+    ),
+) -> None:
+    """음성 입력 → 텍스트 변환 (+ 에이전트 호출).
+
+    \b
+    aa voice                — 녹음 → 텍스트 출력
+    aa voice origin-reader  — 녹음 → 텍스트 → 에이전트 호출
+    """
+    from aa.voice import record_audio, transcribe
+
+    console.rule("🎙 aa voice")
+
+    try:
+        audio_wav = record_audio()
+    except Exception as e:
+        console.print(f"[red]마이크 오류:[/red] {e}")
+        console.print(
+            "[dim]마이크가 연결되어 있고 다른 앱이 점유하지 않는지 확인하세요.[/dim]"
+        )
+        raise typer.Exit(1)
+
+    if not audio_wav:
+        console.print("[yellow]녹음된 오디오가 없습니다.[/yellow]")
+        raise typer.Exit(1)
+
+    with console.status("[cyan]음성 인식 중...[/cyan]"):
+        try:
+            text = transcribe(audio_wav, language=language, offline=offline)
+        except ValueError as e:
+            console.print(f"[yellow]{e}[/yellow]")
+            raise typer.Exit(1)
+        except (ConnectionError, ImportError) as e:
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(1)
+
+    console.print(
+        Panel(
+            text,
+            title="🎙 음성 → 텍스트",
+            border_style="green",
+        )
+    )
+
+    if agent is None:
+        return
+
+    console.print(f"\n[dim]에이전트 '{agent}' 에게 전달합니다...[/dim]\n")
+    call(
+        agent=agent,
+        prompt=text,
+        client=client,
+        difficulty=difficulty,
+        provider=provider,
+        modality=None,
+        workflow=None,
+        dry_run=False,
+    )
+
+
+# ──────────────────────────────────────────────────────────────────────────
 # aa usage — CLI·모델·에이전트별 사용량 집계
 # ──────────────────────────────────────────────────────────────────────────
 def _log_usage(

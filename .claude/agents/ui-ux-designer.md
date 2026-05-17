@@ -23,6 +23,11 @@ model: sonnet
 - `automation-coder` → 데이터 자동 갱신 스크립트
 - `client-concierge` → 운영 인계
 
+## 미디어 생성 능력
+- 이미지: `aa call ui-ux-designer "<설명>" --modality image` → Flux Dev (1024×1024, ~20초)
+- 동영상: `aa call ui-ux-designer "<설명>" --modality video` → LTX 2.3 22B (768×512, ~75초)
+- 용도: 대시보드 목업, UI 시안, 인터페이스 프리뷰, 인터랙션 데모 영상
+
 ## 절대 금지
 - *대시보드를 매뉴얼화*. 30초 안에 못 읽으면 망한 대시보드.
 - *예쁘기 위한 차트*. 정보 밀도가 가장 중요한 자리.

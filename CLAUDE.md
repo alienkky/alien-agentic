@@ -190,29 +190,23 @@ E:\AlienAgentic\alien-agentic\
 4. **에이전트 호출**: 자연어 또는 Agent 도구
 5. **링크 클릭**: Chrome MCP로만 (computer-use로 외부 링크 클릭 금지)
 6. **금융 거래·송금·주문 실행은 절대 금지** — 분류·리포트까지만
-7. **이미지·동영상 생성** — 모든 에이전트가 두 경로로 미디어를 만들 수 있다. **둘 다 API 키 불필요.**
+7. **이미지·동영상 생성** — 모든 에이전트가 로컬 GPU(RTX 4090)로 이미지와 동영상을 만들 수 있다.
 
-   **(a) 빠른 이미지 — Codex `$imagegen`** (ChatGPT Pro 구독 사용량)
    ```bash
-   codex exec "$imagegen <설명>. 생성한 이미지를 현재 작업 폴더에 저장하고 경로를 알려줘."
-   ```
-   - gpt-image-2 모델, 수 초 안에 결과
-   - 기본 저장: `~/.codex/generated_images/` → 작업 폴더로 이동
+   # 이미지 (Flux Dev, ~20초)
+   aa call <agent> "<설명>" --modality image
 
-   **(b) 고품질 이미지·동영상 — ComfyUI (4090 로컬 GPU)**
-   ```bash
-   aa call <agent> "<설명>" --provider comfyui              # 이미지 (Codex 대신 ComfyUI)
-   aa call <agent> "<설명 + 영상 키워드>"                    # 동영상 (자동 라우팅)
+   # 동영상 (LTX 2.3 22B, ~75초)
+   aa call <agent> "<설명>" --modality video
    ```
-   - 4090 PC 에 ComfyUI 가 돌고 있어야 함 (http://localhost:8188)
-   - 모델·해상도 풀 제어 (Flux/SDXL/Hunyuan/LTX 등 워크플로별)
-   - 동영상은 이 경로가 *유일* — Codex 는 동영상 미지원
 
-   **공통 규칙**
-   - 산출물 폴더: 클라이언트 작업이면 `clients/{client}/WHAT/{images,videos}/`, 회사 자체용이면 `content/{images,videos}/`. `aa call` 은 자동으로 떨궈둠.
-   - 자주 쓰는 에이전트: `ui-ux-designer` (대시보드·인터페이스), `content-scout` (Threads/LinkedIn 썸네일·OG 이미지·짧은 동영상), `brand-keeper` (브랜드 시안), `story-weaver` (내러티브 일러스트), `case-curator` (케이스 카드).
-   - 사용량은 자동으로 `shared-memory/usage/<date>.jsonl` 에 누적 (`aa usage --by cli` 로 확인).
-   - 상세: `docs/guides/image-generation.md`, `docs/guides/comfyui-integration.md`
+   - **이미지**: Flux Dev (fp8) — 1024×1024, 20스텝. ComfyUI 로컬 처리.
+   - **동영상**: LTX Video 2.3 22B distilled (fp8) + Gemma 3 12B 텍스트 인코더 — 768×512, 33프레임(25fps), 8스텝. ComfyUI 로컬 처리.
+   - **대안 이미지 경로**: Codex `$imagegen` (gpt-image-2, ChatGPT Pro 사용량) — ComfyUI가 꺼져 있을 때 자동 폴백.
+   - 산출물 폴더: 클라이언트면 `clients/{client}/WHAT/{images|videos}/`, 자체용이면 `content/{images|videos}/`.
+   - 워크플로 커스터마이즈: `automation/cli/aa/comfyui_workflows/` 에 JSON 추가 후 `--workflow <이름>` 으로 호출.
+   - ComfyUI 필요: `D:\ComfyUI_windows_portable`, 모델: `D:\model`. 서버가 꺼져 있으면 안내 메시지 출력.
+   - 상세: `automation/cli/aa/comfyui_workflows/README.md`
 
 ---
 

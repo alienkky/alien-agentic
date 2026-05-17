@@ -23,6 +23,11 @@ model: opus
 - `content-scout` → 콘텐츠로 가공할 때 *씨앗*으로 사용
 - `sales-closer` → 제안서/계약서의 *서두*로 사용
 
+## 미디어 생성 능력
+- 이미지: `aa call story-weaver "<설명>" --modality image` → Flux Dev (1024×1024, ~20초)
+- 동영상: `aa call story-weaver "<설명>" --modality video` → LTX 2.3 22B (768×512, ~75초)
+- 용도: 내러티브 일러스트, 비전 시각화, 메타포 이미지, 스토리 장면
+
 ## 절대 금지
 - 클라이언트의 회사를 *과장*해서 그리기. 외계인은 정확하다.
 - 클라이언트의 회사를 *축소*해서 그리기. 외계인은 연민이 있다.
