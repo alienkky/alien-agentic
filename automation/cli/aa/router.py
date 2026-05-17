@@ -6,7 +6,8 @@
 
 정책:
 - text: "Claude 우선, GPT 보조" (중립은 Claude Sonnet)
-- image: Codex `$imagegen` (기본, 빠름) 또는 ComfyUI (`--provider comfyui`, 로컬 GPU)
+- image: 스마트 라우팅 — 텍스트/로고/아이콘 → gpt-image-2, 그 외 → Flux Dev (ComfyUI)
+         ComfyUI 미응답 시 gpt-image-2 폴백 (cli.py 에서 처리)
 - video: ComfyUI 단독 — 4090 로컬 GPU, 무-API-키
 
 확장성: 새 CLI (예: gemma) 를 추가하려면 PROVIDERS 에 이름을 더하고
@@ -29,6 +30,11 @@ IMAGE_KEYWORDS = (
     "로고", "배너", "썸네일", "일러스트", "삽화", "포스터", "목업",
     "그려줘", "그려 줘", "이미지 생성", "이미지 만들", "그림 생성",
     "그림 그려", "그림으로", "아이콘 만들", "이미지로 만들",
+)
+# gpt-image-2 가 Flux 보다 나은 경우 — 텍스트 렌더링·정교한 지시 따르기
+GPT_IMAGE_KEYWORDS = (
+    "로고", "아이콘", "글자", "텍스트 포함", "text", "logo", "icon",
+    "UI ", "버튼", "badge", "워드마크", "타이포",
 )
 # 동영상 생성 의도 키워드 — ComfyUI 가 들어오면서 재활성화
 VIDEO_KEYWORDS = (
@@ -57,7 +63,7 @@ TIER_ROUTING: dict[str, tuple[str, str]] = {
     "T3": ("claude", "opus"),    # 심층 → Claude Opus
 }
 
-# 공급자 — text: claude/chatgpt · image: chatgpt(기본)/comfyui · video: comfyui
+# 공급자 — text: claude/chatgpt · image: comfyui(기본)/chatgpt(텍스트·로고) · video: comfyui
 PROVIDERS = ("claude", "chatgpt", "comfyui")
 IMAGE_PROVIDERS = ("chatgpt", "comfyui")
 VIDEO_PROVIDERS = ("comfyui",)
@@ -153,18 +159,31 @@ def route(
             reason=mod_reason,
         )
 
-    # 이미지 — Codex `$imagegen` (기본, 빠름) 또는 ComfyUI (`--provider comfyui`)
+    # 이미지 — 스마트 라우팅: GPT 키워드 → gpt-image-2, 그 외 → Flux Dev (ComfyUI)
     if mod == "image":
         if provider == "comfyui":
             chosen = "comfyui"
             model = ""
+            mod_reason += " · 공급자 수동 지정(comfyui/Flux)"
+        elif provider == "chatgpt":
+            chosen = "chatgpt"
+            model = CODEX_MODEL
+            mod_reason += " · 공급자 수동 지정(chatgpt/gpt-image-2)"
         elif provider == "claude":
-            chosen = "chatgpt"
-            model = CODEX_MODEL
-            mod_reason += " · claude는 이미지 생성 불가 → chatgpt(Codex)로 대체"
+            chosen = "comfyui"
+            model = ""
+            mod_reason += " · claude는 이미지 생성 불가 → comfyui(Flux)로 대체"
         else:
-            chosen = "chatgpt"
-            model = CODEX_MODEL
+            # 스마트 라우팅: 텍스트 렌더링·로고·아이콘 → gpt-image-2 우세
+            gpt_hits = [k for k in GPT_IMAGE_KEYWORDS if k in prompt]
+            if gpt_hits:
+                chosen = "chatgpt"
+                model = CODEX_MODEL
+                mod_reason += f" · 텍스트/로고 키워드 {gpt_hits} → gpt-image-2"
+            else:
+                chosen = "comfyui"
+                model = ""
+                mod_reason += " · 일반 이미지 → Flux Dev (ComfyUI)"
         return Route(
             modality="image", tier="-", provider=chosen, model=model,
             reason=mod_reason,

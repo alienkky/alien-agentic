@@ -37,6 +37,7 @@ from aa.config import (
     AGENTS_DIR,
     CLAUDE_BIN,
     CODEX_BIN,
+    CODEX_MODEL,
     COMFYUI_OUTPUT_TIMEOUT,
     COMFYUI_URL,
     COMFYUI_WORKFLOWS_DIR,
@@ -50,7 +51,7 @@ from aa.config import (
     USAGE_DIR,
     USER_NAME,
 )
-from aa.router import MODALITIES, PROVIDERS, TIERS, route
+from aa.router import MODALITIES, PROVIDERS, TIERS, Route, route
 
 app = typer.Typer(
     name="aa",
@@ -267,13 +268,22 @@ def call(
     # 공급자별 사전 점검
     if r.provider == "comfyui":
         if not _comfyui_alive(COMFYUI_URL):
-            console.print(
-                f"[red]ComfyUI 가 응답하지 않습니다 ({COMFYUI_URL}).[/red]\n"
-                "[dim]4090 PC 에서 ComfyUI 가 실행 중이어야 합니다.[/dim]\n"
-                "[dim]포트가 다르면 `.env` 에 COMFYUI_URL=http://localhost:XXXX 박기.[/dim]\n"
-                "[dim]설치·연동 가이드: docs/guides/comfyui-integration.md[/dim]"
-            )
-            raise typer.Exit(1)
+            if r.modality == "image":
+                console.print(
+                    f"[yellow]ComfyUI 미응답 ({COMFYUI_URL}) → gpt-image-2 로 폴백[/yellow]\n"
+                )
+                r = Route(
+                    modality=r.modality, tier=r.tier, provider="chatgpt",
+                    model=CODEX_MODEL, reason=r.reason + " · ComfyUI 미응답 → gpt-image-2 폴백",
+                )
+            else:
+                console.print(
+                    f"[red]ComfyUI 가 응답하지 않습니다 ({COMFYUI_URL}).[/red]\n"
+                    "[dim]4090 PC 에서 ComfyUI 가 실행 중이어야 합니다.[/dim]\n"
+                    "[dim]포트가 다르면 `.env` 에 COMFYUI_URL=http://localhost:XXXX 박기.[/dim]\n"
+                    "[dim]설치·연동 가이드: docs/guides/comfyui-integration.md[/dim]"
+                )
+                raise typer.Exit(1)
     elif r.provider == "chatgpt":
         if CODEX_BIN is None:
             console.print(
