@@ -11,10 +11,12 @@
 
 | 모달리티 | 공급자 | API 키 | 상태 |
 |---|---|---|---|
-| **이미지** | ChatGPT(Codex `$imagegen`, gpt-image-2) | ❌ 불필요 | ✅ 바로 사용 |
-| **텍스트** | Claude / ChatGPT (난이도 라우터) | ❌ 불필요 | ✅ |
+| **이미지** (빠름) | ChatGPT(Codex `$imagegen`, gpt-image-2) — 기본 | ❌ | ✅ |
+| **이미지** (퀄리티) | ComfyUI (`--provider comfyui`, 4090 로컬 GPU) | ❌ | ✅ |
+| **동영상** | ComfyUI (단독 경로) | ❌ | ✅ |
+| **텍스트** | Claude / ChatGPT (난이도 라우터) | ❌ | ✅ |
 
-핵심: **이미지는 별도 도구·API 키 없이, ChatGPT Pro 구독만으로 끝난다.** 동영상은 깔끔한 무(無)-API-키 CLI 경로가 없어 `aa` 범위에서 제외했다.
+핵심: **두 공급자 모두 API 키 불필요.** Codex 는 구독 토큰, ComfyUI 는 4090 전기료만. 동영상은 ComfyUI 가 들어오면서 다시 활성화됐다 (이전엔 보류였음). ComfyUI 쪽 셋업은 [comfyui-integration.md](comfyui-integration.md) 참조.
 
 ---
 
@@ -80,9 +82,9 @@ codex exec "$imagegen 외계인 마스코트 아이콘 하나, 64x64, 투명배�
 
 ---
 
-## 동영상은?
+## 동영상
 
-`aa` 범위 밖이다. Codex CLI 는 동영상을 만들지 못하고, 다른 경로(Gemini Veo 등)는 API 키·프로젝트 인증이 필요해 "구독만으로" 원칙과 맞지 않는다. 동영상이 필요하면 각 서비스의 웹 UI 를 직접 쓴다.
+ComfyUI 가 들어오면서 **재활성화**됐다. 동영상 키워드("동영상/영상 만들/모션…") 가 감지되거나 `--modality video` 지정 시 자동으로 ComfyUI 로 라우팅. 모델은 워크플로 JSON 에서 선택 (Hunyuan / LTX / Wan / Mochi 등 4090 24GB 에서 전부 가능). 셋업: [comfyui-integration.md](comfyui-integration.md).
 
 ---
 

@@ -134,8 +134,9 @@ aa hello
 | `aa status` | 오늘 일지 + dashboard + 미해결 개입/메시지 카운트 |
 | `aa call <agent> "<prompt>"` | 단일 에이전트 호출 — 모달리티·난이도 자동 라우팅 + 메모리 4파일 자동 갱신 |
 | `aa call <agent> "<prompt>" --difficulty T3` | 난이도 수동 지정 (T1 경량 / T2 표준 / T3 심층) |
-| `aa call <agent> "<prompt>" --provider claude` | 공급자 강제 지정 (claude / chatgpt) |
-| `aa call <agent> "<prompt>" --modality image` | 모달리티 수동 지정 (text / image) |
+| `aa call <agent> "<prompt>" --provider claude` | 공급자 강제 지정 (claude / chatgpt / comfyui) |
+| `aa call <agent> "<prompt>" --modality image` | 모달리티 수동 지정 (text / image / video) |
+| `aa call <agent> "<prompt>" --workflow <이름>` | ComfyUI 워크플로 선택 (comfyui_workflows/ 안 파일명) |
 | `aa call <agent> "<prompt>" --dry-run` | AI 호출 없이 라우팅 결과만 출력 |
 | `aa daily-log` | 오늘 일지 보기 |
 | `aa daily-log yesterday` | 어제 일지 |

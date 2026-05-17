@@ -1,12 +1,17 @@
 """모달리티·난이도 라우터 — 토큰 0으로 로컬 휴리스틱 판정.
 
 두 축으로 라우팅한다:
-1) 모달리티 — text / image
+1) 모달리티 — text / image / video
 2) (text 일 때) 난이도 — T1 경량 / T2 표준 / T3 심층
 
 정책:
 - text: "Claude 우선, GPT 보조" (중립은 Claude Sonnet)
-- image: Codex `$imagegen` — ChatGPT Pro 구독 사용량, 별도 API 키 X
+- image: Codex `$imagegen` (기본, 빠름) 또는 ComfyUI (`--provider comfyui`, 로컬 GPU)
+- video: ComfyUI 단독 — 4090 로컬 GPU, 무-API-키
+
+확장성: 새 CLI (예: gemma) 를 추가하려면 PROVIDERS 에 이름을 더하고
+route() 에 분기 한 줄, cli.py 에 러너 함수 한 개만 만들면 된다.
+사용량 추적(JSONL) 은 자동으로 따라잡는다.
 """
 
 from __future__ import annotations
@@ -17,13 +22,18 @@ from aa.agents import Agent
 from aa.config import CODEX_MODEL
 
 # ── 모달리티 ────────────────────────────────────────────────────────────────
-MODALITIES = ("text", "image")
+MODALITIES = ("text", "image", "video")
 
 # 이미지 생성 의도 키워드 — 오탐을 줄이려 "생성 맥락"이 분명한 단어만
 IMAGE_KEYWORDS = (
     "로고", "배너", "썸네일", "일러스트", "삽화", "포스터", "목업",
     "그려줘", "그려 줘", "이미지 생성", "이미지 만들", "그림 생성",
     "그림 그려", "그림으로", "아이콘 만들", "이미지로 만들",
+)
+# 동영상 생성 의도 키워드 — ComfyUI 가 들어오면서 재활성화
+VIDEO_KEYWORDS = (
+    "동영상", "비디오", "영상 생성", "영상으로", "영상 만들",
+    "모션 그래픽", "애니메이션 만들", "movie", "video clip",
 )
 
 # ── 난이도 ──────────────────────────────────────────────────────────────────
@@ -47,16 +57,18 @@ TIER_ROUTING: dict[str, tuple[str, str]] = {
     "T3": ("claude", "opus"),    # 심층 → Claude Opus
 }
 
-# 공급자 — text: claude/chatgpt · image: chatgpt(Codex $imagegen)
-PROVIDERS = ("claude", "chatgpt")
+# 공급자 — text: claude/chatgpt · image: chatgpt(기본)/comfyui · video: comfyui
+PROVIDERS = ("claude", "chatgpt", "comfyui")
+IMAGE_PROVIDERS = ("chatgpt", "comfyui")
+VIDEO_PROVIDERS = ("comfyui",)
 
 
 @dataclass
 class Route:
-    modality: str    # text | image
-    tier: str        # T1 | T2 | T3 · 이미지는 "-"
-    provider: str    # claude | chatgpt
-    model: str       # claude: sonnet/opus · chatgpt: CODEX_MODEL (빈 값이면 기본)
+    modality: str    # text | image | video
+    tier: str        # T1 | T2 | T3 · 이미지/동영상은 "-"
+    provider: str    # claude | chatgpt | comfyui
+    model: str       # claude: sonnet/opus · chatgpt: CODEX_MODEL · comfyui: 빈값(워크플로가 결정)
     reason: str      # 판정 근거 한 줄
 
 
@@ -65,11 +77,15 @@ def classify_modality(prompt: str, override: str | None) -> tuple[str, str]:
     if override:
         return override, f"수동 지정 (--modality {override})"
 
+    v_hits = [k for k in VIDEO_KEYWORDS if k in prompt]
+    if v_hits:
+        return "video", f"동영상 키워드 {v_hits}"
+
     i_hits = [k for k in IMAGE_KEYWORDS if k in prompt]
     if i_hits:
         return "image", f"이미지 키워드 {i_hits}"
 
-    return "text", "이미지 키워드 없음 → 텍스트"
+    return "text", "미디어 키워드 없음 → 텍스트"
 
 
 def classify(agent: Agent, prompt: str, override: str | None) -> tuple[str, str]:
@@ -128,20 +144,41 @@ def route(
     """모달리티·난이도·수동 오버라이드를 받아 최종 라우팅을 결정한다."""
     mod, mod_reason = classify_modality(prompt, modality)
 
-    # 이미지 — Codex `$imagegen` 한 경로. ChatGPT Pro 구독, 별도 API 키 X.
-    if mod == "image":
-        if provider == "claude":
-            mod_reason += " · claude는 이미지 생성 불가 → chatgpt(Codex)로 대체"
+    # 동영상 — ComfyUI 단독 (4090 로컬 GPU, 무-API-키)
+    if mod == "video":
+        if provider and provider != "comfyui":
+            mod_reason += f" · {provider}는 동영상 미지원 → comfyui 로 대체"
         return Route(
-            modality="image", tier="-", provider="chatgpt",
-            model=CODEX_MODEL, reason=mod_reason,
+            modality="video", tier="-", provider="comfyui", model="",
+            reason=mod_reason,
+        )
+
+    # 이미지 — Codex `$imagegen` (기본, 빠름) 또는 ComfyUI (`--provider comfyui`)
+    if mod == "image":
+        if provider == "comfyui":
+            chosen = "comfyui"
+            model = ""
+        elif provider == "claude":
+            chosen = "chatgpt"
+            model = CODEX_MODEL
+            mod_reason += " · claude는 이미지 생성 불가 → chatgpt(Codex)로 대체"
+        else:
+            chosen = "chatgpt"
+            model = CODEX_MODEL
+        return Route(
+            modality="image", tier="-", provider=chosen, model=model,
+            reason=mod_reason,
         )
 
     # 텍스트 — 난이도 라우팅
     tier, reason = classify(agent, prompt, difficulty)
     base_provider, base_model = TIER_ROUTING[tier]
 
-    if provider == "claude":
+    if provider == "comfyui":
+        # 텍스트는 ComfyUI 미지원 (이미지·동영상 전용)
+        chosen, model = "claude", "opus" if tier == "T3" else "sonnet"
+        reason += " · comfyui 텍스트 미지원 → claude 대체"
+    elif provider == "claude":
         chosen = "claude"
         model = "opus" if tier == "T3" else "sonnet"
         reason += " · 공급자 수동 지정(claude)"
