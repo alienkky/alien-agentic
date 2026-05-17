@@ -1123,9 +1123,83 @@ def serve(
         console.print(
             "[dim]27명 시드: automation/intranet/alien-config/README.md[/dim]"
         )
+        # multica 데몬도 같이 띄움 — 죽으면 27명이 오프라인 되니까
+        console.print()
+        _ensure_multica_daemon()
     else:
         console.print(
             "[red]가동 실패 — `aa serve --logs` 로 진단[/red]"
+        )
+
+
+def _multica_daemon_status(multica_bin: str) -> str:
+    """multica 데몬 상태를 'running' | 'stopped' | 'unknown' 으로 정규화."""
+    try:
+        r = subprocess.run(
+            [multica_bin, "daemon", "status"],
+            capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=10,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return "unknown"
+    out = (r.stdout + " " + r.stderr).lower()
+    if "running" in out or "active" in out or "online" in out:
+        return "running"
+    if "stopped" in out or "not running" in out or "inactive" in out:
+        return "stopped"
+    return "unknown"
+
+
+def _ensure_multica_daemon() -> None:
+    """multica 데몬 상태 확인 + 죽어 있으면 띄움.
+
+    multica CLI 가 없으면 안내만 하고 패스 (필수 의존이 아니라 enhancement).
+    `aa serve` 가 끝날 때마다 호출돼서 — Multica docker 가 살아 있는 동안
+    데몬도 자동으로 따라 살아 있게 한다.
+    """
+    from shutil import which
+
+    multica_bin = which("multica")
+    if not multica_bin:
+        console.print(
+            "[dim]multica CLI 없음 — 데몬 자동 시작 건너뜀. "
+            "(27명 실행을 원하면 multica CLI 설치 후 `multica daemon start`)[/dim]"
+        )
+        return
+
+    status = _multica_daemon_status(multica_bin)
+    if status == "running":
+        console.print(
+            "[green]✓ multica 데몬 이미 실행 중 — 27명 online[/green]"
+        )
+        return
+
+    console.print("[dim]multica 데몬 시작 중...[/dim]")
+    try:
+        r = subprocess.run(
+            [multica_bin, "daemon", "start"],
+            capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=30,
+        )
+    except (subprocess.TimeoutExpired, OSError) as e:
+        console.print(f"[yellow]⚠ multica daemon start 호출 실패: {e}[/yellow]")
+        return
+    if r.returncode != 0:
+        console.print(
+            f"[yellow]⚠ multica daemon start (exit {r.returncode}):[/yellow]\n"
+            f"{(r.stderr or r.stdout or '').strip()}"
+        )
+        return
+
+    time.sleep(2)
+    if _multica_daemon_status(multica_bin) == "running":
+        console.print(
+            "[green]✓ multica 데몬 가동 완료 — 27명 곧 online[/green]"
+        )
+    else:
+        console.print(
+            "[yellow]⚠ multica 데몬 상태 확인 안 됨 — "
+            "`multica daemon status` 직접 확인 권장[/yellow]"
         )
 
 
