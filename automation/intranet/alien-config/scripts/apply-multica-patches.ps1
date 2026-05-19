@@ -27,23 +27,22 @@ Set-Location $multica
 git checkout .
 if ($LASTEXITCODE -ne 0) { Write-Error "git checkout failed"; exit 1 }
 
-Write-Host "[2/3] Apply UI patches"
-$patchFiles = @(
-    "03-sticky-comment-input.patch",
-    "04-scroll-to-bottom-button.patch"
-)
-foreach ($name in $patchFiles) {
-    $full = Join-Path $patches $name
-    if (-not (Test-Path $full)) {
-        Write-Error "Patch not found: $full"
-        exit 1
-    }
-    Write-Host "      $name"
-    git apply $full
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "git apply failed on $name. Possibly already applied — try 'git checkout .' then rerun."
-        exit 1
-    }
+Write-Host "[2/3] Apply UI patch (04 only — it is a superset of 03)"
+# 04-scroll-to-bottom-button.patch already contains 03's sticky-comment-input
+# changes (both rewrite the same <div className=mt-4> line). Applying 03 then
+# 04 always fails on a clean tree; we apply only 04 with --3way so a small
+# upstream drift can still merge cleanly.
+$patchName = "04-scroll-to-bottom-button.patch"
+$patchFull = Join-Path $patches $patchName
+if (-not (Test-Path $patchFull)) {
+    Write-Error "Patch not found: $patchFull"
+    exit 1
+}
+Write-Host "      $patchName"
+git apply --3way $patchFull
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "git apply failed on $patchName. If the file already contains showScrollToBottom, run fix-button-position.ps1 instead."
+    exit 1
 }
 
 Write-Host "[3/3] Rebuild web container"
