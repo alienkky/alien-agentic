@@ -43,7 +43,9 @@
 | `exit_code` | CLI 종료 코드 (0 = 성공) |
 | `duration_ms` | 호출 소요 시간 (밀리초) |
 
-## 보는 법 — `aa usage`
+## 보는 법
+
+### (a) 콘솔 — `aa usage`
 
 ```bash
 aa usage                       # 오늘, CLI(모달리티 포함)별
@@ -53,7 +55,27 @@ aa usage 2026-05-14            # 특정 날짜
 aa usage --by agent            # 에이전트별 집계
 aa usage --by model            # CLI · 모델별 집계
 aa usage --by modality         # 모달리티(text/image) 별 집계
+aa usage --no-page             # 페이지 자동 생성 생략 (콘솔만)
 ```
+
+### (b) 마크다운 페이지 — Obsidian / VS Code 에서
+
+`aa usage` 호출할 때마다 *자동으로* 다음 위치에 마크다운 리포트가 갱신된다:
+
+```
+shared-memory/usage/summary-today.md
+shared-memory/usage/summary-week.md
+shared-memory/usage/summary-yesterday.md
+shared-memory/usage/summary-2026-05-14.md   # 특정 날짜 호출 시
+```
+
+`shared-memory/` 를 Obsidian Vault 로 열어두면 (`docs/guides/obsidian-symlink.md` 참조) — 즉시 페이지로 본다. 5개 섹션:
+
+1. **CLI · 모달리티별** — claude (text) / chatgpt (text) / chatgpt (image) … 분리
+2. **에이전트별 (상위 10)**
+3. **CLI · 모델별** — 세분화 (sonnet / opus / default …)
+4. **모달리티별** — text / image / video
+5. **마지막 10개 호출** — narrative 흐름
 
 ## 새 CLI 추가 시 (예: Gemma 4)
 

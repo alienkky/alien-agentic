@@ -124,7 +124,7 @@ aa hello
 
 ---
 
-## 명령어 (v0.1.0 — 9개)
+## 명령어 (v0.1.0 — 10개)
 
 | 명령 | 무엇을 |
 |---|---|
@@ -148,6 +148,9 @@ aa hello
 | `aa usage` | CLI·모델·에이전트별 호출 사용량 (오늘 기본, `--by cli/agent/model/modality`) |
 | `aa usage week` | 최근 7일 누적 사용량 |
 | `aa usage 2026-05-14` | 특정 날짜 사용량 |
+| `aa voice` | 🎤 음성으로 27명에게 명령 — 마이크 입력 → Whisper(4090 로컬) → aa call 자동 실행 |
+| `aa voice --no-execute` | 음성 인식만 (실행 X) |
+| `aa voice -a story-weaver -s 10` | 에이전트 미리 지정 + 10초 녹음 |
 
 ## 자동 라우팅 — 모달리티 → 난이도
 
