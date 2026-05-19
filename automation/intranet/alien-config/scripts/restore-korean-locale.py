@@ -24,6 +24,7 @@ MULTICA = REPO / "automation" / "intranet" / "multica"
 TYPES_TS    = MULTICA / "packages" / "core" / "i18n" / "types.ts"
 LAYOUT_TSX  = MULTICA / "apps" / "web" / "app" / "layout.tsx"
 INDEX_TS    = MULTICA / "packages" / "views" / "locales" / "index.ts"
+PREFS_TSX   = MULTICA / "packages" / "views" / "settings" / "components" / "preferences-tab.tsx"
 KO_DIR      = MULTICA / "packages" / "views" / "locales" / "ko"
 
 # 24개 namespace — locales/index.ts 의 zhHans import 순서를 따라감
@@ -211,6 +212,21 @@ def main() -> int:
     )
     if new_text is not None:
         INDEX_TS.write_bytes(new_text.encode("utf-8"))
+
+    # F6. preferences-tab.tsx — Language picker 의 하드코딩 배열에 ko 추가
+    # i18n 키 (preferences.language.korean) 가 ko/settings.json 등에 없을 수 있어
+    # 라벨을 직접 한국어 문자열로 박는다. UI 가 fallback 키를 그대로 표시하는 추한
+    # 결과 회피.
+    new_text = edit_file(
+        PREFS_TSX,
+        name="F6. preferences-tab.tsx Language picker 에 ko",
+        marker='value: "ko"',
+        anchor='{ value: "zh-Hans", label: t(($) => $.preferences.language.chinese) },',
+        replacement='{ value: "zh-Hans", label: t(($) => $.preferences.language.chinese) },\n    { value: "ko", label: "한국어" },',
+        applied=applied, skipped=skipped, failed=failed,
+    )
+    if new_text is not None:
+        PREFS_TSX.write_bytes(new_text.encode("utf-8"))
 
     print()
     print(f"결과: 적용 {len(applied)} / 스킵 {len(skipped)} / 실패 {len(failed)}")
