@@ -251,6 +251,43 @@ def main() -> int:
     if new_text is not None:
         PREFS_TSX.write_bytes(new_text.encode("utf-8"))
 
+    # F8~F10. layout.tsx — 브랜드 명 (탭 제목 + template + OG siteName)
+    # multica fresh clone 후 브랜딩 패치(01-rebrand-and-ko)가 사라져
+    # 브라우저 탭에 "Multica — Project Management..." 표시.
+    # 핵심 3곳을 일관되게 "Alien Agentic" 으로 통일.
+    new_text = edit_file(
+        LAYOUT_TSX,
+        name="F8. metadata.title.default 브랜드",
+        marker='default: "Alien Agentic',
+        anchor='default: "Multica — Project Management for Human + Agent Teams",',
+        replacement='default: "Alien Agentic — Project Management for Human + Agent Teams",',
+        applied=applied, skipped=skipped, failed=failed,
+    )
+    if new_text is not None:
+        LAYOUT_TSX.write_bytes(new_text.encode("utf-8"))
+
+    new_text = edit_file(
+        LAYOUT_TSX,
+        name="F9. metadata.title.template 브랜드",
+        marker='template: "%s | Alien Agentic"',
+        anchor='template: "%s | Multica",',
+        replacement='template: "%s | Alien Agentic",',
+        applied=applied, skipped=skipped, failed=failed,
+    )
+    if new_text is not None:
+        LAYOUT_TSX.write_bytes(new_text.encode("utf-8"))
+
+    new_text = edit_file(
+        LAYOUT_TSX,
+        name="F10. openGraph.siteName 브랜드",
+        marker='siteName: "Alien Agentic"',
+        anchor='siteName: "Multica",',
+        replacement='siteName: "Alien Agentic",',
+        applied=applied, skipped=skipped, failed=failed,
+    )
+    if new_text is not None:
+        LAYOUT_TSX.write_bytes(new_text.encode("utf-8"))
+
     print()
     print(f"결과: 적용 {len(applied)} / 스킵 {len(skipped)} / 실패 {len(failed)}")
 
