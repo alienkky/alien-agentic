@@ -74,7 +74,10 @@ def build_ko_resources_block() -> str:
     lines = ["  ko: {"]
     for name, _ in KO_NAMESPACES:
         var = _to_camel(name)
-        lines.append(f"    {name}: {var},")
+        # hyphen 포함 키는 객체 식별자로 invalid → 반드시 quote 로 감싸야 함
+        # (예: my-issues → "my-issues"). 그 외 단어 키는 unquoted 로 자연스럽게.
+        key = f'"{name}"' if "-" in name else name
+        lines.append(f"    {key}: {var},")
     lines.append("  },")
     return "\n".join(lines)
 
@@ -212,6 +215,26 @@ def main() -> int:
     )
     if new_text is not None:
         INDEX_TS.write_bytes(new_text.encode("utf-8"))
+
+    # F7. locales/index.ts — 깨진 unquoted my-issues 키 복구
+    #
+    # 이전 버전 build_ko_resources_block() 의 버그로 사용자 파일에
+    #   `    my-issues: koMyIssues,`
+    # 가 박혀 next build (turbopack ecmascript parser) 가 syntax error.
+    # 객체 식별자에 hyphen 이 들어가면 invalid. quote 로 감싸 정상화.
+    if INDEX_TS.exists():
+        idx_text = INDEX_TS.read_text(encoding="utf-8")
+        bad  = "    my-issues: koMyIssues,"
+        good = '    "my-issues": koMyIssues,'
+        if good in idx_text:
+            print(f"  SKIP F7. my-issues 키 quote  (이미 적용됨)")
+            skipped.append("F7")
+        elif bad in idx_text:
+            idx_text = idx_text.replace(bad, good, 1)
+            INDEX_TS.write_bytes(idx_text.encode("utf-8"))
+            print(f"  OK   F7. my-issues 키 quote 복구  (build 깨짐 해소)")
+            applied.append("F7")
+        # 둘 다 없으면 F4/F5 시점에 이미 정상 적용된 거 — 그대로 통과 (별도 SKIP 출력 X)
 
     # F6. preferences-tab.tsx — Language picker 의 하드코딩 배열에 ko 추가
     # i18n 키 (preferences.language.korean) 가 ko/settings.json 등에 없을 수 있어
