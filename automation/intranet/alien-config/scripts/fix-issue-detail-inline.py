@@ -128,20 +128,43 @@ def main() -> int:
         print(f"  OK   {name}")
         applied += 1
 
-    # E. bottom-N 값 정규화 — sticky bottom-N z-20 가 어떤 N 이든 24 로 통일
-    bottom_pat = re.compile(r"sticky bottom-(\d+) z-20")
-    bottom_matches = bottom_pat.findall(text)
-    if bottom_matches == ["24"]:
-        print(f"  SKIP E. bottom-24  (이미 적용됨)")
-        skipped += 1
-    elif bottom_matches:
-        old_n = bottom_matches[0]
-        text = bottom_pat.sub("sticky bottom-24 z-20", text, count=1)
-        print(f"  OK   E. bottom-{old_n} → bottom-24")
-        applied += 1
+    # E. 버튼 ↔ 입력창 padding 정규화
+    #
+    # 두 가지 04 패치 구현이 야생에 존재한다:
+    #   (1) 우리가 작성한 별도 sticky : `sticky bottom-N z-20` 컨테이너
+    #   (2) 더 영리한 stack 버전     : `flex justify-center pb-N pointer-events-none`
+    #     (같은 sticky container 안에 pill 과 input 을 위아래로 stack)
+    #
+    # 둘 중 어느 쪽이든 N(여백) 을 늘려 시각 분리를 강화한다. 타깃값:
+    #   (1) bottom-24 (96px)
+    #   (2) pb-4 (16px)
+    pat_sticky = re.compile(r"sticky bottom-(\d+) z-20")
+    pat_pb     = re.compile(r"flex justify-center pb-(\d+) pointer-events-none")
+
+    sticky_matches = pat_sticky.findall(text)
+    pb_matches     = pat_pb.findall(text)
+
+    if sticky_matches:
+        if sticky_matches == ["24"]:
+            print(f"  SKIP E. bottom-24  (이미 적용됨, 별도 sticky 버전)")
+            skipped += 1
+        else:
+            old_n = sticky_matches[0]
+            text = pat_sticky.sub("sticky bottom-24 z-20", text, count=1)
+            print(f"  OK   E. bottom-{old_n} → bottom-24  (별도 sticky 버전)")
+            applied += 1
+    elif pb_matches:
+        if pb_matches == ["4"]:
+            print(f"  SKIP E. pb-4  (이미 적용됨, stack 버전)")
+            skipped += 1
+        else:
+            old_n = pb_matches[0]
+            text = pat_pb.sub("flex justify-center pb-4 pointer-events-none", text, count=1)
+            print(f"  OK   E. pb-{old_n} → pb-4  (stack 버전)")
+            applied += 1
     else:
-        print(f"  FAIL E. bottom-N 정규화  (sticky bottom-N z-20 패턴 없음)")
-        failed.append("E. bottom-N 정규화")
+        print(f"  FAIL E. padding 정규화  (sticky bottom-N z-20 도 flex pb-N 도 없음)")
+        failed.append("E. padding 정규화")
 
     print()
     print(f"결과: 적용 {applied} / 스킵 {skipped} / 실패 {len(failed)}")
