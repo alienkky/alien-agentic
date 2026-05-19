@@ -12,7 +12,7 @@
    2차에서 사이드바/라우트/i18n 등록, 3차에서 이슈/에이전트 연동.
    ───────────────────────────────────────────────────────── */
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 
 // ── Types ───────────────────────────────────────────────
 type Priority = "Must Do" | "Should Do" | "Could Do";
@@ -57,7 +57,7 @@ const SPRINTS = [
 ] as const;
 
 // Sprint 좌측 바 + 레인 배경 (semantic 토큰 부족분은 팔레트 + dark variant)
-const SPRINT_STYLE: Record<string, { bar: string; lane: string }> = {
+const SPRINT_STYLE: Record<(typeof SPRINTS)[number]["cls"], { bar: string; lane: string }> = {
   "sprint-1": { bar: "bg-red-500", lane: "border-red-300/50 bg-red-50/60 dark:border-red-900/40 dark:bg-red-950/20" },
   "sprint-2": { bar: "bg-amber-500", lane: "border-amber-300/50 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/20" },
   "sprint-3": { bar: "bg-slate-400", lane: "border-border bg-muted/40" },
@@ -164,16 +164,6 @@ const Icon = {
   refresh: "M3 12a9 9 0 1 0 9-9 9.74 9.74 0 0 0-6.74 2.74L3 8M3 3v5h5",
   chart: "M3 3v18h18M7 16l4-4 4 4 5-5",
 };
-
-function Svg({ d, className = "", fill = "none", strokeWidth = 1.6 }: { d: string; className?: string; fill?: string; strokeWidth?: number }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill={fill} stroke={fill === "none" ? "currentColor" : "none"} strokeWidth={strokeWidth}>
-      {d.split("M").filter(Boolean).map((seg, i) => (
-        <path key={i} d={"M" + seg} />
-      ))}
-    </svg>
-  );
-}
 
 // ── Main component ──────────────────────────────────────
 export function AlienPlanPage() {
@@ -351,7 +341,7 @@ export function AlienPlanPage() {
 }
 
 // ── Shared bits ─────────────────────────────────────────
-function Header({ eyebrow, title, desc, right }: { eyebrow: string; title: string; desc: string; right?: React.ReactNode }) {
+function Header({ eyebrow, title, desc, right }: { eyebrow: string; title: string; desc: string; right?: ReactNode }) {
   return (
     <div className="flex items-end justify-between pb-6 border-b border-border mb-8">
       <div>
@@ -364,7 +354,7 @@ function Header({ eyebrow, title, desc, right }: { eyebrow: string; title: strin
   );
 }
 
-function Card({ accent, children }: { accent?: string; children: React.ReactNode }) {
+function Card({ accent, children }: { accent?: string; children: ReactNode }) {
   return (
     <section className="relative bg-card border border-border rounded-2xl p-6 pl-7 mb-5">
       <span className={["absolute left-0 top-6 bottom-6 w-[3px] rounded-r", accent ?? "bg-border"].join(" ")} />
@@ -850,7 +840,7 @@ function AddTaskModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (t
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
       <label className="font-mono text-[9px] tracking-[0.2em] text-muted-foreground mb-1 block">{label}</label>
