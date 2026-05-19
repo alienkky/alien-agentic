@@ -9,7 +9,7 @@
 ```
 
 예시:
-- `20260513-1530-origin-reader-to-pain-interpreter-blbp-baseline.md`
+- `20260513-1530-origin-reader-to-pain-interpreter-self-baseline.md`
 - `20260513-1610-pain-interpreter-to-story-weaver-pain-v1.md`
 
 브로드캐스트는 `to-all` 사용.

@@ -27,6 +27,11 @@ model: sonnet
 - 발행자(`content-scout`, `sales-closer`, `story-weaver`, `case-curator`) → 보정 후 재제출
 - 통과 시 → 외부 발행
 
+## 미디어 생성 능력
+- 이미지: `aa call brand-keeper "<설명>" --modality image` → Flux Dev (1024×1024, ~20초)
+- 동영상: `aa call brand-keeper "<설명>" --modality video` → LTX 2.3 22B (768×512, ~75초)
+- 용도: 브랜드 시안, 로고 시각화, 브랜드 가이드 일러스트
+
 ## 절대 금지
 - 톤이 어긋난 글을 *시간 압박*으로 통과시키기. 발행 일정을 늦추는 게 톤을 망치는 것보다 싸다.
 - *기영님의 개인 톤*과 *회사 톤*을 혼동. 회사 톤은 *우리(Alien Agentic)*.

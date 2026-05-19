@@ -37,6 +37,7 @@ from aa.config import (
     AGENTS_DIR,
     CLAUDE_BIN,
     CODEX_BIN,
+    CODEX_MODEL,
     COMFYUI_OUTPUT_TIMEOUT,
     COMFYUI_URL,
     COMFYUI_WORKFLOWS_DIR,
@@ -50,7 +51,7 @@ from aa.config import (
     USAGE_DIR,
     USER_NAME,
 )
-from aa.router import MODALITIES, PROVIDERS, TIERS, route
+from aa.router import MODALITIES, PROVIDERS, TIERS, Route, route
 
 app = typer.Typer(
     name="aa",
@@ -63,6 +64,43 @@ console = Console(legacy_windows=False)
 # .env 자동 로드 (CLI 진입 시점)
 if ENV_FILE.exists():
     load_dotenv(ENV_FILE)
+
+
+def _count_open(folder) -> int:
+    """folder 안의 *.md 중 'status: open' 포함된 자리 수."""
+    if not folder.exists():
+        return 0
+    count = 0
+    for p in folder.glob("*.md"):
+        if p.name == "README.md":
+            continue
+        try:
+            text = p.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if "status: open" in text:
+            count += 1
+    return count
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# 공용 — 하단 네비게이션 푸터
+# ──────────────────────────────────────────────────────────────────────────
+def _nav_footer() -> None:
+    """결과물 하단에 받은함·이슈·대시보드 바로가기 표시."""
+    open_msgs = _count_open(MESSAGES)
+    open_issues = _count_open(INTERVENTIONS)
+
+    msg_badge = f"[bold yellow]{open_msgs}[/bold yellow]" if open_msgs else "[dim]0[/dim]"
+    issue_badge = f"[bold red]{open_issues}[/bold red]" if open_issues else "[dim]0[/dim]"
+
+    console.print()
+    console.print(
+        f"[dim]───[/dim] "
+        f"📨 받은함 {msg_badge} [dim]aa inbox[/dim]  │  "
+        f"⚠ 이슈 {issue_badge} [dim]aa issues[/dim]  │  "
+        f"📊 [dim]aa status[/dim]"
+    )
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -159,22 +197,63 @@ def status() -> None:
     open_messages = _count_open(MESSAGES)
     console.print(f"[bold]미응답 메시지:[/bold] {open_messages}건")
 
+    _nav_footer()
 
-def _count_open(folder) -> int:
-    """folder 안의 *.md 중 'status: open' 포함된 자리 수."""
-    if not folder.exists():
-        return 0
-    count = 0
-    for p in folder.glob("*.md"):
-        if p.name == "README.md":
-            continue
-        try:
-            text = p.read_text(encoding="utf-8", errors="ignore")
-        except OSError:
-            continue
-        if "status: open" in text:
-            count += 1
-    return count
+
+# ──────────────────────────────────────────────────────────────────────────
+# aa inbox / aa issues — 받은함·이슈 바로 확인
+# ──────────────────────────────────────────────────────────────────────────
+def _list_open_items(folder, title: str, emoji: str) -> None:
+    """폴더 안의 status:open 항목을 테이블로 표시."""
+    items = []
+    if folder.exists():
+        for p in sorted(folder.glob("*.md"), reverse=True):
+            if p.name == "README.md":
+                continue
+            try:
+                text = p.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+            if "status: open" in text:
+                lines = text.splitlines()
+                summary = ""
+                for ln in lines:
+                    if ln.strip() and not ln.startswith("---") and not ln.startswith("#") and "status:" not in ln:
+                        summary = ln.strip()[:80]
+                        break
+                items.append((p.name, summary))
+
+    console.rule(f"{emoji} {title} ({len(items)}건 열림)")
+
+    if not items:
+        console.print(f"[green]열린 항목 없음[/green] — 깨끗합니다!")
+        console.print(f"[dim]폴더: {folder}[/dim]")
+        return
+
+    tbl = Table(show_header=True, header_style="bold")
+    tbl.add_column("#", width=3)
+    tbl.add_column("파일", style="cyan")
+    tbl.add_column("요약")
+
+    for idx, (name, summary) in enumerate(items, 1):
+        tbl.add_row(str(idx), name, summary)
+
+    console.print(tbl)
+    console.print(f"\n[dim]폴더: {folder}[/dim]")
+
+
+@app.command()
+def inbox() -> None:
+    """받은함 — 에이전트 간 미응답 메시지 확인."""
+    _list_open_items(MESSAGES, "받은함 (에이전트 메시지)", "📨")
+    _nav_footer()
+
+
+@app.command()
+def issues() -> None:
+    """이슈 — 미해결 개입(interventions) 확인."""
+    _list_open_items(INTERVENTIONS, "이슈 (기영님 개입)", "⚠")
+    _nav_footer()
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -267,13 +346,22 @@ def call(
     # 공급자별 사전 점검
     if r.provider == "comfyui":
         if not _comfyui_alive(COMFYUI_URL):
-            console.print(
-                f"[red]ComfyUI 가 응답하지 않습니다 ({COMFYUI_URL}).[/red]\n"
-                "[dim]4090 PC 에서 ComfyUI 가 실행 중이어야 합니다.[/dim]\n"
-                "[dim]포트가 다르면 `.env` 에 COMFYUI_URL=http://localhost:XXXX 박기.[/dim]\n"
-                "[dim]설치·연동 가이드: docs/guides/comfyui-integration.md[/dim]"
-            )
-            raise typer.Exit(1)
+            if r.modality == "image":
+                console.print(
+                    f"[yellow]ComfyUI 미응답 ({COMFYUI_URL}) → gpt-image-2 로 폴백[/yellow]\n"
+                )
+                r = Route(
+                    modality=r.modality, tier=r.tier, provider="chatgpt",
+                    model=CODEX_MODEL, reason=r.reason + " · ComfyUI 미응답 → gpt-image-2 폴백",
+                )
+            else:
+                console.print(
+                    f"[red]ComfyUI 가 응답하지 않습니다 ({COMFYUI_URL}).[/red]\n"
+                    "[dim]4090 PC 에서 ComfyUI 가 실행 중이어야 합니다.[/dim]\n"
+                    "[dim]포트가 다르면 `.env` 에 COMFYUI_URL=http://localhost:XXXX 박기.[/dim]\n"
+                    "[dim]설치·연동 가이드: docs/guides/comfyui-integration.md[/dim]"
+                )
+                raise typer.Exit(1)
     elif r.provider == "chatgpt":
         if CODEX_BIN is None:
             console.print(
@@ -340,6 +428,8 @@ def call(
         f"\n[green]✓ 메모리 4파일 갱신:[/green] "
         f"shared-memory/agents/{a.name}/"
     )
+
+    _nav_footer()
 
 
 def _run_claude(agent: str, prompt: str, model: str) -> tuple[int, str, str]:
@@ -588,6 +678,126 @@ def _append_memory(agent_name: str, response: str, prompt: str, r) -> None:
             (fpath.read_text(encoding="utf-8") if fpath.exists() else "") + entry,
             encoding="utf-8",
         )
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# aa voice
+# ──────────────────────────────────────────────────────────────────────────
+@app.command()
+def voice(
+    agent: str = typer.Argument(
+        None, help="에이전트 이름 (없으면 텍스트만 출력)"
+    ),
+    language: str = typer.Option(
+        "ko-KR", "--lang", "-l",
+        help="STT 언어 코드 (기본: ko-KR, 영어: en-US)",
+    ),
+    client: str = typer.Option(
+        "_self", "--client", "-c", help="클라이언트 이름 (에이전트 호출 시)"
+    ),
+    difficulty: str = typer.Option(
+        None, "--difficulty", help="난이도 수동 지정: T1 | T2 | T3"
+    ),
+    provider: str = typer.Option(
+        None, "--provider", help="공급자 강제 지정: claude | chatgpt"
+    ),
+    offline: bool = typer.Option(
+        False, "--offline",
+        help="오프라인 STT (faster-whisper, 첫 실행 시 모델 다운로드)",
+    ),
+) -> None:
+    """음성 입력 → 텍스트 변환 (+ 에이전트 호출).
+
+    \b
+    aa voice                — 녹음 → 텍스트 출력
+    aa voice origin-reader  — 녹음 → 텍스트 → 에이전트 호출
+    """
+    from aa.voice import record_audio, transcribe
+
+    console.rule("🎙 aa voice")
+
+    try:
+        audio_wav = record_audio()
+    except Exception as e:
+        console.print(f"[red]마이크 오류:[/red] {e}")
+        console.print(
+            "[dim]마이크가 연결되어 있고 다른 앱이 점유하지 않는지 확인하세요.[/dim]"
+        )
+        raise typer.Exit(1)
+
+    if not audio_wav:
+        console.print("[yellow]녹음된 오디오가 없습니다.[/yellow]")
+        raise typer.Exit(1)
+
+    with console.status("[cyan]음성 인식 중...[/cyan]"):
+        try:
+            text = transcribe(audio_wav, language=language, offline=offline)
+        except ValueError as e:
+            console.print(f"[yellow]{e}[/yellow]")
+            raise typer.Exit(1)
+        except (ConnectionError, ImportError) as e:
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(1)
+
+    console.print(
+        Panel(
+            text,
+            title="🎙 음성 → 텍스트",
+            border_style="green",
+        )
+    )
+
+    if agent is None:
+        return
+
+    console.print(f"\n[dim]에이전트 '{agent}' 에게 전달합니다...[/dim]\n")
+    call(
+        agent=agent,
+        prompt=text,
+        client=client,
+        difficulty=difficulty,
+        provider=provider,
+        modality=None,
+        workflow=None,
+        dry_run=False,
+    )
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# aa hotkey — 글로벌 단축키 음성 입력 (백그라운드 데몬)
+# ──────────────────────────────────────────────────────────────────────────
+@app.command()
+def hotkey(
+    agent: str = typer.Argument(
+        None, help="Ctrl+Shift+A 로 호출할 기본 에이전트 (없으면 클립보드만)"
+    ),
+    language: str = typer.Option(
+        "ko-KR", "--lang", "-l",
+        help="STT 언어 코드 (기본: ko-KR, 영어: en-US)",
+    ),
+    offline: bool = typer.Option(
+        False, "--offline",
+        help="오프라인 STT (faster-whisper)",
+    ),
+) -> None:
+    """글로벌 단축키로 음성 입력 — 어디서든 Ctrl+Shift+V.
+
+    \b
+    Ctrl+Shift+V  녹음 → 텍스트 → 클립보드 복사
+    Ctrl+Shift+A  녹음 → 텍스트 → 에이전트 호출 (agent 지정 시)
+    """
+    try:
+        import keyboard as _kb  # noqa: F401
+    except ImportError:
+        console.print(
+            "[red]keyboard 패키지가 필요합니다.[/red]\n"
+            "[dim]  pip install keyboard[/dim]"
+        )
+        raise typer.Exit(1)
+
+    from aa.hotkey import run_listener
+
+    run_listener(language=language, offline=offline, agent=agent)
 
 
 # ──────────────────────────────────────────────────────────────────────────

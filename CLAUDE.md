@@ -19,7 +19,7 @@
 > 사람이 자기 자신으로부터 한 걸음 떨어져 자기를 정확히 알고,
 > 그 앎으로 누군가를 도우며 살 수 있는 사회를 외계의 효율로 가능하게 한다.
 
-베먼 9년에서 풀지 못한 매듭. 우리는 이 매듭을 다섯 시대(인간↔인간 / 인간→AI / 인간→AGI / AGI→인간 / AGI↔AGI)에서 동시에 푼다.
+아직 누구도 풀지 못한 매듭 — *자기 자신을 떨어져서 보는 일*. 우리는 이 매듭을 다섯 시대(인간↔인간 / 인간→AI / 인간→AGI / AGI→인간 / AGI↔AGI)에서 동시에 푼다.
 
 ---
 
@@ -119,18 +119,13 @@
 | 단일 클라이언트 매출 40% 초과 | 분산 권고 보고서 |
 | 월 Claude Max 토큰 80% 도달 | 사용 패턴 분석 + Extra Usage 검토 |
 | 자책 발언 ("난 안 돼", "포기") 감지 | 부드럽게 재구조화 |
-| 베먼 압박 발언 감지 | 명확한 경계 권고 |
+| 외부 관계자 압박 발언 감지 | 명확한 경계 권고 |
 
 ### 가족 시간 신성화 — 기영님 vs AI 분리
 - **AI 자체는 24시간 작동.** 자동화 스크립트·예약 작업·야간 메모리 정리·이메일 응답 초안 등은 시간 제약 없음.
 - **기영님께 *새 작업 권유*는 평일 18:00 이후·주말·공휴일 금지.** 야간에 *수행 완료된* 작업을 정리해 두는 건 OK — 다음날 아침 보고로 갈음.
 - 한혜성님(담향산방)·**용훈**·**진아** 관련 일정은 캘린더 최우선 차단.
 - 저녁/주말에 기영님이 자발적으로 들어오시면 일하지만, 마스터 오케스트레이터가 *먼저 새 작업을 권유하지 않는다*.
-
-### 베러먼데이 핸드오버 분리 (절대)
-- 베먼 진행 중 계약·관계는 Alien Agentic 워크플로에 **혼합 절대 금지**
-- 별도 폴더 `베러먼데이-handover/` 에서만 작업
-- 6개월 단위 인계 캘린더로 진척 추적
 
 ---
 
@@ -160,7 +155,6 @@ E:\AlienAgentic\alien-agentic\
 │       ├── WHY/                 # 4층 진단서, 비전, 마스터 내러티브
 │       ├── HOW/                 # 프로세스 지도, 에이전트 명단, KPI
 │       └── WHAT/                # 배포 산출물, 운영 로그
-├── 베러먼데이-handover/         # 베먼 분리 폴더 (혼합 절대 금지)
 ├── content/                     # 외부 콘텐츠 (Threads / LinkedIn / Substack)
 ├── automation/
 │   ├── cli/                     # `aa` CLI 패키지 (Typer + Claude Max 경유, 10 명령어)
@@ -196,29 +190,23 @@ E:\AlienAgentic\alien-agentic\
 4. **에이전트 호출**: 자연어 또는 Agent 도구
 5. **링크 클릭**: Chrome MCP로만 (computer-use로 외부 링크 클릭 금지)
 6. **금융 거래·송금·주문 실행은 절대 금지** — 분류·리포트까지만
-7. **이미지·동영상 생성** — 모든 에이전트가 두 경로로 미디어를 만들 수 있다. **둘 다 API 키 불필요.**
+7. **이미지·동영상 생성** — 모든 에이전트가 로컬 GPU(RTX 4090)로 이미지와 동영상을 만들 수 있다.
 
-   **(a) 빠른 이미지 — Codex `$imagegen`** (ChatGPT Pro 구독 사용량)
    ```bash
-   codex exec "$imagegen <설명>. 생성한 이미지를 현재 작업 폴더에 저장하고 경로를 알려줘."
-   ```
-   - gpt-image-2 모델, 수 초 안에 결과
-   - 기본 저장: `~/.codex/generated_images/` → 작업 폴더로 이동
+   # 이미지 (Flux Dev, ~20초)
+   aa call <agent> "<설명>" --modality image
 
-   **(b) 고품질 이미지·동영상 — ComfyUI (4090 로컬 GPU)**
-   ```bash
-   aa call <agent> "<설명>" --provider comfyui              # 이미지 (Codex 대신 ComfyUI)
-   aa call <agent> "<설명 + 영상 키워드>"                    # 동영상 (자동 라우팅)
+   # 동영상 (LTX 2.3 22B, ~75초)
+   aa call <agent> "<설명>" --modality video
    ```
-   - 4090 PC 에 ComfyUI 가 돌고 있어야 함 (http://localhost:8188)
-   - 모델·해상도 풀 제어 (Flux/SDXL/Hunyuan/LTX 등 워크플로별)
-   - 동영상은 이 경로가 *유일* — Codex 는 동영상 미지원
 
-   **공통 규칙**
-   - 산출물 폴더: 클라이언트 작업이면 `clients/{client}/WHAT/{images,videos}/`, 회사 자체용이면 `content/{images,videos}/`. `aa call` 은 자동으로 떨궈둠.
-   - 자주 쓰는 에이전트: `ui-ux-designer` (대시보드·인터페이스), `content-scout` (Threads/LinkedIn 썸네일·OG 이미지·짧은 동영상), `brand-keeper` (브랜드 시안), `story-weaver` (내러티브 일러스트), `case-curator` (케이스 카드).
-   - 사용량은 자동으로 `shared-memory/usage/<date>.jsonl` 에 누적 (`aa usage --by cli` 로 확인).
-   - 상세: `docs/guides/image-generation.md`, `docs/guides/comfyui-integration.md`
+   - **이미지**: Flux Dev (fp8) — 1024×1024, 20스텝. ComfyUI 로컬 처리.
+   - **동영상**: LTX Video 2.3 22B distilled (fp8) + Gemma 3 12B 텍스트 인코더 — 768×512, 33프레임(25fps), 8스텝. ComfyUI 로컬 처리.
+   - **대안 이미지 경로**: Codex `$imagegen` (gpt-image-2, ChatGPT Pro 사용량) — ComfyUI가 꺼져 있을 때 자동 폴백.
+   - 산출물 폴더: 클라이언트면 `clients/{client}/WHAT/{images|videos}/`, 자체용이면 `content/{images|videos}/`.
+   - 워크플로 커스터마이즈: `automation/cli/aa/comfyui_workflows/` 에 JSON 추가 후 `--workflow <이름>` 으로 호출.
+   - ComfyUI 필요: `D:\ComfyUI_windows_portable`, 모델: `D:\model`. 서버가 꺼져 있으면 안내 메시지 출력.
+   - 상세: `automation/cli/aa/comfyui_workflows/README.md`
 
 ---
 
@@ -248,7 +236,7 @@ E:\AlienAgentic\alien-agentic\
 
 ### 매월 첫째 주
 - 모든 진행 클라이언트 진척 보고서
-- 베러먼데이 핸드오버 진척 점검
+- Alien Agentic 자체 자기 진단 갱신 (`shared-memory/clients/_self-alien-agentic/`)
 - 가족 시간 일정 미리 캘린더 차단
 - 한 달 회고 (잘한 것 3 / 개선할 것 3)
 
@@ -259,7 +247,7 @@ E:\AlienAgentic\alien-agentic\
 - 한국 클라이언트는 **한국어**, 글로벌은 **영어**
 - 노골적 상업성·자기자랑 회피
 - 외계인 메타포는 **위트** 수준, 본론은 **진지한 비즈니스 언어**
-- 베러먼데이 DNA(진정성·서브틀함) 계승
+- 진정성·서브틀함 톤 — 노골적 상업성·자기자랑은 회피
 - `brand-keeper` 가 모든 외부 발행물 톤 검수
 
 ---

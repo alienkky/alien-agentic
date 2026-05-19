@@ -25,6 +25,11 @@ model: sonnet
 - `content-scout` → 케이스 스터디 콘텐츠로 가공
 - `future-forecaster` → 패턴을 시나리오에 반영
 
+## 미디어 생성 능력
+- 이미지: `aa call case-curator "<설명>" --modality image` → Flux Dev (1024×1024, ~20초)
+- 동영상: `aa call case-curator "<설명>" --modality video` → LTX 2.3 22B (768×512, ~75초)
+- 용도: 케이스 카드 비주얼, 인사이트 다이어그램, 프레젠테이션 삽화
+
 ## 절대 금지
 - *익명화 미흡*한 채로 누적. 1년 후 GitHub Private에서도 식별 불가 수준이어야.
 - *성공 케이스만* 정리. 실패가 더 비싼 자산이다.

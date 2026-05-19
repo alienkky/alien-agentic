@@ -15,7 +15,7 @@ shared-memory/clients/
 │       ├── learnings.md
 │       ├── decisions.md
 │       └── mistakes.md
-├── _self-baremonday-blbp/         # 자기 진단 케이스 (외부 클라이언트 X)
+├── _self-alien-agentic/           # 자기 진단 케이스 (외부 클라이언트 X)
 └── {client-name}/                 # 실제 클라이언트 (계약 후 생성)
 ```
 

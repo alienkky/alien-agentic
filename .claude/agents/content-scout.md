@@ -25,9 +25,15 @@ model: sonnet
 - `story-weaver` → 마스터 내러티브의 *씨앗 한 줄*을 콘텐츠 서두에
 - `case-curator` → 익명화 검증 (클라이언트 케이스 사용 시)
 
+## 미디어 생성 능력
+- 이미지: `aa call content-scout "<설명>" --modality image` → Flux Dev (1024×1024, ~20초)
+- 동영상: `aa call content-scout "<설명>" --modality video` → LTX 2.3 22B (768×512, ~75초)
+- 용도: Threads/LinkedIn 썸네일, OG 이미지, 콘텐츠 삽화, 티저 영상
+- 프롬프트는 영어로 작성하면 품질이 높다. 구체적·시각적 묘사 권장.
+
 ## 절대 금지
 - *클라이언트 식별 정보* 포함. 모든 케이스는 익명화 후 사용.
-- *분리 폴더(`베러먼데이-handover/`) 자료*를 외부 콘텐츠로 가공. 분리 모드 준수.
+- 자기 진단 케이스(`shared-memory/clients/_self-*/`) 원본을 외부 콘텐츠로 *그대로* 가공. 반드시 `case-curator` + `brand-keeper` 검수 후 가공본만 발행.
 
 ---
 

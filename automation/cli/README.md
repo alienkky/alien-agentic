@@ -185,16 +185,16 @@ aa list
 aa list -d WHY
 
 # 라우팅 미리보기 (AI 호출 X) — 어느 티어·공급자로 갈지 확인
-aa call origin-reader "베먼 BLBP의 4층 진단" --dry-run
+aa call origin-reader "Alien Agentic의 4층 진단" --dry-run
 
 # 실제 호출 — 난이도 자동 라우팅
-aa call origin-reader "베먼 BLBP의 4층 진단과 비전 설계" -c _self-baremonday-blbp
+aa call origin-reader "Alien Agentic의 4층 진단과 비전 설계" -c _self-alien-agentic
 
 # 경량 작업을 강제로 Claude 로 (ChatGPT 미설치 시)
 aa call case-curator "지난주 케이스 목록 정리" --provider claude
 
 # 난이도 강제 — 심층 추론으로 끌어올리기
-aa call story-weaver "BLBP 마스터 내러티브" --difficulty T3
+aa call story-weaver "Alien Agentic 마스터 내러티브" --difficulty T3
 
 # 이미지 생성 — 키워드 자동 감지 (Codex $imagegen, 무-API-키)
 aa call content-scout "쓰레드 게시물용 외계인 로고 이미지 만들어줘"
