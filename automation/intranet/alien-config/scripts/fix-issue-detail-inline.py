@@ -15,6 +15,7 @@ CalendarDays 추가 등) git apply 가 더 이상 안 맞을 때 — 패치 시�
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -126,6 +127,21 @@ def main() -> int:
         text = text.replace(anchor, replacement, 1)
         print(f"  OK   {name}")
         applied += 1
+
+    # E. bottom-N 값 정규화 — sticky bottom-N z-20 가 어떤 N 이든 24 로 통일
+    bottom_pat = re.compile(r"sticky bottom-(\d+) z-20")
+    bottom_matches = bottom_pat.findall(text)
+    if bottom_matches == ["24"]:
+        print(f"  SKIP E. bottom-24  (이미 적용됨)")
+        skipped += 1
+    elif bottom_matches:
+        old_n = bottom_matches[0]
+        text = bottom_pat.sub("sticky bottom-24 z-20", text, count=1)
+        print(f"  OK   E. bottom-{old_n} → bottom-24")
+        applied += 1
+    else:
+        print(f"  FAIL E. bottom-N 정규화  (sticky bottom-N z-20 패턴 없음)")
+        failed.append("E. bottom-N 정규화")
 
     print()
     print(f"결과: 적용 {applied} / 스킵 {skipped} / 실패 {len(failed)}")

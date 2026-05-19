@@ -38,8 +38,10 @@ if (-not (Test-Path $multica)) {
 
 Set-Location $multica
 Write-Host ""
-Write-Host "[2/2] Rebuild web container"
-docker compose -f docker-compose.selfhost.yml up -d --build web
+Write-Host "[2/2] Rebuild containers (all services — older Multica versions name the web service differently)"
+# No service argument: docker compose rebuilds anything with a build context.
+# Postgres uses an image, so it is untouched. Only the web app re-builds.
+docker compose -f docker-compose.selfhost.yml up -d --build
 if ($LASTEXITCODE -ne 0) { Write-Error "docker compose failed"; exit 1 }
 
 Write-Host ""
