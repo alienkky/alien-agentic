@@ -65,3 +65,7 @@ brain180/
 # === Multica 인트라넷 본진 (업스트림 추적, 우리 repo에 포함 X) ===
 # 커스터마이즈는 automation/intranet/alien-config/ 에만 두고 push
 automation/intranet/multica/
+
+# === Open Design 본진 (업스트림 추적, 우리 repo에 포함 X) ===
+# 커스터마이즈(브랜드 디자인시스템·스킬)는 alien-config/open-design/ 에만
+automation/intranet/open-design/
