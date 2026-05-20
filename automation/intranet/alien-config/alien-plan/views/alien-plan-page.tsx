@@ -46,6 +46,23 @@ type PageId = "today" | "tasks" | "reflect" | "trace";
 // ── Constants ───────────────────────────────────────────
 const STORE_KEY = "alien-plan:v1";
 
+// 제목용 폰트 — Pretendard(한글 고딕). serif(Cormorant)는 한글이 어색해서
+// 카테고리/카드 제목은 Pretendard 로 통일. CDN 은 마운트 시 1회 주입.
+const TITLE_FONT =
+  '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
+const PRETENDARD_CDN = "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css";
+
+function ensurePretendard() {
+  if (typeof document === "undefined") return;
+  const id = "pretendard-cdn";
+  if (document.getElementById(id)) return;
+  const link = document.createElement("link");
+  link.id = id;
+  link.rel = "stylesheet";
+  link.href = PRETENDARD_CDN;
+  document.head.appendChild(link);
+}
+
 const PRIORITIES: Priority[] = ["Must Do", "Should Do", "Could Do"];
 
 const SPRINTS = [
@@ -174,6 +191,7 @@ export function AlienPlanPage() {
 
   // Load once on mount
   useEffect(() => {
+    ensurePretendard();
     try {
       const raw = localStorage.getItem(STORE_KEY);
       if (raw) {
@@ -336,7 +354,7 @@ function Header({ eyebrow, title, desc, right }: { eyebrow: string; title: strin
     <div className="flex items-end justify-between pb-6 border-b border-border mb-8">
       <div>
         <div className="font-mono text-[10px] tracking-[0.3em] text-muted-foreground">{eyebrow}</div>
-        <h2 className="font-serif italic text-4xl font-medium leading-tight mt-2.5">{title}</h2>
+        <h2 className="text-4xl font-bold leading-tight mt-2.5 tracking-tight" style={{ fontFamily: TITLE_FONT }}>{title}</h2>
         <div className="text-[13px] text-muted-foreground mt-2.5 max-w-md leading-relaxed">{desc}</div>
       </div>
       {right}
@@ -362,9 +380,9 @@ function CardHead({ d, fill, title, ko, sub }: { d: string; fill?: boolean; titl
         ))}
       </svg>
       <div>
-        <h3 className="font-serif text-[22px] font-medium leading-tight">
+        <h3 className="text-[19px] font-semibold leading-tight tracking-tight" style={{ fontFamily: TITLE_FONT }}>
           {title}
-          {ko && <span className="font-sans text-[11px] font-normal text-muted-foreground ml-2 tracking-wide">{ko}</span>}
+          {ko && <span className="text-[11px] font-normal text-muted-foreground ml-2 tracking-wide" style={{ fontFamily: TITLE_FONT }}>{ko}</span>}
         </h3>
         <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{sub}</div>
       </div>
@@ -699,9 +717,9 @@ function TracePage({ state }: { state: PlanState }) {
   function CalCard({ title, kind, color, ko }: { title: string; kind: "theOne" | "tinyMove"; color: string; ko: string }) {
     return (
       <div className="bg-card border border-border rounded-2xl p-5">
-        <h3 className="font-serif text-lg font-medium mb-3.5">
+        <h3 className="text-lg font-semibold mb-3.5 tracking-tight" style={{ fontFamily: TITLE_FONT }}>
           {title}
-          <span className="font-sans text-[11px] text-muted-foreground font-normal ml-1.5">{ko}</span>
+          <span className="text-[11px] text-muted-foreground font-normal ml-1.5">{ko}</span>
         </h3>
         <div className="grid grid-cols-7 gap-1.5">
           {["월", "화", "수", "목", "금", "토", "일"].map((d) => (
@@ -786,7 +804,7 @@ function AddTaskModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (t
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-[100]" onClick={onClose}>
       <div className="bg-card border border-border rounded-2xl p-7 max-w-md w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-5">
-          <h3 className="font-serif italic text-2xl font-medium">새 태스크</h3>
+          <h3 className="text-2xl font-bold tracking-tight" style={{ fontFamily: TITLE_FONT }}>새 태스크</h3>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
             <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d={Icon.close} /></svg>
           </button>
