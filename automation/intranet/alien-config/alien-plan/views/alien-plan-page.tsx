@@ -13,6 +13,10 @@
    ───────────────────────────────────────────────────────── */
 
 import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useCreateIssue } from "@multica/core/issues/mutations";
+import { agentListOptions } from "@multica/core/workspace/queries";
+import { useWorkspaceId } from "@multica/core/hooks";
 
 // ── Types ───────────────────────────────────────────────
 type Priority = "Must Do" | "Should Do" | "Could Do";
@@ -34,6 +38,15 @@ interface Task {
   completed: boolean;
   completedAt: string | null;
   createdAt: string;
+  assigneeAgentId?: string | null; // 담당 에이전트 (Multica agent UUID) — 옵션
+  issueId?: string | null;         // Multica 이슈로 등록되면 그 id
+}
+
+// Alien Plan 의 가벼운 에이전트 모양 (Multica Agent 에서 필요한 필드만)
+interface PlanAgent {
+  id: string;
+  name: string;
+  archived_at?: string | null;
 }
 
 interface PlanState {
@@ -70,6 +83,16 @@ const PRIORITY_KO: Record<Priority, string> = {
   "Must Do": "필수",
   "Should Do": "중요",
   "Could Do": "선택",
+};
+
+// Sprint → Multica 이슈 priority 직접 매핑 (사용자 결정: Alien 우선순위 흡수)
+type IssuePriorityValue = "urgent" | "high" | "medium" | "low" | "none";
+const SPRINT_TO_PRIORITY: Record<string, IssuePriorityValue> = {
+  "Sprint 1": "urgent",
+  "Sprint 2": "high",
+  "Sprint 3": "medium",
+  "Sprint 4": "low",
+  "No Sprint": "none",
 };
 
 const SPRINTS = [
@@ -244,6 +267,49 @@ export function AlienPlanPage() {
     setState((s) => ({ ...s, tasks: s.tasks.filter((t) => t.id !== id) }));
   }, []);
 
+  // ── Multica 연동 (이슈 등록 + 에이전트 배정/실행) ──
+  // useWorkspaceId 는 워크스페이스 라우트 안에서만 유효 — Alien Plan 은
+  // [workspaceSlug]/(dashboard)/alien-plan 라우트라 항상 컨텍스트가 있다.
+  const wsId = useWorkspaceId();
+  const { data: agentsRaw } = useQuery(agentListOptions(wsId));
+  const agents: PlanAgent[] = ((agentsRaw ?? []) as PlanAgent[]).filter((a) => !a.archived_at);
+  const createIssue = useCreateIssue();
+
+  // 태스크를 Multica 이슈로 등록. assigneeAgentId 가 있으면 그 에이전트에
+  // 배정 → 서버가 자동 enqueue/실행 (status "todo", backlog 아님).
+  const sendToIssue = useCallback(
+    async (task: Task) => {
+      if (task.issueId) {
+        alert("이미 이슈로 등록된 태스크입니다.");
+        return;
+      }
+      try {
+        const issue = await createIssue.mutateAsync({
+          title: task.title,
+          status: "todo",
+          priority: SPRINT_TO_PRIORITY[task.sprint] ?? "none",
+          ...(task.assigneeAgentId
+            ? { assignee_type: "agent" as const, assignee_id: task.assigneeAgentId }
+            : {}),
+          ...(task.dueDate ? { due_date: task.dueDate } : {}),
+        });
+        const newId = (issue as { id: string }).id;
+        setState((s) => ({
+          ...s,
+          tasks: s.tasks.map((t) => (t.id === task.id ? { ...t, issueId: newId } : t)),
+        }));
+        alert(
+          task.assigneeAgentId
+            ? "이슈 등록 완료 — 배정된 에이전트가 작업을 시작합니다."
+            : "이슈 등록 완료 (담당 에이전트 미지정 — Multica 에서 배정하세요).",
+        );
+      } catch (e) {
+        alert("이슈 등록 실패: " + (e as Error).message);
+      }
+    },
+    [createIssue],
+  );
+
   const exportData = useCallback(() => {
     const data = JSON.stringify({ logs: state.logs, tasks: state.tasks }, null, 2);
     const blob = new Blob([data], { type: "application/json" });
@@ -333,7 +399,15 @@ export function AlienPlanPage() {
             <TodayPage state={state} getTodayLog={getTodayLog} patchTodayLog={patchTodayLog} updateTask={updateTask} />
           )}
           {page === "tasks" && (
-            <TasksPage state={state} updateTask={updateTask} deleteTask={deleteTask} onAdd={() => setModalOpen(true)} />
+            <TasksPage
+              state={state}
+              updateTask={updateTask}
+              deleteTask={deleteTask}
+              onAdd={() => setModalOpen(true)}
+              agents={agents}
+              onSendToIssue={sendToIssue}
+              creatingIssue={createIssue.isPending}
+            />
           )}
           {page === "reflect" && <ReflectPage state={state} updateTask={updateTask} />}
           {page === "trace" && <TracePage state={state} />}
@@ -350,7 +424,7 @@ export function AlienPlanPage() {
         </div>
       </main>
 
-      {modalOpen && <AddTaskModal onClose={() => setModalOpen(false)} onSubmit={addTask} />}
+      {modalOpen && <AddTaskModal onClose={() => setModalOpen(false)} onSubmit={addTask} agents={agents} />}
     </div>
   );
 }
@@ -581,9 +655,28 @@ function toggleTaskFn(t: Task): Task {
 }
 
 // ── Task card ───────────────────────────────────────────
-function TaskCard({ t, compact, onToggle, onDelete }: { t: Task; compact?: boolean; onToggle: () => void; onDelete: () => void }) {
+function TaskCard({
+  t,
+  compact,
+  onToggle,
+  onDelete,
+  agents,
+  creatingIssue,
+  onAssignAgent,
+  onSendToIssue,
+}: {
+  t: Task;
+  compact?: boolean;
+  onToggle: () => void;
+  onDelete: () => void;
+  agents?: PlanAgent[];
+  creatingIssue?: boolean;
+  onAssignAgent?: (agentId: string | null) => void;
+  onSendToIssue?: () => void;
+}) {
   const u = getUrgency(t);
   const q = isQuick(t);
+  const showIssueControls = !compact && !!agents && !t.issueId;
   return (
     <li className={["group bg-background border rounded-[10px] p-3 mb-2 transition-colors hover:border-muted-foreground", q ? "border-amber-400/70 dark:border-amber-600/50" : "border-border"].join(" ")}>
       <div className="flex items-start gap-2.5">
@@ -592,10 +685,36 @@ function TaskCard({ t, compact, onToggle, onDelete }: { t: Task; compact?: boole
           <div className={["text-[13px] leading-snug", t.completed ? "line-through text-muted-foreground" : ""].join(" ")}>{t.title}</div>
           {!compact && (
             <div className="flex flex-wrap gap-1.5 mt-2 items-center">
-              <span className={["text-[9.5px] px-1.5 py-0.5 rounded border", PRIORITY_TAG[t.priority]].join(" ")}>{t.priority}</span>
+              <span className={["text-[9.5px] px-1.5 py-0.5 rounded border", PRIORITY_TAG[t.priority]].join(" ")}>{PRIORITY_KO[t.priority]}</span>
               {u && <span className={["text-[9.5px] px-1.5 py-0.5 rounded border", u.cls].join(" ")}>{u.ko}</span>}
               {q && <span className="text-[9.5px] px-1.5 py-0.5 rounded border bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/50">⚡ Quick</span>}
               <span className="text-[9.5px] text-muted-foreground">⏱ {t.estimatedMin}m</span>
+              {t.issueId && <span className="text-[9.5px] px-1.5 py-0.5 rounded border bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/50">✓ 이슈 등록됨</span>}
+            </div>
+          )}
+          {showIssueControls && (
+            <div className="flex items-center gap-1.5 mt-2">
+              <select
+                value={t.assigneeAgentId ?? ""}
+                onChange={(e) => onAssignAgent?.(e.target.value || null)}
+                className="flex-1 min-w-0 bg-background border border-border rounded px-1.5 py-1 text-[11px] outline-none focus:border-muted-foreground"
+              >
+                <option value="">담당 에이전트 없음</option>
+                {agents!.map((a) => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
+              <button
+                onClick={onSendToIssue}
+                disabled={creatingIssue}
+                title="Multica 이슈로 등록 — 담당 에이전트가 있으면 실행까지"
+                className="shrink-0 flex items-center gap-1 rounded bg-primary text-primary-foreground px-2 py-1 text-[11px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" />
+                </svg>
+                {creatingIssue ? "등록 중…" : "이슈 등록"}
+              </button>
             </div>
           )}
         </div>
@@ -617,11 +736,17 @@ function TasksPage({
   updateTask,
   deleteTask,
   onAdd,
+  agents,
+  onSendToIssue,
+  creatingIssue,
 }: {
   state: PlanState;
   updateTask: (id: string, fn: (t: Task) => Task) => void;
   deleteTask: (id: string) => void;
   onAdd: () => void;
+  agents: PlanAgent[];
+  onSendToIssue: (task: Task) => void;
+  creatingIssue: boolean;
 }) {
   const active = state.tasks.filter((t) => !t.completed && t.status !== "Skipped");
   const quickCount = active.filter(isQuick).length;
@@ -662,7 +787,16 @@ function TasksPage({
               </div>
               <ul>
                 {items.map((t) => (
-                  <TaskCard key={t.id} t={t} onToggle={() => updateTask(t.id, toggleTaskFn)} onDelete={() => { if (confirm("이 태스크를 삭제할까요?")) deleteTask(t.id); }} />
+                  <TaskCard
+                    key={t.id}
+                    t={t}
+                    agents={agents}
+                    creatingIssue={creatingIssue}
+                    onToggle={() => updateTask(t.id, toggleTaskFn)}
+                    onDelete={() => { if (confirm("이 태스크를 삭제할까요?")) deleteTask(t.id); }}
+                    onAssignAgent={(agentId) => updateTask(t.id, (x) => ({ ...x, assigneeAgentId: agentId }))}
+                    onSendToIssue={() => onSendToIssue(t)}
+                  />
                 ))}
                 {items.length === 0 && <div className="text-[11px] text-muted-foreground italic py-2">비어있음</div>}
               </ul>
@@ -837,12 +971,13 @@ function TracePage({ state }: { state: PlanState }) {
 }
 
 // ── Add Task Modal ──────────────────────────────────────
-function AddTaskModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (t: Task) => void }) {
+function AddTaskModal({ onClose, onSubmit, agents }: { onClose: () => void; onSubmit: (t: Task) => void; agents: PlanAgent[] }) {
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState<Priority>("Should Do");
   const [sprint, setSprint] = useState("No Sprint");
   const [est, setEst] = useState(30);
   const [due, setDue] = useState(todayKey());
+  const [agentId, setAgentId] = useState("");
   const titleRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -863,6 +998,7 @@ function AddTaskModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (t
       completed: false,
       completedAt: null,
       createdAt: new Date().toISOString(),
+      assigneeAgentId: agentId || null,
     });
     onClose();
   };
@@ -903,6 +1039,14 @@ function AddTaskModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (t
               <input type="date" className="w-full bg-background border border-border rounded-md px-2.5 py-1.5 text-[13px] outline-none focus:border-muted-foreground" value={due} onChange={(e) => setDue(e.target.value)} />
             </Field>
           </div>
+          <Field label="담당 에이전트 (선택 — 지정 후 '이슈 등록'하면 실행)">
+            <select className="w-full bg-background border border-border rounded-md px-2.5 py-1.5 text-[13px] outline-none focus:border-muted-foreground" value={agentId} onChange={(e) => setAgentId(e.target.value)}>
+              <option value="">담당 없음 (개인 메모로 보관)</option>
+              {agents.map((a) => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+          </Field>
           {est <= 15 && (
             <div className="text-[11px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-md px-2.5 py-2 flex gap-1.5 items-center">
               ⚡ <span>15분 이하 → 자동으로 빠른 작업(Quick)으로 분류됩니다.</span>
