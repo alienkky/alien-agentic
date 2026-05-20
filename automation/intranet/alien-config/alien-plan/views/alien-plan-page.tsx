@@ -65,6 +65,13 @@ function ensurePretendard() {
 
 const PRIORITIES: Priority[] = ["Must Do", "Should Do", "Could Do"];
 
+// 모달/태그 표시용 한글 라벨 (value 는 영문 유지 — 내부 로직·이슈 매핑 보존)
+const PRIORITY_KO: Record<Priority, string> = {
+  "Must Do": "필수",
+  "Should Do": "중요",
+  "Could Do": "선택",
+};
+
 const SPRINTS = [
   { id: "Sprint 1", ko: "긴급", cls: "sprint-1" },
   { id: "Sprint 2", ko: "마감", cls: "sprint-2" },
@@ -292,7 +299,7 @@ export function AlienPlanPage() {
       <header className="shrink-0 border-b border-border px-4 md:px-6 py-3 flex items-center gap-3 flex-wrap">
         <div className="flex items-baseline gap-2 mr-1 shrink-0">
           <span className="font-mono text-[9px] tracking-[0.25em] text-muted-foreground hidden sm:inline">ALIEN AGENTIC</span>
-          <h1 className="font-serif italic text-xl font-medium leading-none">Alien Plan</h1>
+          <h1 className="text-xl font-bold leading-none tracking-tight" style={{ fontFamily: TITLE_FONT }}>Alien Plan</h1>
         </div>
         <nav className="flex gap-1 overflow-x-auto -mx-1 px-1">
           {navItems.map((n) => {
@@ -371,7 +378,7 @@ function Card({ accent, children }: { accent?: string; children: ReactNode }) {
   );
 }
 
-function CardHead({ d, fill, title, ko, sub }: { d: string; fill?: boolean; title: string; ko?: string; sub: string }) {
+function CardHead({ d, fill, title, ko, sub, right }: { d: string; fill?: boolean; title: string; ko?: string; sub: string; right?: ReactNode }) {
   return (
     <div className="flex items-start gap-2.5 mb-3.5">
       <svg className="w-[18px] h-[18px] text-muted-foreground shrink-0 mt-0.5" viewBox="0 0 24 24" fill={fill ? "currentColor" : "none"} stroke={fill ? "none" : "currentColor"} strokeWidth={1.6}>
@@ -379,13 +386,14 @@ function CardHead({ d, fill, title, ko, sub }: { d: string; fill?: boolean; titl
           <path key={i} d={"M" + seg} />
         ))}
       </svg>
-      <div>
+      <div className="flex-1 min-w-0">
         <h3 className="text-[19px] font-semibold leading-tight tracking-tight" style={{ fontFamily: TITLE_FONT }}>
           {title}
           {ko && <span className="text-[11px] font-normal text-muted-foreground ml-2 tracking-wide" style={{ fontFamily: TITLE_FONT }}>{ko}</span>}
         </h3>
         <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{sub}</div>
       </div>
+      {right}
     </div>
   );
 }
@@ -427,6 +435,42 @@ function TodayPage({
   const mStreak = calcStreak(state.logs, "tinyMove");
   const todayTasks = state.tasks.filter((t) => !t.completed && t.status !== "Skipped" && t.dueDate === todayKey());
 
+  // ── Sweep 음성 입력 (Web Speech API) ──
+  const [listening, setListening] = useState(false);
+  // SpeechRecognition 은 lib.dom 에 타입이 없어 any 로 받는다 (브라우저 전역).
+  const recognitionRef = useRef<any>(null);
+
+  const toggleVoice = () => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) {
+      alert("이 브라우저는 음성 입력을 지원하지 않습니다. (Chrome/Edge 권장)");
+      return;
+    }
+    if (listening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const rec = new SR();
+    rec.lang = "ko-KR";
+    rec.continuous = true;
+    rec.interimResults = false;
+    rec.onresult = (e: any) => {
+      let txt = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        txt += e.results[i][0].transcript;
+      }
+      if (txt) {
+        const cur = getTodayLog().sweep;
+        patchTodayLog({ sweep: cur ? cur + " " + txt : txt });
+      }
+    };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    recognitionRef.current = rec;
+    rec.start();
+    setListening(true);
+  };
+
   const badges = (
     <div className="flex gap-2.5">
       {[{ label: "THE ONE", v: hStreak }, { label: "TINY MOVE", v: mStreak }].map((b) => (
@@ -451,10 +495,33 @@ function TodayPage({
       <Header eyebrow={`TODAY · ${dateLabel}`} title="Today's Practice" desc="한 걸음 떨어져서 보세요. Sweep → The One → Tiny Move. 그게 전부예요." right={badges} />
 
       <Card accent="bg-slate-300 dark:bg-slate-600">
-        <CardHead d={"M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM12 6v6l4 2"} title="Sweep" ko="쓸어담기" sub="머릿속에 떠도는 것을 다 쏟아냅니다. 정리는 그 다음입니다." />
+        <CardHead
+          d={"M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM12 6v6l4 2"}
+          title="Sweep"
+          ko="쓸어담기"
+          sub="머릿속에 떠도는 것을 다 쏟아냅니다. 정리는 그 다음입니다."
+          right={
+            <button
+              onClick={toggleVoice}
+              title={listening ? "음성 입력 중지" : "음성으로 입력"}
+              className={[
+                "shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                listening
+                  ? "bg-red-500 text-white animate-pulse"
+                  : "bg-muted text-muted-foreground hover:bg-primary hover:text-primary-foreground",
+              ].join(" ")}
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3" />
+              </svg>
+              {listening ? "녹음 중…" : "음성 입력"}
+            </button>
+          }
+        />
         <textarea
           className="w-full min-h-[120px] bg-transparent text-sm leading-relaxed pt-1 outline-none resize-none placeholder:text-muted-foreground placeholder:italic"
-          placeholder="떠오르는 것들… 태스크, 걱정, 아이디어, 두려움. 그냥 다 적으세요."
+          placeholder="떠오르는 것들… 태스크, 걱정, 아이디어, 두려움. 그냥 다 적으세요. (마이크 버튼으로 말해도 됩니다)"
           value={log.sweep}
           onChange={(e) => patchTodayLog({ sweep: e.target.value })}
         />
@@ -819,26 +886,26 @@ function AddTaskModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (t
             onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
           />
           <div className="grid grid-cols-2 gap-3">
-            <Field label="PRIORITY">
+            <Field label="우선순위">
               <select className="w-full bg-background border border-border rounded-md px-2.5 py-1.5 text-[13px] outline-none focus:border-muted-foreground" value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>
-                {PRIORITIES.map((p) => <option key={p}>{p}</option>)}
+                {PRIORITIES.map((p) => <option key={p} value={p}>{PRIORITY_KO[p]}</option>)}
               </select>
             </Field>
-            <Field label="SPRINT">
+            <Field label="스프린트">
               <select className="w-full bg-background border border-border rounded-md px-2.5 py-1.5 text-[13px] outline-none focus:border-muted-foreground" value={sprint} onChange={(e) => setSprint(e.target.value)}>
-                {SPRINTS.map((s) => <option key={s.id}>{s.id}</option>)}
+                {SPRINTS.map((s) => <option key={s.id} value={s.id}>{s.id === "No Sprint" ? "미분류" : `${s.ko} (${s.id})`}</option>)}
               </select>
             </Field>
-            <Field label="ESTIMATED (MIN)">
+            <Field label="예상 시간 (분)">
               <input type="number" min={0} className="w-full bg-background border border-border rounded-md px-2.5 py-1.5 text-[13px] outline-none focus:border-muted-foreground" value={est} onChange={(e) => setEst(parseInt(e.target.value) || 0)} />
             </Field>
-            <Field label="DUE">
+            <Field label="마감일">
               <input type="date" className="w-full bg-background border border-border rounded-md px-2.5 py-1.5 text-[13px] outline-none focus:border-muted-foreground" value={due} onChange={(e) => setDue(e.target.value)} />
             </Field>
           </div>
           {est <= 15 && (
             <div className="text-[11px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-md px-2.5 py-2 flex gap-1.5 items-center">
-              ⚡ <span>15분 이하 → 자동으로 Quick Task로 분류됩니다.</span>
+              ⚡ <span>15분 이하 → 자동으로 빠른 작업(Quick)으로 분류됩니다.</span>
             </div>
           )}
           <button onClick={submit} className="w-full justify-center bg-primary text-primary-foreground py-3 rounded-lg text-[13px] inline-flex items-center gap-1.5 hover:opacity-90 transition-opacity">태스크 추가</button>
