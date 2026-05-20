@@ -78,6 +78,41 @@ tailscale serve https / http://localhost:3000
 
 ---
 
+## 3.5 HTTPS 로 음성·secure-context 기능 켜기 (Alien Plan 음성 입력 필수)
+
+**문제**: `http://100.x.x.x:3000` (Tailscale IP + HTTP) 으로 접속하면 브라우저가 *secure context* 로 안 봐서 다음이 **차단**됩니다:
+- 🎙 **음성 입력** (Alien Plan Sweep) — 마이크/`SpeechRecognition`
+- 클립보드 쓰기, 일부 `crypto` API 등
+
+secure context = **HTTPS** 또는 **localhost**. 그래서:
+
+| 접속 방식 | secure? | 음성 |
+|---|---|---|
+| `http://localhost:3000` (같은 PC) | ✅ | 작동 |
+| `http://100.x.x.x:3000` (IP, 폰/패드) | ❌ | 차단 |
+| `https://<PC명>.<tailnet>.ts.net` (Tailscale HTTPS) | ✅ | 작동 |
+
+**해결 — Tailscale HTTPS 인증서 + serve**
+
+### 1) 관리 콘솔에서 HTTPS 기능 켜기 (최초 1회)
+https://login.tailscale.com/admin/dns → **Enable HTTPS** (MagicDNS 도 함께 켜짐). tailnet 이름(`<something>.ts.net`)이 부여됩니다.
+
+### 2) PC 에서 serve 실행
+```powershell
+# Multica 가 3000 포트로 떠 있을 때
+tailscale serve --bg --https=443 http://localhost:3000
+```
+- `--bg`: 백그라운드 + 설정 영구 저장 (재부팅해도 유지)
+- 발급 URL 확인: `tailscale serve status`
+- 해제: `tailscale serve --https=443 off`
+
+### 3) 접속
+폰·패드·어디서든 **`https://<PC명>.<tailnet>.ts.net`** → secure context → 음성·전체 기능 작동.
+
+> **자동화됨**: `autostart-serve.ps1` 이 부팅 시 docker 가동 직후 `tailscale serve --bg --https=443` 을 자동 호출합니다 (HTTPS 기능이 켜져 있고 tailscale CLI 가 PATH 에 있을 때). 즉 위 1)만 한 번 해두면 이후 부팅마다 HTTPS 가 자동으로 섭니다.
+
+---
+
 ## 4. `aa` CLI 모바일 접근 — SSH
 
 ### Windows SSH 서버
