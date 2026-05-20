@@ -199,6 +199,19 @@ function emptyLog(): DayLog {
   return { sweep: "", theOne: { text: "", done: false }, tinyMove: { text: "", done: false } };
 }
 
+// crypto.randomUUID 는 secure context(HTTPS/localhost)에서만 동작한다.
+// Tailscale IP + HTTP 같은 비보안 접속에서도 ID 가 필요하므로 fallback.
+function genId(): string {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+  } catch {
+    /* secure context 아님 — fallback 으로 */
+  }
+  return "ap-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+}
+
 // ── Icons (inline SVG, currentColor) ────────────────────
 const Icon = {
   sun: "M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41",
@@ -515,6 +528,16 @@ function TodayPage({
   const recognitionRef = useRef<any>(null);
 
   const toggleVoice = () => {
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      alert(
+        "음성 입력은 보안 연결(HTTPS) 또는 localhost 에서만 작동합니다.\n" +
+          "지금은 http:// + IP 주소로 접속 중이라 브라우저가 마이크를 막습니다.\n\n" +
+          "해결:\n" +
+          "① 같은 PC면 http://localhost:3000 으로 접속\n" +
+          "② 다른 기기(폰/패드)면 Tailscale HTTPS 설정 (가이드 제공)",
+      );
+      return;
+    }
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) {
       alert("이 브라우저는 음성 입력을 지원하지 않습니다. (Chrome/Edge 권장)");
@@ -988,7 +1011,7 @@ function AddTaskModal({ onClose, onSubmit, agents }: { onClose: () => void; onSu
     const trimmed = title.trim();
     if (!trimmed) return;
     onSubmit({
-      id: crypto.randomUUID(),
+      id: genId(),
       title: trimmed,
       status: "Not started",
       priority,
