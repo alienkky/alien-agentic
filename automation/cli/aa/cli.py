@@ -1845,5 +1845,163 @@ def seed(
     )
 
 
+# ── aa design — open-design 으로 디자인 생성 ──────────────
+def _deep_find(obj, key: str):
+    """중첩 dict/list 에서 key 의 첫 비어있지 않은 문자열 값을 찾는다.
+    open-design SSE 의 wire format 세부에 의존하지 않고 artifactId 를 잡기 위함."""
+    if isinstance(obj, dict):
+        val = obj.get(key)
+        if isinstance(val, str) and val:
+            return val
+        for v in obj.values():
+            found = _deep_find(v, key)
+            if found:
+                return found
+    elif isinstance(obj, list):
+        for item in obj:
+            found = _deep_find(item, key)
+            if found:
+                return found
+    return None
+
+
+def _od_post(base: str, path: str, body: dict, timeout: int = 30) -> dict:
+    """open-design 데몬에 JSON POST → JSON 응답."""
+    data = json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(
+        f"{base}{path}", data=data,
+        headers={"Content-Type": "application/json"}, method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+@app.command()
+def design(
+    prompt: str = typer.Argument(..., help="디자인 요청 (예: '주간 대시보드')"),
+    system: str = typer.Option(
+        "alien-agentic", "--system", "-s",
+        help="디자인 시스템 ID (open-design design-systems/ — 프로젝트별 톤)",
+    ),
+    client: str = typer.Option("_self", "--client", "-c", help="클라이언트 (산출물 경로)"),
+    out: str = typer.Option(None, "--out", help="저장 폴더 (없으면 자동)"),
+    daemon_url: str = typer.Option(
+        None, "--daemon-url", help="open-design 데몬 URL (없으면 OD_DAEMON_URL → 7456)"
+    ),
+    agent: str = typer.Option("claude-code", "--agent", help="에이전트 CLI id"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="호출 없이 계획만 출력"),
+) -> None:
+    """open-design 으로 디자인 생성 — 프로젝트 톤(design system) 적용 → HTML 저장.
+
+    흐름: POST /api/projects (design system 주입) → POST /api/chat (SSE) →
+    live_artifact 의 artifactId 수집 → GET /api/live-artifacts/:id/preview (HTML).
+    """
+    base = (
+        daemon_url or os.environ.get("OD_DAEMON_URL") or "http://127.0.0.1:7456"
+    ).rstrip("/")
+
+    if out:
+        out_dir = Path(out)
+    elif client and not client.startswith("_self"):
+        out_dir = ROOT / "clients" / client / "WHAT" / "designs"
+    else:
+        out_dir = ROOT / "content" / "designs"
+
+    if dry_run:
+        console.print("[cyan]aa design (dry-run)[/cyan]")
+        console.print(f"  데몬: {base}")
+        console.print(f"  디자인 시스템: {system}")
+        console.print(f"  에이전트: {agent}")
+        console.print(f"  저장 폴더: {out_dir}")
+        console.print(f"  프롬프트: {prompt}")
+        return
+
+    # 0) 헬스체크
+    try:
+        with urllib.request.urlopen(f"{base}/api/health", timeout=5) as resp:
+            if resp.status != 200:
+                raise OSError(f"health status {resp.status}")
+    except (urllib.error.URLError, urllib.error.HTTPError, OSError) as e:
+        console.print(f"[red]open-design 데몬 연결 실패: {base}[/red]")
+        console.print(
+            "[dim]데몬 가동: cd automation/intranet/open-design && pnpm tools-dev run web[/dim]"
+        )
+        console.print(
+            f"[dim]포트가 다르면 --daemon-url 또는 OD_DAEMON_URL 지정. ({e})[/dim]"
+        )
+        raise typer.Exit(1)
+
+    # 1) project 생성 (design system 주입)
+    proj_id = f"aa-{dt.datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    try:
+        proj = _od_post(base, "/api/projects", {
+            "id": proj_id,
+            "name": prompt[:60],
+            "designSystemId": system,
+        })
+    except (urllib.error.HTTPError, urllib.error.URLError, OSError, json.JSONDecodeError) as e:
+        console.print(f"[red]project 생성 실패: {e}[/red]")
+        console.print(f"[dim]design system '{system}' 이 등록됐는지 확인 (install-open-design).[/dim]")
+        raise typer.Exit(1)
+    project_id = _deep_find(proj, "id") or proj_id
+
+    console.print(f"[cyan]🎨 디자인 생성 중[/cyan] (system={system}, agent={agent})…")
+
+    # 2) chat (SSE) → artifactId 수집
+    chat_body = {
+        "messages": [{"role": "user", "content": prompt}],
+        "projectId": project_id,
+        "agentId": agent,
+    }
+    req = urllib.request.Request(
+        f"{base}/api/chat",
+        data=json.dumps(chat_body).encode("utf-8"),
+        headers={"Content-Type": "application/json", "Accept": "text/event-stream"},
+        method="POST",
+    )
+    artifact_id = None
+    try:
+        with urllib.request.urlopen(req, timeout=600) as resp:
+            for raw in resp:
+                line = raw.decode("utf-8", "replace").strip()
+                if not line or "artifactId" not in line:
+                    continue
+                payload = line.split("data:", 1)[-1].strip() if "data:" in line else line
+                try:
+                    obj = json.loads(payload)
+                except json.JSONDecodeError:
+                    continue
+                aid = _deep_find(obj, "artifactId")
+                if aid:
+                    artifact_id = aid
+    except (urllib.error.HTTPError, urllib.error.URLError, OSError) as e:
+        console.print(f"[red]디자인 생성(chat) 실패: {e}[/red]")
+        raise typer.Exit(1)
+
+    if not artifact_id:
+        console.print("[yellow]artifact 가 생성되지 않았습니다.[/yellow]")
+        console.print("[dim]웹 UI 에서 확인하거나 프롬프트를 더 구체화해보세요.[/dim]")
+        raise typer.Exit(1)
+
+    # 3) 완성 HTML 회수
+    try:
+        with urllib.request.urlopen(
+            f"{base}/api/live-artifacts/{urllib.parse.quote(artifact_id)}/preview",
+            timeout=60,
+        ) as resp:
+            html = resp.read().decode("utf-8", "replace")
+    except (urllib.error.HTTPError, urllib.error.URLError, OSError) as e:
+        console.print(f"[red]artifact HTML 회수 실패: {e}[/red]")
+        raise typer.Exit(1)
+
+    # 4) 저장
+    out_dir.mkdir(parents=True, exist_ok=True)
+    slug = re.sub(r"[^a-zA-Z0-9가-힣]+", "-", prompt[:30]).strip("-") or "design"
+    out_path = out_dir / f"{proj_id}-{slug}.html"
+    out_path.write_text(html, encoding="utf-8")
+    console.print(f"[green]✓ 디자인 저장:[/green] {out_path}")
+    console.print(f"[dim]브라우저로 열어 확인. (artifact={artifact_id})[/dim]")
+
+
 if __name__ == "__main__":
     app()

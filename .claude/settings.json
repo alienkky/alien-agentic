@@ -15,5 +15,17 @@
       "Bash(head:*)",
       "Bash(tail:*)"
     ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python automation/intranet/alien-config/scripts/session-brief.py"
+          }
+        ]
+      }
+    ]
   }
 }
