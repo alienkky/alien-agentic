@@ -1,6 +1,7 @@
 # CLAUDE.md — Alien Agentic 마스터 오케스트레이터 운영 매뉴얼
 
 > 이 파일은 **매 세션 자동 로드**된다. 회사 헌법 전문은 [CONSTITUTION.md](CONSTITUTION.md), 영구 기억은 `C:\Users\AlienK\.claude\projects\E--AlienAgentic-alien-agentic\memory\` 에 있다.
+> 일하는 방식(하니스) 독트린: [docs/guides/harness-doctrine.md](docs/guides/harness-doctrine.md) — *모델은 천장, 하니스는 사다리.*
 
 ---
 
