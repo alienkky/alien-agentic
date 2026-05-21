@@ -209,6 +209,20 @@ E:\AlienAgentic\alien-agentic\
    - ComfyUI 필요: `D:\ComfyUI_windows_portable`, 모델: `D:\model`. 서버가 꺼져 있으면 안내 메시지 출력.
    - 상세: `automation/cli/aa/comfyui_workflows/README.md`
 
+8. **구조화된 디자인 산출물 — `aa design` (open-design 경유)**
+
+   웹·대시보드·덱·문서·프로토타입 같은 *구조화된 디자인*은 단순 이미지(7번 Flux)가 아니라 **open-design** 으로 만든다. 모든 에이전트가 디자인 산출이 필요하면 이 도구를 쓴다.
+
+   ```bash
+   aa design "<상세 설명>" --system <design-system> --client <client>
+   ```
+
+   - **design system = 프로젝트 톤.** 프로젝트마다 디자인 컨셉이 다르다 → 회사 자체면 `alien-agentic`, 클라이언트면 그 클라이언트 id (`clients/<client>/design-system/DESIGN.md`). 반드시 맞는 system 지정.
+   - 결과 HTML: `clients/<client>/WHAT/designs/` (자체면 `content/designs/`)
+   - 전제: open-design 데몬 가동 (`automation/intranet/open-design`, `pnpm tools-dev run web`). 데몬 URL 기본 7456 과 다르면 `--daemon-url`.
+   - anti-AI-slop 가드(discovery·OKLch 결정론 팔레트·5차원 review)로 품질 보장. `--dry-run` 으로 계획 먼저.
+   - 셋업·디자인시스템 2층: `docs/guides/open-design-setup.md`, `automation/intranet/alien-config/open-design/README.md`
+
 ---
 
 ## 9. 일일·주간 운영 루틴
