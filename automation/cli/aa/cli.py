@@ -1963,6 +1963,7 @@ def design(
         headers={"Content-Type": "application/json", "Accept": "text/event-stream"},
         method="POST",
     )
+    start_ts = time.time()
     artifact_id = None
     sse_lines: list[str] = []
     try:
@@ -2002,20 +2003,42 @@ def design(
         for dl in sse_lines[-10:]:
             console.print(f"[dim]│ {dl[:180]}[/dim]")
 
-    if not artifact_id:
-        console.print("[yellow]artifact 가 생성되지 않았습니다.[/yellow]")
-        console.print("[dim]웹 UI 에서 확인하거나 프롬프트를 더 구체화해보세요.[/dim]")
-        raise typer.Exit(1)
+    # 3) HTML 확보 — artifactId 있으면 데몬 preview, 없으면 .od 디스크 fallback
+    html = None
+    if artifact_id:
+        try:
+            with urllib.request.urlopen(
+                f"{base}/api/live-artifacts/{urllib.parse.quote(artifact_id)}/preview",
+                timeout=60,
+            ) as resp:
+                html = resp.read().decode("utf-8", "replace")
+        except (urllib.error.HTTPError, urllib.error.URLError, OSError) as e:
+            console.print(f"[yellow]preview 회수 실패({e}) — 디스크에서 찾습니다.[/yellow]")
 
-    # 3) 완성 HTML 회수
-    try:
-        with urllib.request.urlopen(
-            f"{base}/api/live-artifacts/{urllib.parse.quote(artifact_id)}/preview",
-            timeout=60,
-        ) as resp:
-            html = resp.read().decode("utf-8", "replace")
-    except (urllib.error.HTTPError, urllib.error.URLError, OSError) as e:
-        console.print(f"[red]artifact HTML 회수 실패: {e}[/red]")
+    od_data = Path(
+        os.environ.get("OD_DATA_DIR")
+        or (ROOT / "automation" / "intranet" / "open-design" / ".od")
+    )
+    if html is None:
+        # SSE 에서 artifactId 를 못 잡았거나 preview 실패 → open-design 의 .od 에서
+        # chat 시작 이후 생성/수정된 HTML 중 가장 최근·큰 것을 회수 (SSE 형식 무관).
+        cands = []
+        if od_data.exists():
+            for hf in od_data.rglob("*.html"):
+                try:
+                    if hf.stat().st_mtime >= start_ts - 5:
+                        cands.append(hf)
+                except OSError:
+                    continue
+        if cands:
+            best = max(cands, key=lambda f: (f.stat().st_mtime, f.stat().st_size))
+            html = best.read_text(encoding="utf-8", errors="replace")
+            console.print(f"[dim]디스크에서 회수: {best}[/dim]")
+
+    if not html:
+        console.print("[yellow]디자인 결과물을 찾지 못했습니다.[/yellow]")
+        console.print(f"[dim].od 경로: {od_data} (존재={od_data.exists()})[/dim]")
+        console.print("[dim]웹 UI 에서 직접 확인하거나 --debug 로 SSE 점검.[/dim]")
         raise typer.Exit(1)
 
     # 4) 저장
@@ -2024,7 +2047,7 @@ def design(
     out_path = out_dir / f"{proj_id}-{slug}.html"
     out_path.write_text(html, encoding="utf-8")
     console.print(f"[green]✓ 디자인 저장:[/green] {out_path}")
-    console.print(f"[dim]브라우저로 열어 확인. (artifact={artifact_id})[/dim]")
+    console.print("[dim]브라우저로 열어 확인.[/dim]")
 
 
 if __name__ == "__main__":
