@@ -10,7 +10,7 @@ Alien Agentic의 공유 메모리. 모든 에이전트와 세션이 이 폴더�
 | `clients/{client-name}/` | 클라이언트별 진단·산출물의 *익명화 메타 사본*. 실제 작업물은 루트의 `clients/`. |
 | `clients/_self-*` | 자기 자신을 진단한 케이스(Alien Agentic 자체 진단 등). 외부 클라이언트와 구별하기 위해 언더스코어 prefix. |
 | `meta/` | 회사 자체 메타 데이터 — 의사결정 / 실패 케이스 / 호출 통계. 1년 후의 진입장벽. |
-| `insights/` | 주간·월간 인사이트. `case-curator`가 매주 일요일 작성. |
+| `insights/` | 주간·월간 인사이트 + 기술 사고 케이스 스터디. `case-curator`가 매주 일요일 작성. 파일명: `weekly-{YYYY-Www}.md` (주간) / `{YYYY-MM-DD}-{slug}.md` (케이스). |
 | `agents/` | 27명 각자의 4파일 메모리 (work / learnings / decisions / mistakes) — 호출 종료 시 자동 append |
 | `messages/` | 에이전트 간 대화 — *직접 통신 X*, 모두 이 폴더 경유 |
 | `tasks/` | 진행 중 업무 목록 (Kanban 패턴, `_backlog/_in-progress/_done/_blocked.md` 인덱스) |

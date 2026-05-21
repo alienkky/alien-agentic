@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alien Plan · 한 걸음 떨어져서 바라보는 일일 실행 시스템</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=IBM+Plex+Sans+KR:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* ─────────────────────────────────────────────────────────
+     Alien Plan
+     by Alien Agentic
+     "지구 전체를 외계인의 시선으로 한 걸음 떨어져서 바라보는"
+     ───────────────────────────────────────────────────────── */
+
+  :root {
+    /* AA Palette */
+    --cream:      #F4F1EB;
+    --paper:      #FBFAF6;
+    --ink:        #1B2444;
+    --ink-soft:   #4A5168;
+    --ink-mute:   #8A8F9F;
+    --line:       #E5E0D5;
+    --line-soft:  #EDE9DF;
+    --silver:     #C8D4F0;
+    --dusk:       #E89B6C;
+    --ember:      #C8442B;
+    --sage:       #8FA88A;
+    --night:      #0B1020;
+    --gold:       #D4A946;
+
+    --serif: 'Cormorant Garamond', 'Noto Serif KR', Georgia, serif;
+    --sans:  'IBM Plex Sans KR', -apple-system, system-ui, sans-serif;
+    --mono:  'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--cream); color: var(--ink); font-family: var(--sans); font-size: 14px; line-height: 1.5; }
+  body { min-height: 100vh; padding: 32px 24px; }
+  button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+  input, textarea, select { font-family: inherit; font-size: inherit; color: inherit; border: none; background: none; outline: none; }
+  textarea { resize: none; }
+  ul { list-style: none; }
+  ::selection { background: var(--ink); color: var(--cream); }
+
+  /* Layout */
+  .app { max-width: 1280px; margin: 0 auto; display: grid; grid-template-columns: 260px 1fr; gap: 48px; }
+
+  /* ── Sidebar ──────────────────────────────── */
+  .sidebar { position: sticky; top: 32px; height: fit-content; }
+  .brand { margin-bottom: 40px; }
+  .brand .mark { font-family: var(--mono); font-size: 10px; letter-spacing: 0.3em; color: var(--ink-mute); margin-bottom: 8px; }
+  .brand h1 { font-family: var(--serif); font-style: italic; font-size: 28px; font-weight: 500; line-height: 1; }
+  .brand .sub { font-size: 12px; color: var(--ink-soft); margin-top: 6px; font-style: italic; }
+
+  .nav { display: flex; flex-direction: column; gap: 2px; }
+  .nav button {
+    display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+    border-radius: 10px; text-align: left; transition: all 0.15s;
+    color: var(--ink-soft);
+  }
+  .nav button:hover { background: rgba(27, 36, 68, 0.04); color: var(--ink); }
+  .nav button.active { background: var(--ink); color: var(--cream); }
+  .nav button.active .nav-sub { color: rgba(244, 241, 235, 0.6); }
+  .nav-icon { width: 18px; height: 18px; flex-shrink: 0; }
+  .nav-label { font-size: 14px; font-weight: 500; }
+  .nav-sub { font-size: 10px; color: var(--ink-mute); letter-spacing: 0.05em; }
+  .nav button div { flex: 1; }
+
+  .quote-card {
+    margin-top: 48px; padding: 18px 16px;
+    background: var(--night); color: var(--cream);
+    border-radius: 12px;
+  }
+  .quote-card .label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.25em; color: var(--silver); opacity: 0.7; margin-bottom: 10px; }
+  .quote-card .text { font-size: 12px; line-height: 1.6; font-style: italic; opacity: 0.95; }
+  .quote-card .text strong { font-style: normal; font-weight: 500; opacity: 1; }
+
+  /* ── Main ─────────────────────────────────── */
+  .main { min-width: 0; }
+
+  .header {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    padding-bottom: 24px; border-bottom: 1px solid var(--line); margin-bottom: 32px;
+  }
+  .header .eyebrow { font-family: var(--mono); font-size: 10px; letter-spacing: 0.3em; color: var(--ink-mute); }
+  .header h2 { font-family: var(--serif); font-style: italic; font-size: 40px; font-weight: 500; line-height: 1.1; margin-top: 10px; }
+  .header .desc { font-size: 13px; color: var(--ink-soft); margin-top: 10px; max-width: 440px; line-height: 1.6; }
+
+  .badges { display: flex; gap: 10px; }
+  .badge {
+    background: var(--night); color: var(--cream);
+    padding: 8px 14px; border-radius: 10px; display: flex; align-items: center; gap: 8px;
+  }
+  .badge .label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em; color: var(--silver); opacity: 0.7; }
+  .badge .value { font-family: var(--serif); font-size: 22px; line-height: 1; }
+  .badge .unit { font-size: 10px; color: var(--silver); opacity: 0.6; margin-left: 3px; }
+  .badge .flame { color: var(--gold); }
+
+  /* ── Cards ────────────────────────────────── */
+  .card {
+    position: relative;
+    background: rgba(255, 255, 255, 0.55); backdrop-filter: blur(8px);
+    border: 1px solid var(--line-soft);
+    border-radius: 14px; padding: 24px 24px 22px 28px;
+    margin-bottom: 20px;
+  }
+  .card::before {
+    content: ''; position: absolute; left: 0; top: 24px; bottom: 24px; width: 3px;
+    border-radius: 0 2px 2px 0; background: var(--line);
+  }
+  .card.rose::before    { background: var(--ember); }
+  .card.emerald::before { background: var(--sage); }
+  .card.amber::before   { background: var(--dusk); }
+  .card.silver::before  { background: var(--silver); }
+
+  .card-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
+  .card-head .icon { width: 18px; height: 18px; color: var(--ink-soft); flex-shrink: 0; margin-top: 2px; }
+  .card-head h3 { font-family: var(--serif); font-size: 22px; font-weight: 500; letter-spacing: -0.01em; line-height: 1.2; }
+  .card-head h3 .ko { font-family: var(--sans); font-size: 11px; font-weight: 400; color: var(--ink-mute); margin-left: 8px; letter-spacing: 0.1em; }
+  .card-head .sub { font-size: 12px; color: var(--ink-soft); margin-top: 3px; line-height: 1.5; }
+
+  .card-hint { font-size: 11px; color: var(--ink-mute); line-height: 1.7; margin-bottom: 12px; }
+  .card-hint strong { color: var(--ink-soft); font-weight: 500; }
+
+  /* ── Inputs ───────────────────────────────── */
+  textarea.dump {
+    width: 100%; min-height: 120px;
+    background: transparent; color: var(--ink);
+    font-size: 14px; line-height: 1.7;
+    padding-top: 4px;
+  }
+  textarea.dump::placeholder { color: var(--ink-mute); font-style: italic; }
+
+  .checkin { display: flex; align-items: flex-start; gap: 12px; padding-top: 4px; }
+  .checkbox {
+    width: 22px; height: 22px; border: 2px solid var(--line);
+    border-radius: 6px; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: all 0.15s; background: transparent;
+    margin-top: 1px;
+  }
+  .checkbox:hover { border-color: var(--ink-soft); }
+  .checkbox.checked { background: var(--ink); border-color: var(--ink); color: var(--cream); }
+  .checkbox.small { width: 16px; height: 16px; border-width: 1.5px; border-radius: 4px; }
+  .check-icon { width: 12px; height: 12px; }
+  .checkbox.small .check-icon { width: 9px; height: 9px; }
+
+  .input-line {
+    flex: 1; background: transparent; padding: 6px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 15px; transition: border-color 0.2s;
+  }
+  .input-line:focus { border-bottom-color: var(--ink); }
+  .input-line.done { text-decoration: line-through; color: var(--ink-mute); }
+
+  /* ── Sprint Board ─────────────────────────── */
+  .board { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+  .lane {
+    border: 2px solid; border-radius: 14px; padding: 14px;
+    min-height: 200px; background: rgba(255, 255, 255, 0.5);
+  }
+  .lane.sprint-1 { border-color: rgba(200, 68, 43, 0.3); background: rgba(252, 235, 230, 0.7); }
+  .lane.sprint-2 { border-color: rgba(212, 169, 70, 0.3); background: rgba(252, 246, 230, 0.7); }
+  .lane.sprint-3 { border-color: rgba(74, 81, 104, 0.2); background: rgba(248, 248, 245, 0.7); }
+  .lane.sprint-4 { border-color: rgba(143, 168, 138, 0.35); background: rgba(238, 245, 235, 0.7); }
+  .lane.no-sprint { border-color: rgba(200, 200, 200, 0.3); background: rgba(250, 250, 248, 0.7); }
+
+  .lane-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .lane-head .title { font-size: 10px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; }
+  .lane-head .count {
+    background: rgba(255, 255, 255, 0.7); border-radius: 99px;
+    font-size: 11px; padding: 2px 8px; min-width: 22px; text-align: center;
+  }
+
+  .task {
+    background: var(--paper); border: 1px solid var(--line-soft);
+    border-radius: 10px; padding: 12px; margin-bottom: 8px;
+    transition: all 0.15s;
+  }
+  .task:hover { border-color: var(--ink-soft); }
+  .task.quick { box-shadow: inset 0 0 0 1px var(--dusk); }
+  .task-row { display: flex; align-items: flex-start; gap: 10px; }
+  .task-title { font-size: 13px; flex: 1; min-width: 0; line-height: 1.4; }
+  .task.done .task-title { text-decoration: line-through; color: var(--ink-mute); }
+
+  .task-meta { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; align-items: center; }
+  .tag {
+    font-size: 9.5px; padding: 2px 7px; border-radius: 4px;
+    border: 1px solid; display: inline-flex; align-items: center; gap: 3px;
+    line-height: 1.4; letter-spacing: 0.02em;
+  }
+  .tag-must   { background: #fde7e3; color: #8a2418; border-color: #f3c9be; }
+  .tag-should { background: #e8efdf; color: #4a6342; border-color: #c9d6b8; }
+  .tag-could  { background: #fcf2d8; color: #6b5118; border-color: #f0deaa; }
+  .tag-past   { background: #fde7e3; color: #8a2418; border-color: #f3c9be; }
+  .tag-today  { background: #fcf2d8; color: #6b5118; border-color: #f0deaa; }
+  .tag-tmrw   { background: #e3ecf7; color: #294370; border-color: #c6d4eb; }
+  .tag-quick  { background: #fde9d8; color: #8c4513; border-color: #f5cba8; }
+  .tag-time   { color: var(--ink-mute); font-size: 9.5px; }
+
+  .delete-btn {
+    color: var(--ink-mute); opacity: 0; transition: opacity 0.15s;
+    width: 16px; height: 16px; flex-shrink: 0;
+  }
+  .task:hover .delete-btn { opacity: 1; }
+  .delete-btn:hover { color: var(--ember); }
+
+  .empty-lane { font-size: 11px; color: var(--ink-mute); font-style: italic; padding: 8px 0; }
+
+  /* ── Buttons ──────────────────────────────── */
+  .btn-primary {
+    background: var(--ink); color: var(--cream);
+    padding: 10px 16px; border-radius: 8px; font-size: 13px;
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: all 0.15s;
+  }
+  .btn-primary:hover { background: var(--night); transform: translateY(-1px); }
+  .btn-mini {
+    font-size: 10.5px; padding: 4px 8px; border-radius: 4px; font-weight: 500;
+    transition: all 0.15s;
+  }
+  .btn-mini.go     { background: #e8efdf; color: #4a6342; }
+  .btn-mini.go:hover { background: #d6e2c8; }
+  .btn-mini.skip   { background: var(--line-soft); color: var(--ink-soft); }
+  .btn-mini.skip:hover { background: var(--line); }
+
+  /* ── Quick Tasks Banner ───────────────────── */
+  .banner {
+    background: #fdf3e3; border: 1px solid #f0dba8;
+    border-radius: 10px; padding: 14px 16px; margin-bottom: 18px;
+    display: flex; gap: 12px; align-items: flex-start;
+  }
+  .banner-icon { color: #8c4513; width: 18px; height: 18px; flex-shrink: 0; margin-top: 2px; }
+  .banner-text .title { font-size: 13px; font-weight: 500; color: #6b5118; }
+  .banner-text .sub { font-size: 11px; color: #8c6920; margin-top: 2px; }
+
+  /* ── Modal ────────────────────────────────── */
+  .modal-bg {
+    position: fixed; inset: 0; background: rgba(11, 16, 32, 0.4);
+    backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center;
+    padding: 16px; z-index: 100;
+  }
+  .modal {
+    background: var(--cream); border-radius: 16px; padding: 28px;
+    max-width: 440px; width: 100%; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  }
+  .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .modal-head h3 { font-family: var(--serif); font-style: italic; font-size: 24px; font-weight: 500; }
+  .modal-close { color: var(--ink-mute); width: 18px; height: 18px; }
+  .modal-fields { display: flex; flex-direction: column; gap: 14px; }
+  .modal-title {
+    width: 100%; background: transparent; padding: 6px 0;
+    border-bottom: 2px solid var(--line); font-size: 17px;
+  }
+  .modal-title:focus { border-bottom-color: var(--ink); }
+  .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .field-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em; color: var(--ink-mute); margin-bottom: 4px; display: block; }
+  .field-input {
+    width: 100%; background: var(--paper); border: 1px solid var(--line-soft);
+    border-radius: 6px; padding: 7px 9px; font-size: 13px;
+  }
+  .field-input:focus { border-color: var(--ink-soft); }
+
+  /* ── Stats / Bars ─────────────────────────── */
+  .bar-row { margin-bottom: 12px; }
+  .bar-row:last-child { margin-bottom: 0; }
+  .bar-label { display: flex; justify-content: space-between; font-size: 11.5px; margin-bottom: 5px; }
+  .bar-label .val { font-family: var(--mono); color: var(--ink-mute); }
+  .bar-track { height: 7px; background: var(--line-soft); border-radius: 99px; overflow: hidden; }
+  .bar-fill { height: 100%; transition: width 0.5s ease-out; border-radius: 99px; }
+  .bar-must   { background: var(--ember); }
+  .bar-should { background: var(--sage); }
+  .bar-could  { background: var(--gold); }
+
+  .feedback {
+    margin-top: 18px; padding: 14px 16px;
+    background: var(--night); color: var(--cream);
+    border-radius: 10px; display: flex; gap: 10px; align-items: flex-start;
+    font-size: 13px; line-height: 1.6; font-style: italic;
+  }
+  .feedback .icon { color: var(--silver); width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; }
+
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .stat-block { background: var(--paper); border: 1px solid var(--line-soft); border-radius: 10px; padding: 16px; }
+  .stat-block .label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em; color: var(--ink-mute); margin-bottom: 10px; }
+  .stat-big { display: flex; align-items: baseline; gap: 6px; }
+  .stat-big .num { font-family: var(--serif); font-size: 32px; line-height: 1; }
+  .stat-big .of { font-size: 10px; color: var(--ink-mute); }
+  .stat-detail { font-size: 11px; color: var(--ink-soft); margin-top: 8px; line-height: 1.6; }
+  .stat-detail .up   { color: var(--sage); }
+  .stat-detail .down { color: var(--ember); }
+  .stat-detail .flame { color: var(--gold); }
+
+  /* ── Calendar ─────────────────────────────── */
+  .cal-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 18px; }
+  @media (max-width: 900px) { .cal-grid { grid-template-columns: 1fr; } }
+
+  .cal-card { background: rgba(255, 255, 255, 0.55); border: 1px solid var(--line-soft); border-radius: 14px; padding: 20px; }
+  .cal-card h3 { font-family: var(--serif); font-size: 18px; font-weight: 500; margin-bottom: 14px; }
+  .cal-grid-7 { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+  .cal-head { font-family: var(--mono); font-size: 9px; letter-spacing: 0.15em; color: var(--ink-mute); text-align: center; padding-bottom: 4px; }
+  .cal-cell {
+    aspect-ratio: 1; border-radius: 5px; display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: var(--ink-mute); background: var(--line-soft); position: relative;
+  }
+  .cal-cell.empty { background: transparent; }
+  .cal-cell.done.rose    { background: var(--ember); color: white; }
+  .cal-cell.done.sage    { background: var(--sage); color: white; }
+  .cal-cell.today { box-shadow: 0 0 0 2px var(--ink); }
+
+  /* ── Footer ───────────────────────────────── */
+  .footer {
+    margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11px; color: var(--ink-mute);
+  }
+  .footer .brand-mini { font-family: var(--serif); font-style: italic; font-size: 14px; color: var(--ink-soft); }
+  .footer .actions { display: flex; gap: 12px; }
+  .footer button { font-size: 11px; color: var(--ink-mute); }
+  .footer button:hover { color: var(--ember); }
+
+  /* ── Responsive ───────────────────────────── */
+  @media (max-width: 920px) {
+    .app { grid-template-columns: 1fr; gap: 24px; }
+    .sidebar { position: static; }
+    .nav { flex-direction: row; flex-wrap: wrap; }
+    .nav button { flex: 1; min-width: 140px; }
+    .quote-card { display: none; }
+    .header { flex-direction: column; align-items: flex-start; gap: 16px; }
+    .header h2 { font-size: 32px; }
+  }
+
+  @media (max-width: 600px) {
+    body { padding: 16px 12px; }
+    .modal-grid { grid-template-columns: 1fr; }
+    .stat-grid { grid-template-columns: 1fr; }
+    .header h2 { font-size: 26px; }
+  }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- ── SIDEBAR ─────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="mark">ALIEN AGENTIC</div>
+      <h1>Alien Plan</h1>
+      <div class="sub">한 걸음 떨어져서, 매일 한 가지.</div>
+    </div>
+
+    <nav class="nav" id="nav">
+      <button data-page="today" class="active">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        <div>
+          <div class="nav-label">Today</div>
+          <div class="nav-sub">오늘의 한 걸음</div>
+        </div>
+      </button>
+      <button data-page="tasks">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        <div>
+          <div class="nav-label">Tasks</div>
+          <div class="nav-sub">Sprint Board</div>
+        </div>
+      </button>
+      <button data-page="reflect">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 12a9 9 0 1 0 9-9 9.74 9.74 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        <div>
+          <div class="nav-label">Reflect</div>
+          <div class="nav-sub">주간 회고</div>
+        </div>
+      </button>
+      <button data-page="trace">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3v18h18M7 16l4-4 4 4 5-5"/></svg>
+        <div>
+          <div class="nav-label">Trace</div>
+          <div class="nav-sub">자취 추적</div>
+        </div>
+      </button>
+    </nav>
+
+    <div class="quote-card">
+      <div class="label">REMINDER</div>
+      <div class="text">"최악의 날에도<br>한 걸음은 떼어낼 수 있다.<br><strong>그게 전부다.</strong>"</div>
+    </div>
+  </aside>
+
+  <!-- ── MAIN ────────────────────────────────────────── -->
+  <main class="main" id="main"></main>
+</div>
+
+<div id="modal-root"></div>
+
+<script>
+/* ─────────────────────────────────────────────────────────
+   Alien Plan — Standalone Single-File App
+   © Alien Agentic
+   ───────────────────────────────────────────────────────── */
+
+// ── State ───────────────────────────────────────────────
+const STORE_KEY = 'alien-plan:v1';
+let state = {
+  page: 'today',
+  logs: {},
+  tasks: [],
+};
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) { const data = JSON.parse(raw); state = { ...state, ...data, page: state.page }; }
+  } catch (e) { console.warn('Load failed', e); }
+}
+function save() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify({ logs: state.logs, tasks: state.tasks })); }
+  catch (e) { console.warn('Save failed', e); }
+}
+
+// ── Date utils ──────────────────────────────────────────
+const pad = (n) => String(n).padStart(2, '0');
+const dateKey = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const todayKey = () => dateKey(new Date());
+const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate()+n); return r; };
+function startOfWeek(d = new Date()) {
+  const r = new Date(d); const day = r.getDay(); const diff = day === 0 ? -6 : 1 - day;
+  r.setDate(r.getDate() + diff); r.setHours(0,0,0,0); return r;
+}
+
+// ── Domain logic ────────────────────────────────────────
+const PRIORITIES = ['Must Do', 'Should Do', 'Could Do'];
+const SPRINTS = [
+  { id: 'Sprint 1', ko: '긴급',    cls: 'sprint-1' },
+  { id: 'Sprint 2', ko: '마감',    cls: 'sprint-2' },
+  { id: 'Sprint 3', ko: '운영',    cls: 'sprint-3' },
+  { id: 'Sprint 4', ko: '창작',    cls: 'sprint-4' },
+  { id: 'No Sprint', ko: '미분류', cls: 'no-sprint' },
+];
+
+const isQuick = (t) => (t.estimatedMin ?? 0) <= 15;
+
+function getUrgency(task) {
+  if (!task.dueDate) return null;
+  const today = new Date(todayKey());
+  const due = new Date(task.dueDate);
+  const diff = Math.floor((due - today) / 86400000);
+  if (diff < 0)  return { label: 'Past Due',     ko: '지남',    cls: 'tag-past' };
+  if (diff === 0) return { label: 'Due Today',   ko: '오늘',    cls: 'tag-today' };
+  if (diff === 1) return { label: 'Due Tomorrow', ko: '내일',   cls: 'tag-tmrw' };
+  return null;
+}
+
+function weeklyBreakdown(weekStart) {
+  const weekEnd = addDays(weekStart, 7);
+  const done = state.tasks.filter(t => {
+    if (!t.completed || !t.completedAt) return false;
+    const c = new Date(t.completedAt);
+    return c >= weekStart && c < weekEnd;
+  });
+  const totalMin = done.reduce((s,t) => s + (t.actualMin || t.estimatedMin || 0), 0) || 1;
+  const sum = (p) => done.filter(t => t.priority === p).reduce((s,t) => s + (t.actualMin || t.estimatedMin || 0), 0);
+  return {
+    must: Math.round((sum('Must Do') / totalMin) * 100),
+    should: Math.round((sum('Should Do') / totalMin) * 100),
+    could: Math.round((sum('Could Do') / totalMin) * 100),
+    count: done.length,
+  };
+}
+
+function generateFeedback({ must, should, could }) {
+  if (must + should + could === 0) return '이번 주는 완료 기록이 없어요. 천천히, 한 걸음부터.';
+  if (must >= 70)   return `지난주 시간의 ${must}%가 긴급(Must Do)에 갔습니다. 반응형(reactive) 모드네요 — 다음 주는 미리 계획하는 블록을 한 시간이라도 잡아보세요.`;
+  if (should >= 60) return `Should Do 중심(${should}%)으로 흘렀습니다. 균형이 좋아요 — 이 흐름을 유지하면 됩니다.`;
+  if (could >= 50)  return `Could Do가 ${could}%였습니다. 탐색 모드입니다 — 의도였다면 OK, 아니라면 다음 주 우선순위를 다시 잡아보세요.`;
+  return '우선순위가 골고루 분포됐어요. 한 영역에 집중해보면 진전이 더 분명해질 거예요.';
+}
+
+function calcStreak(kind) {
+  let s = 0;
+  for (let i = 0; i < 90; i++) {
+    const k = dateKey(addDays(new Date(), -i));
+    const log = state.logs[k];
+    const done = log?.[kind]?.done;
+    if (done) s++;
+    else if (i > 0) break;
+  }
+  return s;
+}
+
+function weekCount(kind, weekStart) {
+  let n = 0;
+  for (let i = 0; i < 7; i++) {
+    const k = dateKey(addDays(weekStart, i));
+    if (state.logs[k]?.[kind]?.done) n++;
+  }
+  return n;
+}
+
+function getTodayLog() {
+  const k = todayKey();
+  if (!state.logs[k]) {
+    state.logs[k] = { sweep: '', theOne: { text: '', done: false }, tinyMove: { text: '', done: false } };
+  }
+  return state.logs[k];
+}
+
+function updateTodayLog(patch) {
+  const k = todayKey();
+  state.logs[k] = { ...getTodayLog(), ...patch };
+  save();
+  render();
+}
+
+// ── Render: helpers ─────────────────────────────────────
+const $ = (sel) => document.querySelector(sel);
+const escapeHtml = (str) => String(str ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+
+const checkIcon = `<svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M5 12l5 5L20 7"/></svg>`;
+const plusIcon  = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>`;
+const closeIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>`;
+const trashIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>`;
+const zapIcon   = `<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/></svg>`;
+const flameIcon = `<svg viewBox="0 0 24 24" fill="currentColor" width="11" height="11"><path d="M12 23c4.97 0 9-3.94 9-8.94 0-1.65-.43-3.27-1.24-4.7-.84 1.07-1.99 1.64-3.26 1.64-1.55-3.5-2.5-7-2.5-7s-3 4-3 7c0 1.66 1.34 3 3 3s3-1.34 3-3"/></svg>`;
+const alertIcon = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>`;
+
+function headerHTML(eyebrow, title, desc, rightHTML = '') {
+  return `
+    <div class="header">
+      <div>
+        <div class="eyebrow">${eyebrow}</div>
+        <h2>${title}</h2>
+        <div class="desc">${desc}</div>
+      </div>
+      ${rightHTML}
+    </div>`;
+}
+
+// ── Pages ───────────────────────────────────────────────
+function renderToday() {
+  const log = getTodayLog();
+  const dateLabel = new Date().toLocaleDateString('ko-KR', { weekday: 'long', month: 'long', day: 'numeric' });
+  const hStreak = calcStreak('theOne');
+  const mStreak = calcStreak('tinyMove');
+  const todayTasks = state.tasks.filter(t => !t.completed && t.status !== 'Skipped' && t.dueDate === todayKey());
+
+  const badges = `
+    <div class="badges">
+      <div class="badge">
+        ${flameIcon}
+        <div>
+          <div class="label">THE ONE</div>
+          <div class="value">${hStreak}<span class="unit">day${hStreak !== 1 ? 's' : ''}</span></div>
+        </div>
+      </div>
+      <div class="badge">
+        ${flameIcon}
+        <div>
+          <div class="label">TINY MOVE</div>
+          <div class="value">${mStreak}<span class="unit">day${mStreak !== 1 ? 's' : ''}</span></div>
+        </div>
+      </div>
+    </div>`;
+
+  return `
+    ${headerHTML(
+      `TODAY · ${dateLabel}`,
+      `Today's Practice`,
+      '한 걸음 떨어져서 보세요. Sweep → The One → Tiny Move. 그게 전부예요.',
+      badges
+    )}
+
+    <!-- SWEEP -->
+    <section class="card silver">
+      <div class="card-head">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        <div>
+          <h3>Sweep <span class="ko">쓸어담기</span></h3>
+          <div class="sub">머릿속에 떠도는 것을 다 쏟아냅니다. 정리는 그 다음입니다.</div>
+        </div>
+      </div>
+      <textarea class="dump" id="sweep" placeholder="떠오르는 것들… 태스크, 걱정, 아이디어, 두려움. 그냥 다 적으세요.">${escapeHtml(log.sweep)}</textarea>
+    </section>
+
+    <!-- THE ONE -->
+    <section class="card rose">
+      <div class="card-head">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+        <div>
+          <h3>The One <span class="ko">오늘의 한 가지</span></h3>
+          <div class="sub">딱 하나. 오늘 이것만 끝내도 '잘했다'고 느낄 한 가지.</div>
+        </div>
+      </div>
+      <div class="card-hint">
+        선택 기준: <strong>Urgency</strong>(마감) · <strong>Satisfaction</strong>(의미) · <strong>Resistance</strong>(미루던 것) · <strong>Momentum</strong>(흐름)
+      </div>
+      <div class="checkin">
+        <button class="checkbox ${log.theOne.done ? 'checked' : ''}" data-action="toggle-one">${log.theOne.done ? checkIcon : ''}</button>
+        <input class="input-line ${log.theOne.done ? 'done' : ''}" id="theOne" placeholder="오늘의 가장 중요한 한 가지…" value="${escapeHtml(log.theOne.text)}">
+      </div>
+    </section>
+
+    <!-- TINY MOVE -->
+    <section class="card emerald">
+      <div class="card-head">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg>
+        <div>
+          <h3>Tiny Move <span class="ko">2분의 움직임</span></h3>
+          <div class="sub">저항 없이 시작할 수 있는 2분 행동. 작게, 작게.</div>
+        </div>
+      </div>
+      <div class="card-hint">
+        예시: 운동복 입기 · 책 5페이지 · 에디터 열기 · 첫 문장 쓰기 · 한 명에게 이메일
+      </div>
+      <div class="checkin">
+        <button class="checkbox ${log.tinyMove.done ? 'checked' : ''}" data-action="toggle-tiny">${log.tinyMove.done ? checkIcon : ''}</button>
+        <input class="input-line ${log.tinyMove.done ? 'done' : ''}" id="tinyMove" placeholder="2분이면 할 수 있는 한 가지…" value="${escapeHtml(log.tinyMove.text)}">
+      </div>
+    </section>
+
+    <!-- TODAY'S TASKS -->
+    <section class="card">
+      <div class="card-head">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        <div>
+          <h3>Today's Tasks <span class="ko">오늘의 할 일</span></h3>
+          <div class="sub">The One 외에 오늘 마감인 것들</div>
+        </div>
+      </div>
+      ${todayTasks.length === 0
+        ? `<div class="empty-lane" style="padding: 12px 0;">오늘 마감인 태스크가 없어요. ✨</div>`
+        : `<ul>${todayTasks.map(t => taskCardHTML(t, true)).join('')}</ul>`
+      }
+    </section>`;
+}
+
+function taskCardHTML(t, compact = false) {
+  const u = getUrgency(t);
+  const q = isQuick(t);
+  const priorityCls = t.priority === 'Must Do' ? 'tag-must' : t.priority === 'Should Do' ? 'tag-should' : 'tag-could';
+
+  return `
+    <li class="task ${t.completed ? 'done' : ''} ${q ? 'quick' : ''}" data-task-id="${t.id}">
+      <div class="task-row">
+        <button class="checkbox small ${t.completed ? 'checked' : ''}" data-action="toggle-task" data-id="${t.id}">${t.completed ? checkIcon : ''}</button>
+        <div class="task-title">
+          ${escapeHtml(t.title)}
+          ${!compact ? `
+            <div class="task-meta">
+              <span class="tag ${priorityCls}">${t.priority}</span>
+              ${u ? `<span class="tag ${u.cls}">${u.ko}</span>` : ''}
+              ${q ? `<span class="tag tag-quick">${zapIcon} Quick</span>` : ''}
+              <span class="tag-time">⏱ ${t.estimatedMin}m</span>
+            </div>
+          ` : ''}
+        </div>
+        <button class="delete-btn" data-action="delete-task" data-id="${t.id}">${trashIcon}</button>
+      </div>
+    </li>`;
+}
+
+function renderTasks() {
+  const active = state.tasks.filter(t => !t.completed && t.status !== 'Skipped');
+  const quickCount = active.filter(isQuick).length;
+
+  const lanes = SPRINTS.map(s => {
+    const items = active.filter(t => t.sprint === s.id);
+    return `
+      <div class="lane ${s.cls}">
+        <div class="lane-head">
+          <div class="title">${s.id} · ${s.ko}</div>
+          <div class="count">${items.length}</div>
+        </div>
+        <ul>
+          ${items.map(t => taskCardHTML(t)).join('')}
+          ${items.length === 0 ? '<div class="empty-lane">비어있음</div>' : ''}
+        </ul>
+      </div>`;
+  }).join('');
+
+  return `
+    ${headerHTML(
+      'TASKS',
+      'Sprint Board',
+      '4개 Sprint로 분류 · 15분 이하는 자동 Quick (테두리 주황) · 마감 자동 표시',
+      `<button class="btn-primary" data-action="open-add-task">${plusIcon} 새 태스크</button>`
+    )}
+
+    ${quickCount > 0 ? `
+      <div class="banner">
+        <svg class="banner-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/></svg>
+        <div class="banner-text">
+          <div class="title">Quick Tasks (${quickCount})</div>
+          <div class="sub">15분 이하 태스크 — 압도되지 않으려면 이것부터 끝내세요.</div>
+        </div>
+      </div>` : ''}
+
+    <div class="board">${lanes}</div>`;
+}
+
+function renderReflect() {
+  const thisWeekStart = startOfWeek();
+  const lastWeekStart = addDays(thisWeekStart, -7);
+  const lastWeek = weeklyBreakdown(lastWeekStart);
+  const feedback = generateFeedback(lastWeek);
+  const missed = state.tasks.filter(t => !t.completed && t.status !== 'Skipped' && new Date(t.dueDate) < new Date(todayKey()));
+
+  const hThis = weekCount('theOne', thisWeekStart);
+  const hLast = weekCount('theOne', lastWeekStart);
+  const mThis = weekCount('tinyMove', thisWeekStart);
+  const mLast = weekCount('tinyMove', lastWeekStart);
+
+  return `
+    ${headerHTML(
+      'WEEKLY REFLECT · 15 MIN',
+      'Reset & Realign',
+      '바쁘면 건너뛰어도 OK. 그래도 잘하고 있어요.'
+    )}
+
+    <!-- Step 1 -->
+    <section class="card rose">
+      <div class="card-head">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 5-5"/></svg>
+        <div>
+          <h3>Step 1 · Priority Analysis <span class="ko">우선순위 분석 (1분)</span></h3>
+          <div class="sub">지난 주에 실제로 쓴 시간의 우선순위 분포</div>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label"><span>Must Do · 긴급</span><span class="val">${lastWeek.must}%</span></div>
+        <div class="bar-track"><div class="bar-fill bar-must" style="width: ${lastWeek.must}%"></div></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label"><span>Should Do · 중요</span><span class="val">${lastWeek.should}%</span></div>
+        <div class="bar-track"><div class="bar-fill bar-should" style="width: ${lastWeek.should}%"></div></div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-label"><span>Could Do · 탐색</span><span class="val">${lastWeek.could}%</span></div>
+        <div class="bar-track"><div class="bar-fill bar-could" style="width: ${lastWeek.could}%"></div></div>
+      </div>
+      <div class="feedback">${alertIcon}<div>${feedback}</div></div>
+    </section>
+
+    <!-- Step 2 -->
+    <section class="card amber">
+      <div class="card-head">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        <div>
+          <h3>Step 2 · Task Cleanup <span class="ko">정리 (5분)</span></h3>
+          <div class="sub">놓친 태스크를 재배치하거나 흘려보내세요</div>
+        </div>
+      </div>
+      ${missed.length === 0
+        ? `<div class="empty-lane">놓친 태스크 없음 — 깔끔해요.</div>`
+        : `<ul>${missed.slice(0, 10).map(t => `
+            <li class="task" style="margin-bottom: 8px;">
+              <div class="task-row">
+                <div class="task-title">
+                  ${escapeHtml(t.title)}
+                  <div class="task-meta">
+                    <span class="tag-time">${t.dueDate} · ${t.priority}</span>
+                  </div>
+                </div>
+                <button class="btn-mini go" data-action="reschedule" data-id="${t.id}">오늘로 재배치</button>
+                <button class="btn-mini skip" data-action="skip-task" data-id="${t.id}">Skip</button>
+              </div>
+            </li>`).join('')}</ul>`
+      }
+    </section>
+
+    <!-- Step 3 -->
+    <section class="card emerald">
+      <div class="card-head">
+        <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 23c4.97 0 9-3.94 9-8.94 0-1.65-.43-3.27-1.24-4.7-.84 1.07-1.99 1.64-3.26 1.64-1.55-3.5-2.5-7-2.5-7s-3 4-3 7c0 1.66 1.34 3 3 3s3-1.34 3-3"/></svg>
+        <div>
+          <h3>Step 3 · Streak Review <span class="ko">일관성 점검 (5분)</span></h3>
+          <div class="sub">이번 주 The One · Tiny Move 완료율</div>
+        </div>
+      </div>
+      <div class="stat-grid">
+        ${statBlockHTML('THE ONE · 오늘의 한 가지', hThis, hLast, calcStreak('theOne'))}
+        ${statBlockHTML('TINY MOVE · 2분의 움직임', mThis, mLast, calcStreak('tinyMove'))}
+      </div>
+    </section>`;
+}
+
+function statBlockHTML(label, thisWeek, lastWeek, streak) {
+  const change = thisWeek - lastWeek;
+  const changeCls = change > 0 ? 'up' : change < 0 ? 'down' : '';
+  const arrow = change > 0 ? '↑' : change < 0 ? '↓' : '→';
+  return `
+    <div class="stat-block">
+      <div class="label">${label}</div>
+      <div class="stat-big"><span class="num">${thisWeek}</span><span class="of">/ 7일</span></div>
+      <div class="stat-detail">
+        <div>지난 주: ${lastWeek}일</div>
+        <div class="${changeCls}">변화: ${change > 0 ? '+' : ''}${change} ${arrow}</div>
+        <div class="flame">${flameIcon} ${streak}일 연속</div>
+      </div>
+    </div>`;
+}
+
+function renderTrace() {
+  const now = new Date();
+  const monthLabel = `${now.getFullYear()}년 ${now.getMonth()+1}월`;
+  const days = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+  const first = new Date(now.getFullYear(), now.getMonth(), 1).getDay();
+  const offset = first === 0 ? 6 : first - 1;
+
+  const cells = [];
+  for (let i = 0; i < offset; i++) cells.push({ empty: true });
+  for (let d = 1; d <= days; d++) {
+    const k = dateKey(new Date(now.getFullYear(), now.getMonth(), d));
+    cells.push({ day: d, key: k, log: state.logs[k], today: k === todayKey() });
+  }
+
+  function calCardHTML(title, kind, color, koLabel) {
+    const cellHTML = cells.map(c => {
+      if (c.empty) return '<div class="cal-cell empty"></div>';
+      const done = c.log?.[kind]?.done;
+      return `<div class="cal-cell ${done ? 'done ' + color : ''} ${c.today ? 'today' : ''}">${c.day}</div>`;
+    }).join('');
+    return `
+      <div class="cal-card">
+        <h3>${title} <span style="font-family: var(--sans); font-size: 11px; color: var(--ink-mute); font-weight: 400; margin-left: 6px;">${koLabel}</span></h3>
+        <div class="cal-grid-7">
+          ${['월','화','수','목','금','토','일'].map(d => `<div class="cal-head">${d}</div>`).join('')}
+          ${cellHTML}
+        </div>
+      </div>`;
+  }
+
+  return `
+    ${headerHTML(
+      'PROGRESS TRACE',
+      monthLabel,
+      '느낌은 없어도 진척은 쌓이고 있습니다. 작은 승리를 봅니다, 판단 없이.'
+    )}
+
+    <div class="cal-grid" style="grid-template-columns: 1fr 1fr;">
+      ${calCardHTML('The One', 'theOne', 'rose', '오늘의 한 가지')}
+      ${calCardHTML('Tiny Move', 'tinyMove', 'sage', '2분의 움직임')}
+    </div>
+
+    <section class="card" style="margin-top: 20px;">
+      <div class="card-head">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        <div>
+          <h3>Why This Works</h3>
+          <div class="sub">왜 이 시스템이 작동하는지</div>
+        </div>
+      </div>
+      <div style="font-size: 13px; line-height: 1.75; color: var(--ink-soft);">
+        <p style="margin-bottom: 10px;">진척은 바쁠 때 가장 놓치기 쉽습니다. 이 페이지는 — 느낌은 없어도 실제로 쌓이고 있는 노력을 보여줍니다.</p>
+        <ul style="padding-left: 20px; list-style: disc;">
+          <li style="margin-bottom: 4px;">작은 승리를 축하하기</li>
+          <li style="margin-bottom: 4px;">벗어났을 때 방향 조정</li>
+          <li>판단 없이 회고하기</li>
+        </ul>
+      </div>
+    </section>`;
+}
+
+// ── Modal ───────────────────────────────────────────────
+function openAddTaskModal() {
+  const formState = { title: '', priority: 'Should Do', sprint: 'No Sprint', estimatedMin: 30, dueDate: todayKey() };
+
+  const html = `
+    <div class="modal-bg" id="modal-bg">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-head">
+          <h3>새 태스크</h3>
+          <button class="modal-close" data-action="close-modal">${closeIcon}</button>
+        </div>
+        <div class="modal-fields">
+          <input type="text" class="modal-title" id="m-title" placeholder="태스크 이름…" autofocus>
+          <div class="modal-grid">
+            <div>
+              <label class="field-label">PRIORITY</label>
+              <select class="field-input" id="m-priority">
+                ${PRIORITIES.map(p => `<option ${p === formState.priority ? 'selected' : ''}>${p}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label class="field-label">SPRINT</label>
+              <select class="field-input" id="m-sprint">
+                ${SPRINTS.map(s => `<option ${s.id === formState.sprint ? 'selected' : ''}>${s.id}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label class="field-label">ESTIMATED (MIN)</label>
+              <input type="number" min="0" class="field-input" id="m-est" value="${formState.estimatedMin}">
+            </div>
+            <div>
+              <label class="field-label">DUE</label>
+              <input type="date" class="field-input" id="m-due" value="${formState.dueDate}">
+            </div>
+          </div>
+          <div id="m-quick-hint" class="hidden" style="font-size: 11px; color: #8c4513; background: #fdf3e3; border: 1px solid #f0dba8; border-radius: 6px; padding: 8px 10px; display: flex; gap: 6px; align-items: center;">
+            ${zapIcon} <span>15분 이하 → 자동으로 Quick Task로 분류됩니다.</span>
+          </div>
+          <button class="btn-primary" id="m-submit" style="width: 100%; justify-content: center; padding: 12px;">태스크 추가</button>
+        </div>
+      </div>
+    </div>`;
+
+  $('#modal-root').innerHTML = html;
+
+  const estInput = $('#m-est');
+  const hint = $('#m-quick-hint');
+  function updateHint() { hint.classList.toggle('hidden', parseInt(estInput.value) > 15); }
+  updateHint();
+  estInput.addEventListener('input', updateHint);
+
+  $('#m-title').focus();
+
+  $('#modal-bg').addEventListener('click', () => closeModal());
+  $('#m-submit').addEventListener('click', () => {
+    const title = $('#m-title').value.trim();
+    if (!title) return;
+    const task = {
+      id: crypto.randomUUID(),
+      title,
+      status: 'Not started',
+      priority: $('#m-priority').value,
+      sprint: $('#m-sprint').value,
+      estimatedMin: parseInt($('#m-est').value) || 0,
+      dueDate: $('#m-due').value || todayKey(),
+      completed: false,
+      completedAt: null,
+      createdAt: new Date().toISOString(),
+    };
+    state.tasks.push(task);
+    save();
+    closeModal();
+    render();
+  });
+  $('#m-title').addEventListener('keydown', e => { if (e.key === 'Enter') $('#m-submit').click(); });
+}
+function closeModal() { $('#modal-root').innerHTML = ''; }
+
+// ── Main render ─────────────────────────────────────────
+function render() {
+  document.querySelectorAll('#nav button').forEach(b => {
+    b.classList.toggle('active', b.dataset.page === state.page);
+  });
+
+  const main = $('#main');
+  if (state.page === 'today')   main.innerHTML = renderToday();
+  if (state.page === 'tasks')   main.innerHTML = renderTasks();
+  if (state.page === 'reflect') main.innerHTML = renderReflect();
+  if (state.page === 'trace')   main.innerHTML = renderTrace();
+
+  const sweep = $('#sweep');
+  if (sweep) sweep.addEventListener('input', e => {
+    state.logs[todayKey()] = { ...getTodayLog(), sweep: e.target.value };
+    save();
+  });
+  const theOneInput = $('#theOne');
+  if (theOneInput) theOneInput.addEventListener('input', e => {
+    const log = getTodayLog();
+    state.logs[todayKey()] = { ...log, theOne: { ...log.theOne, text: e.target.value } };
+    save();
+  });
+  const tinyMoveInput = $('#tinyMove');
+  if (tinyMoveInput) tinyMoveInput.addEventListener('input', e => {
+    const log = getTodayLog();
+    state.logs[todayKey()] = { ...log, tinyMove: { ...log.tinyMove, text: e.target.value } };
+    save();
+  });
+}
+
+// ── Event delegation ────────────────────────────────────
+document.addEventListener('click', (e) => {
+  const navBtn = e.target.closest('#nav button');
+  if (navBtn) { state.page = navBtn.dataset.page; render(); return; }
+
+  const action = e.target.closest('[data-action]')?.dataset.action;
+  if (!action) return;
+  const id = e.target.closest('[data-id]')?.dataset.id;
+
+  if (action === 'toggle-one') {
+    const log = getTodayLog();
+    updateTodayLog({ theOne: { ...log.theOne, done: !log.theOne.done } });
+  }
+  if (action === 'toggle-tiny') {
+    const log = getTodayLog();
+    updateTodayLog({ tinyMove: { ...log.tinyMove, done: !log.tinyMove.done } });
+  }
+  if (action === 'toggle-task') {
+    state.tasks = state.tasks.map(t => t.id === id
+      ? { ...t,
+          completed: !t.completed,
+          status: !t.completed ? 'Done' : 'Not started',
+          completedAt: !t.completed ? new Date().toISOString() : null }
+      : t);
+    save(); render();
+  }
+  if (action === 'delete-task') {
+    if (confirm('이 태스크를 삭제할까요?')) {
+      state.tasks = state.tasks.filter(t => t.id !== id);
+      save(); render();
+    }
+  }
+  if (action === 'reschedule') {
+    state.tasks = state.tasks.map(t => t.id === id ? { ...t, dueDate: todayKey() } : t);
+    save(); render();
+  }
+  if (action === 'skip-task') {
+    state.tasks = state.tasks.map(t => t.id === id ? { ...t, status: 'Skipped' } : t);
+    save(); render();
+  }
+  if (action === 'open-add-task') openAddTaskModal();
+  if (action === 'close-modal') closeModal();
+
+  if (action === 'export-data') {
+    const data = JSON.stringify({ logs: state.logs, tasks: state.tasks }, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `alien-plan-backup-${todayKey()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  if (action === 'import-data') {
+    const input = document.createElement('input');
+    input.type = 'file'; input.accept = 'application/json';
+    input.addEventListener('change', async (ev) => {
+      const file = ev.target.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        if (data.logs && data.tasks) {
+          if (confirm('현재 데이터를 덮어쓰고 백업을 복원할까요?')) {
+            state.logs = data.logs; state.tasks = data.tasks;
+            save(); render();
+          }
+        } else alert('백업 파일 형식이 올바르지 않습니다.');
+      } catch (err) { alert('파일을 읽을 수 없습니다: ' + err.message); }
+    });
+    input.click();
+  }
+  if (action === 'clear-data') {
+    if (confirm('모든 데이터를 지웁니다. 정말 진행할까요?')) {
+      state.logs = {}; state.tasks = [];
+      save(); render();
+    }
+  }
+});
+
+// ── Boot ────────────────────────────────────────────────
+load();
+render();
+
+const footer = document.createElement('div');
+footer.className = 'footer';
+footer.style.maxWidth = '1280px';
+footer.style.margin = '60px auto 0';
+footer.innerHTML = `
+  <div class="brand-mini">Alien Agentic · Alien Plan</div>
+  <div class="actions">
+    <button data-action="export-data">백업 내보내기</button>
+    <button data-action="import-data">백업 가져오기</button>
+    <button data-action="clear-data">전체 초기화</button>
+  </div>`;
+document.body.appendChild(footer);
+</script>
+</body>
+</html>

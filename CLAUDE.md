@@ -179,6 +179,7 @@ E:\AlienAgentic\alien-agentic\
 - **에이전트 파일 위치**: `.claude/agents/{agent-name}.md`, 프론트매터 필수
 - **자동화 스크립트 위치**: `automation/{purpose}/` 하위
 - **클라이언트 산출물**: `clients/{client-name}/{WHY|HOW|WHAT}/` 만 사용. 다른 위치에 흩지 않음
+- **Multica 컴포넌트 검증 (필수 절차)**: `multica/` 에 들어갈 `.tsx/.ts` 작성·수정 시 **빌드 전 반드시 tsc 사전 체크**. esbuild 파싱(`--loader=tsx`)은 *타입을 무시* 하므로 `React.ReactNode` import 누락 · `noUnusedLocals` · `noUncheckedIndexedAccess` 를 못 잡고, 그대로 docker 빌드에 넣으면 `next build` 가 깨진다. 자립 컴포넌트는 `automation/intranet/alien-config/scripts/check-tsx.sh <file>` 로, `@multica/*` 의존 파일은 esbuild 파싱 + 실제 빌드로 검증한다. (교훈: 2026-05-19 Alien Plan — esbuild 통과했지만 tsc 3건 실패로 빌드 깨짐)
 
 ---
 
