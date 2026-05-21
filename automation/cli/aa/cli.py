@@ -1972,13 +1972,23 @@ def design(
 
     # 2) chat (SSE) → artifactId 수집
     # 데몬 startChatRun 은 body 의 `message`(단수 문자열)·`designSystemId`·
-    # `conversationId` 를 읽는다(server.ts). messages(복수 배열)는 무시돼
-    # "message required" BAD_REQUEST 로 실패한다.
+    # `conversationId`·`systemPrompt` 를 읽는다(server.ts). messages(복수 배열)는
+    # 무시돼 "message required" BAD_REQUEST 로 실패한다.
+    # systemPrompt: 단발 CLI 호출에선 agent 가 "만들어둘까요?" 하고 되묻고 끝나
+    # artifact 를 등록하지 않는다. 데몬 내부 unattended 경로(Orbit/Routine)와
+    # 동일하게 "질문 금지 + Live Artifact 반드시 등록" 을 강제한다.
     chat_body = {
         "message": prompt,
         "projectId": project_id,
         "agentId": agent,
         "designSystemId": system,
+        "systemPrompt": (
+            "You are generating a design deliverable in a single, unattended run. "
+            "Do not ask follow-up questions, do not emit <question-form>, and do not "
+            "wait for user input. Pick reasonable defaults and complete the work now. "
+            "You must create and register a Live Artifact as the final deliverable — "
+            "do not merely describe or propose what you would do."
+        ),
     }
     if conversation_id:
         chat_body["conversationId"] = conversation_id
