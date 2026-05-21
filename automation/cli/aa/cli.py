@@ -1890,6 +1890,7 @@ def design(
     ),
     agent: str = typer.Option("claude-code", "--agent", help="에이전트 CLI id"),
     dry_run: bool = typer.Option(False, "--dry-run", help="호출 없이 계획만 출력"),
+    debug: bool = typer.Option(False, "--debug", help="project 응답 + SSE raw 출력/저장 (진단)"),
 ) -> None:
     """open-design 으로 디자인 생성 — 프로젝트 톤(design system) 적용 → HTML 저장.
 
@@ -1944,6 +1945,9 @@ def design(
         console.print(f"[dim]design system '{system}' 이 등록됐는지 확인 (install-open-design).[/dim]")
         raise typer.Exit(1)
     project_id = _deep_find(proj, "id") or proj_id
+    if debug:
+        console.print(f"[dim]project 응답: {json.dumps(proj, ensure_ascii=False)[:400]}[/dim]")
+        console.print(f"[dim]project_id={project_id}[/dim]")
 
     console.print(f"[cyan]🎨 디자인 생성 중[/cyan] (system={system}, agent={agent})…")
 
@@ -1960,13 +1964,17 @@ def design(
         method="POST",
     )
     artifact_id = None
+    sse_lines: list[str] = []
     try:
         with urllib.request.urlopen(req, timeout=600) as resp:
             for raw in resp:
-                line = raw.decode("utf-8", "replace").strip()
-                if not line or "artifactId" not in line:
+                line = raw.decode("utf-8", "replace").rstrip("\r\n")
+                if debug:
+                    sse_lines.append(line)
+                s = line.strip()
+                if not s or "artifactId" not in s:
                     continue
-                payload = line.split("data:", 1)[-1].strip() if "data:" in line else line
+                payload = s.split("data:", 1)[-1].strip() if "data:" in s else s
                 try:
                     obj = json.loads(payload)
                 except json.JSONDecodeError:
@@ -1976,7 +1984,23 @@ def design(
                     artifact_id = aid
     except (urllib.error.HTTPError, urllib.error.URLError, OSError) as e:
         console.print(f"[red]디자인 생성(chat) 실패: {e}[/red]")
+        if debug and sse_lines:
+            console.print(f"[dim]받은 SSE {len(sse_lines)}줄 (마지막 일부):[/dim]")
+            for dl in sse_lines[-15:]:
+                console.print(f"[dim]│ {dl[:200]}[/dim]")
         raise typer.Exit(1)
+
+    if debug:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        dbg = out_dir / "_debug-sse.txt"
+        dbg.write_text("\n".join(sse_lines), encoding="utf-8")
+        console.print(f"[dim]SSE {len(sse_lines)}줄 저장 → {dbg}[/dim]")
+        console.print("[dim]── SSE 처음 20줄 ──[/dim]")
+        for dl in sse_lines[:20]:
+            console.print(f"[dim]│ {dl[:180]}[/dim]")
+        console.print("[dim]── SSE 마지막 10줄 ──[/dim]")
+        for dl in sse_lines[-10:]:
+            console.print(f"[dim]│ {dl[:180]}[/dim]")
 
     if not artifact_id:
         console.print("[yellow]artifact 가 생성되지 않았습니다.[/yellow]")
