@@ -14,8 +14,9 @@
 
 import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useCreateIssue } from "@multica/core/issues/mutations";
+import { useCreateIssue, useUpdateIssue } from "@multica/core/issues/mutations";
 import { agentListOptions } from "@multica/core/workspace/queries";
+import { issueListOptions, issueDetailOptions } from "@multica/core/issues/queries";
 import { useWorkspaceId } from "@multica/core/hooks";
 
 // ── Types ───────────────────────────────────────────────
@@ -57,7 +58,11 @@ interface PlanState {
 type PageId = "today" | "tasks" | "reflect" | "trace";
 
 // ── Constants ───────────────────────────────────────────
+// 1차 자립 저장. 이제는 서버(전용 이슈)로 옮기는 *마이그레이션 소스*로만 읽는다.
 const STORE_KEY = "alien-plan:v1";
+// 전용 이슈를 서버 KV 로 사용 — 이 title 이슈의 description 에 {logs,tasks} JSON 을
+// 통째로 저장. Multica 백엔드 무수정(fresh clone drift 안전)으로 기기 간 동기화.
+const STATE_ISSUE_TITLE = "🛸 Alien Plan 저장소 (자동 — 수정·삭제 금지)";
 
 // 제목용 폰트 — Pretendard(한글 고딕). serif(Cormorant)는 한글이 어색해서
 // 카테고리/카드 제목은 Pretendard 로 통일. CDN 은 마운트 시 1회 주입.
@@ -232,30 +237,96 @@ export function AlienPlanPage() {
   const [loaded, setLoaded] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
 
-  // Load once on mount
+  // ── 서버 저장 레이어 (Multica 전용 이슈를 KV 로) ──
+  // useWorkspaceId 는 워크스페이스 라우트 안에서만 유효 — Alien Plan 은
+  // [workspaceSlug]/(dashboard)/alien-plan 라우트라 항상 컨텍스트가 있다.
+  const wsId = useWorkspaceId();
+  const { data: issueList } = useQuery(issueListOptions(wsId));
+  const stateIssue = (issueList ?? []).find((i) => i.title === STATE_ISSUE_TITLE);
+  const stateIssueId = stateIssue?.id ?? null;
+  const { data: stateIssueDetail } = useQuery({
+    ...issueDetailOptions(wsId, stateIssueId ?? ""),
+    enabled: !!stateIssueId,
+  });
+  const createIssue = useCreateIssue();
+  const updateIssue = useUpdateIssue();
+  const { data: agentsRaw } = useQuery(agentListOptions(wsId));
+  const agents: PlanAgent[] = ((agentsRaw ?? []) as PlanAgent[]).filter((a) => !a.archived_at);
+
+  // 저장 제어용 ref — create 는 최초 1회, 이후엔 update.
+  const ensuredIssueIdRef = useRef<string | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savingRef = useRef(false);
+
   useEffect(() => {
     ensurePretendard();
+  }, []);
+
+  // 서버에서 1회 로드 — 전용 이슈 description(JSON) → state.
+  // 전용 이슈가 아직 없으면 기존 localStorage 데이터를 마이그레이션 소스로 읽는다
+  // (그 직후 save effect 가 전용 이슈를 생성하며 서버로 승격됨).
+  useEffect(() => {
+    if (loaded) return;
+    if (issueList === undefined) return; // 이슈 목록 로딩 중 — 대기
+    if (stateIssueId) {
+      if (stateIssueDetail === undefined) return; // 전용 이슈 상세 로딩 중 — 대기
+      try {
+        const raw = stateIssueDetail.description;
+        if (raw) {
+          const data = JSON.parse(raw) as Partial<PlanState>;
+          setState({ logs: data.logs ?? {}, tasks: data.tasks ?? [] });
+        }
+      } catch (e) {
+        console.warn("Alien Plan server load failed", e);
+      }
+      setLoaded(true);
+      return;
+    }
     try {
-      const raw = localStorage.getItem(STORE_KEY);
-      if (raw) {
-        const data = JSON.parse(raw);
+      const lsRaw = localStorage.getItem(STORE_KEY);
+      if (lsRaw) {
+        const data = JSON.parse(lsRaw) as Partial<PlanState>;
         setState({ logs: data.logs ?? {}, tasks: data.tasks ?? [] });
       }
     } catch (e) {
-      console.warn("Alien Plan load failed", e);
+      console.warn("Alien Plan localStorage migration failed", e);
     }
     setLoaded(true);
-  }, []);
+  }, [loaded, issueList, stateIssueId, stateIssueDetail]);
 
-  // Persist on change (after load)
+  // 변경 시 서버 저장 (debounce 1.5s) — 전용 이슈 find-or-create.
   useEffect(() => {
     if (!loaded) return;
-    try {
-      localStorage.setItem(STORE_KEY, JSON.stringify({ logs: state.logs, tasks: state.tasks }));
-    } catch (e) {
-      console.warn("Alien Plan save failed", e);
-    }
-  }, [state, loaded]);
+    // 완전 빈 상태(신규 사용자)면 빈 전용 이슈를 만들지 않는다.
+    if (Object.keys(state.logs).length === 0 && state.tasks.length === 0) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      if (savingRef.current) return;
+      savingRef.current = true;
+      const payload = JSON.stringify({ logs: state.logs, tasks: state.tasks });
+      const done = () => {
+        savingRef.current = false;
+      };
+      const targetId = stateIssueId ?? ensuredIssueIdRef.current;
+      if (targetId) {
+        updateIssue
+          .mutateAsync({ id: targetId, description: payload })
+          .catch((e) => console.warn("Alien Plan server save failed", e))
+          .finally(done);
+      } else {
+        createIssue
+          .mutateAsync({ title: STATE_ISSUE_TITLE, status: "todo", description: payload })
+          .then((created) => {
+            ensuredIssueIdRef.current = (created as { id: string }).id;
+          })
+          .catch((e) => console.warn("Alien Plan server create failed", e))
+          .finally(done);
+      }
+    }, 1500);
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, [state, loaded, stateIssueId, createIssue, updateIssue]);
 
   // ── Mutators ──
   const getTodayLog = useCallback((): DayLog => state.logs[todayKey()] ?? emptyLog(), [state.logs]);
@@ -281,12 +352,7 @@ export function AlienPlanPage() {
   }, []);
 
   // ── Multica 연동 (이슈 등록 + 에이전트 배정/실행) ──
-  // useWorkspaceId 는 워크스페이스 라우트 안에서만 유효 — Alien Plan 은
-  // [workspaceSlug]/(dashboard)/alien-plan 라우트라 항상 컨텍스트가 있다.
-  const wsId = useWorkspaceId();
-  const { data: agentsRaw } = useQuery(agentListOptions(wsId));
-  const agents: PlanAgent[] = ((agentsRaw ?? []) as PlanAgent[]).filter((a) => !a.archived_at);
-  const createIssue = useCreateIssue();
+  // wsId·agents·createIssue·updateIssue 는 위 "서버 저장 레이어" 에서 이미 선언.
 
   // 태스크를 Multica 이슈로 등록. assigneeAgentId 가 있으면 그 에이전트에
   // 배정 → 서버가 자동 enqueue/실행 (status "todo", backlog 아님).
