@@ -26,6 +26,11 @@ OPEN_DESIGN = REPO / "automation" / "intranet" / "open-design"
 # 복사할 카테고리 (open-design 본진의 동일 폴더로)
 CATEGORIES = ["design-systems", "skills"]
 
+# 프로젝트(클라이언트)별 디자인 시스템 — 각 clients/<name>/design-system/DESIGN.md
+# 를 open-design/design-systems/<name>/ 로 등록. AA 자체(alien-agentic)는
+# alien-config 에, 클라이언트는 각 프로젝트 폴더에 산다.
+CLIENTS_DIR = REPO / "clients"
+
 
 def main() -> int:
     try:
@@ -63,6 +68,26 @@ def main() -> int:
             shutil.copytree(item, dst, dirs_exist_ok=True)
             print(f"  OK   {category}/{item.name}")
             copied.append(f"{category}/{item.name}")
+
+    # 프로젝트(클라이언트)별 디자인 시스템: clients/<name>/design-system/DESIGN.md
+    # → open-design/design-systems/<name>/DESIGN.md  (피커에 <name> 으로 등장)
+    if CLIENTS_DIR.exists():
+        client_systems = []
+        for client_dir in sorted(CLIENTS_DIR.iterdir()):
+            if not client_dir.is_dir():
+                continue
+            design_md = client_dir / "design-system" / "DESIGN.md"
+            if not design_md.exists():
+                continue
+            dst_dir = OPEN_DESIGN / "design-systems" / client_dir.name
+            dst_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(design_md, dst_dir / "DESIGN.md")
+            client_systems.append(client_dir.name)
+            copied.append(f"design-systems/{client_dir.name} (project)")
+        if client_systems:
+            print("[design-systems · 프로젝트별]")
+            for name in client_systems:
+                print(f"  OK   design-systems/{name} (clients/{name}/design-system/)")
 
     print()
     print(f"결과: 이식 {len(copied)}개" + (f" / 빈 카테고리 {len(skipped_cats)}" if skipped_cats else ""))

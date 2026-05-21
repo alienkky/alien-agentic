@@ -24,6 +24,23 @@ alien-config/open-design/
 └── ... install-open-design.py 가 본진으로 복사
 ```
 
+## 디자인 시스템 2층 — 회사 자체 vs 프로젝트별
+
+디자인 컨셉은 *프로젝트마다 다르다*. 그래서 2층으로 둔다:
+
+| 층 | 위치 | 용도 | open-design 피커 이름 |
+|---|---|---|---|
+| **회사 자체** | `alien-config/open-design/design-systems/alien-agentic/DESIGN.md` | AA 브랜드 (콘텐츠·제안서·내부) | `alien-agentic` |
+| **프로젝트별** | `clients/<client>/design-system/DESIGN.md` | 각 클라이언트 브랜드 | `<client>` |
+
+`install-open-design.py` 가 **둘 다 자동 등록**한다:
+- `alien-config/open-design/design-systems/*` → 본진 `design-systems/*`
+- `clients/*/design-system/DESIGN.md` → 본진 `design-systems/<client>/DESIGN.md`
+
+→ open-design 피커에 `alien-agentic` · `<클라이언트들>` 이 나란히. 디자인 작업 시 그 프로젝트 시스템을 골라 *그 톤으로* 생성.
+
+**프로젝트 DESIGN.md 는 누가 만드나** — WHY/HOW 단계 산출물: `culture-linguist`(컬쳐 코드) + `story-weaver`(마스터 내러티브) 에서 브랜드를 도출해 `ui-ux-designer` 가 9섹션 DESIGN.md(color·typography·spacing·layout·components·motion·voice·brand·anti-patterns)로 직조.
+
 ## 분리 원칙 (Multica 와 동일)
 
 | 자리 | 위치 | git 추적 |
