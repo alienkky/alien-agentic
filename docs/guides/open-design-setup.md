@@ -23,11 +23,19 @@
 Open Design 은 **Node ~24 + pnpm 10.33.x**. 우리 Multica 는 Node 22 라 **nvm 으로 버전 분리**한다 (충돌 방지).
 
 ```powershell
-# nvm-windows 설치 (없으면): https://github.com/coreybutler/nvm-windows/releases
+# nvm-windows 설치 (없으면)
+winget install -e --id CoreyButler.NVMforWindows
+#   winget 막히면: https://github.com/coreybutler/nvm-windows/releases 의 nvm-setup.exe
+#   설치 후 *새 PowerShell 창* 을 열어야 PATH 가 갱신됨.
+
 nvm install 24
 nvm use 24
 node --version   # v24.x 확인
+```
 
+> 💡 Multica 는 docker 컨테이너 안에서 돌아서 *로컬 Node 버전과 무관*하다. 로컬을 24 로 둬도 Multica·aa(Python) 에 영향 없음.
+
+```powershell
 # Open Design clone — Multica 옆에 (drift 분리 원칙: §4)
 cd E:\AlienAgentic\alien-agentic\automation\intranet
 git clone https://github.com/nexu-io/open-design.git
