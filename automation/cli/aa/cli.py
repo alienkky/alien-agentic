@@ -1888,7 +1888,7 @@ def design(
     daemon_url: str = typer.Option(
         None, "--daemon-url", help="open-design 데몬 URL (없으면 OD_DAEMON_URL → 7456)"
     ),
-    agent: str = typer.Option("claude-code", "--agent", help="에이전트 CLI id"),
+    agent: str = typer.Option("claude", "--agent", help="에이전트 CLI id (데몬 /api/agents 의 id — claude·codex·gemini…)"),
     dry_run: bool = typer.Option(False, "--dry-run", help="호출 없이 계획만 출력"),
     debug: bool = typer.Option(False, "--debug", help="project 응답 + SSE raw 출력/저장 (진단)"),
 ) -> None:
@@ -1931,6 +1931,24 @@ def design(
             f"[dim]포트가 다르면 --daemon-url 또는 OD_DAEMON_URL 지정. ({e})[/dim]"
         )
         raise typer.Exit(1)
+
+    # 0.5) agent id 사전 검증 — 데몬 getAgentDef 는 strict === 매칭(별칭 X).
+    # id 가 안 맞으면 조용히 전역 활성 에이전트로 fallback → "결과물 못 찾음" 으로 끝난다.
+    # 그 조용한 실패를 여기서 미리 드러낸다 (목록 조회 실패는 치명적 아님 → 통과).
+    try:
+        with urllib.request.urlopen(f"{base}/api/agents", timeout=5) as resp:
+            agents_raw = resp.read().decode("utf-8", "replace")
+        if f'"{agent}"' not in agents_raw:
+            console.print(
+                f"[yellow]⚠ 데몬이 감지한 에이전트 목록에 '{agent}' 가 없습니다.[/yellow]"
+            )
+            console.print(
+                "[yellow]  → agentId 가 무시되고 다른 에이전트로 fallback 될 수 있어요. "
+                "--agent 로 정확한 id 를 지정하세요.[/yellow]"
+            )
+            console.print(f"[dim]/api/agents: {agents_raw[:300]}[/dim]")
+    except (urllib.error.URLError, urllib.error.HTTPError, OSError):
+        pass
 
     # 1) project 생성 (design system 주입)
     proj_id = f"aa-{dt.datetime.now().strftime('%Y%m%d-%H%M%S')}"
