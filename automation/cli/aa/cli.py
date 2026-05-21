@@ -1963,18 +1963,25 @@ def design(
         console.print(f"[dim]design system '{system}' 이 등록됐는지 확인 (install-open-design).[/dim]")
         raise typer.Exit(1)
     project_id = _deep_find(proj, "id") or proj_id
+    conversation_id = _deep_find(proj, "conversationId")
     if debug:
         console.print(f"[dim]project 응답: {json.dumps(proj, ensure_ascii=False)[:400]}[/dim]")
-        console.print(f"[dim]project_id={project_id}[/dim]")
+        console.print(f"[dim]project_id={project_id} conversation_id={conversation_id}[/dim]")
 
     console.print(f"[cyan]🎨 디자인 생성 중[/cyan] (system={system}, agent={agent})…")
 
     # 2) chat (SSE) → artifactId 수집
+    # 데몬 startChatRun 은 body 의 `message`(단수 문자열)·`designSystemId`·
+    # `conversationId` 를 읽는다(server.ts). messages(복수 배열)는 무시돼
+    # "message required" BAD_REQUEST 로 실패한다.
     chat_body = {
-        "messages": [{"role": "user", "content": prompt}],
+        "message": prompt,
         "projectId": project_id,
         "agentId": agent,
+        "designSystemId": system,
     }
+    if conversation_id:
+        chat_body["conversationId"] = conversation_id
     req = urllib.request.Request(
         f"{base}/api/chat",
         data=json.dumps(chat_body).encode("utf-8"),
@@ -2021,25 +2028,53 @@ def design(
         for dl in sse_lines[-10:]:
             console.print(f"[dim]│ {dl[:180]}[/dim]")
 
-    # 3) HTML 확보 — artifactId 있으면 데몬 preview, 없으면 .od 디스크 fallback
-    html = None
-    if artifact_id:
+    # 3) HTML 확보 — 우선순위: SSE artifactId → project 의 live-artifacts 조회
+    #    → .od 디스크 fallback. 데몬은 artifact 를 listLiveArtifacts({projectId})
+    #    로 관리하므로(server.ts), SSE wire format 에 의존하지 않고 이 project 의
+    #    최신 artifact 를 직접 조회하는 게 정석이다.
+    def _fetch_preview(aid: str):
         try:
             with urllib.request.urlopen(
-                f"{base}/api/live-artifacts/{urllib.parse.quote(artifact_id)}/preview",
+                f"{base}/api/live-artifacts/{urllib.parse.quote(aid)}/preview",
                 timeout=60,
             ) as resp:
-                html = resp.read().decode("utf-8", "replace")
+                return resp.read().decode("utf-8", "replace")
         except (urllib.error.HTTPError, urllib.error.URLError, OSError) as e:
-            console.print(f"[yellow]preview 회수 실패({e}) — 디스크에서 찾습니다.[/yellow]")
+            console.print(f"[yellow]preview 회수 실패({e}).[/yellow]")
+            return None
+
+    html = _fetch_preview(artifact_id) if artifact_id else None
+
+    if html is None:
+        try:
+            with urllib.request.urlopen(
+                f"{base}/api/live-artifacts?projectId={urllib.parse.quote(project_id)}",
+                timeout=30,
+            ) as resp:
+                listing = json.loads(resp.read().decode("utf-8"))
+            arts = listing.get("artifacts") if isinstance(listing, dict) else listing
+            if isinstance(arts, list) and arts:
+                latest = max(
+                    arts,
+                    key=lambda a: (a.get("updatedAt") or a.get("createdAt") or 0)
+                    if isinstance(a, dict) else 0,
+                )
+                aid = latest.get("id") if isinstance(latest, dict) else None
+                if debug:
+                    console.print(f"[dim]live-artifacts {len(arts)}개, 최신 id={aid}[/dim]")
+                if aid:
+                    html = _fetch_preview(aid)
+        except (urllib.error.HTTPError, urllib.error.URLError, OSError, json.JSONDecodeError) as e:
+            if debug:
+                console.print(f"[dim]live-artifacts 조회 실패: {e}[/dim]")
 
     od_data = Path(
         os.environ.get("OD_DATA_DIR")
         or (ROOT / "automation" / "intranet" / "open-design" / ".od")
     )
     if html is None:
-        # SSE 에서 artifactId 를 못 잡았거나 preview 실패 → open-design 의 .od 에서
-        # chat 시작 이후 생성/수정된 HTML 중 가장 최근·큰 것을 회수 (SSE 형식 무관).
+        # 최후: open-design 의 .od 에서 chat 시작 이후 생성/수정된 HTML 중
+        # 가장 최근·큰 것을 회수 (artifact 등록 실패 등 예외 상황 대비).
         cands = []
         if od_data.exists():
             for hf in od_data.rglob("*.html"):
