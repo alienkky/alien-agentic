@@ -34,6 +34,8 @@ node --version   # v24.x 확인
 ```
 
 > 💡 Multica 는 docker 컨테이너 안에서 돌아서 *로컬 Node 버전과 무관*하다. 로컬을 24 로 둬도 Multica·aa(Python) 에 영향 없음.
+>
+> ⚠️ **정확히 Node 24 를 쓸 것 (25/26 X).** open-design 의 `better-sqlite3` 네이티브 모듈은 Node 24 ABI(`NODE_MODULE_VERSION 137`)로 prebuilt 다. Node 26(ABI 147) 에서 `pnpm tools-dev run web` 을 돌리면 데몬이 `ABI mismatch` 로 죽는다. 해결: Node 24 로 다운그레이드 (https://nodejs.org/dist/latest-v24.x/ 의 `node-v24.x.x-x64.msi`) → rebuild 불필요. (Node 25+ 는 corepack 도 번들에서 빠져 `npm i -g corepack` 별도 필요.)
 
 ```powershell
 # Open Design clone — Multica 옆에 (drift 분리 원칙: §4)
@@ -130,5 +132,7 @@ alien-config/open-design/skills/<우리스킬>/
 | Node 버전 충돌 | `nvm use 24` (open-design) / `nvm use 22` (Multica) 분리 |
 | 포트 충돌 (3000) | `--web-port 3100 --daemon-port 3101` |
 | `claude` 감지 안 됨 | `where.exe claude` 로 PATH 확인, 없으면 claude CLI 재설치 |
+| 데몬 `better_sqlite3.node ... ABI mismatch` / `NODE_MODULE_VERSION` | Node 가 25/26 임. **Node 24 로 다운그레이드** (https://nodejs.org/dist/latest-v24.x/) → rebuild 없이 동작. 또는 `pnpm rebuild better-sqlite3` (MSVC 빌드도구 필요) |
+| `corepack` 명령 없음 | Node 25+ 는 corepack 미번들 → `npm install -g corepack` 후 `corepack enable` |
 | 음성·마이크 안 됨 | secure context — localhost 또는 Tailscale HTTPS (`tailscale-setup.md` §3.5) |
 | 우리 커스텀이 사라짐 | fresh clone drift — `install-open-design.py` 재실행 (§4) |
