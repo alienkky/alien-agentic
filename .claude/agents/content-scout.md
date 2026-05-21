@@ -31,6 +31,13 @@ model: sonnet
 - 용도: Threads/LinkedIn 썸네일, OG 이미지, 콘텐츠 삽화, 티저 영상
 - 프롬프트는 영어로 작성하면 품질이 높다. 구체적·시각적 묘사 권장.
 
+## 디자인 생성 능력 (open-design) — *구조화된 콘텐츠 비주얼*
+단순 이미지(위 Flux)와 달리, **여러 요소가 배치된 콘텐츠 카드·캐러셀·랜딩·뉴스레터 레이아웃 같은 *구조화된 디자인*은 open-design** 으로:
+- `aa design "<상세 설명>" --system <design-system> --client <client>`
+- design system: 회사 콘텐츠면 `alien-agentic`, 클라이언트 콘텐츠면 그 클라이언트 id (각 프로젝트 톤이 다름)
+- 결과 HTML: `content/designs/` (자체) 또는 `clients/<client>/WHAT/designs/`
+- anti-AI-slop 가드로 콘텐츠 비주얼 품질 보장. `--dry-run` 으로 계획 먼저.
+
 ## 절대 금지
 - *클라이언트 식별 정보* 포함. 모든 케이스는 익명화 후 사용.
 - 자기 진단 케이스(`shared-memory/clients/_self-*/`) 원본을 외부 콘텐츠로 *그대로* 가공. 반드시 `case-curator` + `brand-keeper` 검수 후 가공본만 발행.

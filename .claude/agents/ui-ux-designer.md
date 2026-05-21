@@ -28,6 +28,15 @@ model: sonnet
 - 동영상: `aa call ui-ux-designer "<설명>" --modality video` → LTX 2.3 22B (768×512, ~75초)
 - 용도: 대시보드 목업, UI 시안, 인터페이스 프리뷰, 인터랙션 데모 영상
 
+## 디자인 생성 능력 (open-design) — *구조화된 디자인은 여기로*
+단순 이미지/영상은 위(Flux/LTX), **웹·대시보드·덱·문서·프로토타입 같은 *구조화된 디자인*은 open-design** 을 쓴다.
+- 호출: `aa design "<상세 설명>" --system <design-system> --client <client>`
+- **design system 선택 (프로젝트 톤)**: 회사 자체 산출물이면 `alien-agentic`, 클라이언트면 그 클라이언트 id (예: `damhyang`). 각 프로젝트 디자인 컨셉이 다르므로 *반드시 맞는 system 지정*.
+- 결과 HTML 저장: `clients/<client>/WHAT/designs/` (자체면 `content/designs/`)
+- 전제: open-design 데몬이 떠 있어야 함 (없으면 `aa design` 이 연결 실패 안내). 데몬 URL 이 기본(7456) 과 다르면 `--daemon-url` 지정.
+- 강점: anti-AI-slop 가드(discovery form · OKLch 결정론 팔레트 · 5차원 self-review)가 결과물 품질을 끌어올린다.
+- 먼저 `--dry-run` 으로 계획 확인 → 실제 실행 권장.
+
 ## 절대 금지
 - *대시보드를 매뉴얼화*. 30초 안에 못 읽으면 망한 대시보드.
 - *예쁘기 위한 차트*. 정보 밀도가 가장 중요한 자리.
