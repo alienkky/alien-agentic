@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>환영 카드 · Alien Agentic</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" />
+  <style>
+    :root {
+      --cream: #F4F1EB;
+      --paper: #FBFAF6;
+      --line: #E5E0D5;
+      --line-soft: #EDE9DF;
+      --night: #0B1020;
+
+      --ink: #1B2444;
+      --ink-soft: #4A5168;
+      --ink-mute: #8A8F9F;
+
+      --ember: #C8442B;
+      --dusk: #E89B6C;
+      --sage: #8FA88A;
+      --gold: #D4A946;
+      --silver: #C8D4F0;
+
+      --font-sans: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      --font-serif: 'Cormorant Garamond', 'Iowan Old Style', Georgia, serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      background: var(--cream);
+      color: var(--ink);
+      font-family: var(--font-sans);
+      font-size: 16px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      min-height: 100%;
+    }
+
+    body {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 60px 24px;
+    }
+
+    .page {
+      width: 100%;
+      max-width: 680px;
+      position: relative;
+    }
+
+    .page::before {
+      content: "";
+      position: absolute;
+      inset: 24px -36px auto auto;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--silver);
+      box-shadow: 0 0 0 6px rgba(200, 212, 240, 0.18);
+    }
+
+    .card {
+      position: relative;
+      background: var(--paper);
+      border: 1px solid var(--line-soft);
+      border-radius: 16px;
+      padding: 64px 60px 56px;
+      box-shadow:
+        0 1px 0 rgba(27, 36, 68, 0.02),
+        0 24px 60px -32px rgba(27, 36, 68, 0.18);
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 28px;
+      bottom: 28px;
+      width: 3px;
+      background: var(--silver);
+      border-radius: 0 3px 3px 0;
+    }
+
+    .meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 48px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+    }
+
+    .meta .left { display: flex; align-items: center; gap: 12px; }
+    .meta .left .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--sage);
+      display: inline-block;
+    }
+
+    .brandmark {
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-size: 22px;
+      color: var(--ink);
+      letter-spacing: 0.01em;
+      line-height: 1;
+      margin-bottom: 28px;
+    }
+
+    .brandmark .tld {
+      font-family: var(--font-mono);
+      font-style: normal;
+      font-size: 10px;
+      letter-spacing: 0.25em;
+      color: var(--ink-mute);
+      margin-left: 10px;
+      vertical-align: 4px;
+    }
+
+    h1 {
+      font-family: var(--font-sans);
+      font-weight: 700;
+      font-size: clamp(48px, 8vw, 76px);
+      line-height: 1.05;
+      letter-spacing: -0.025em;
+      color: var(--ink);
+      margin-bottom: 20px;
+      text-wrap: balance;
+    }
+
+    h1 .accent {
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-weight: 500;
+      color: var(--ink-soft);
+      letter-spacing: -0.005em;
+    }
+
+    .lede {
+      font-size: 19px;
+      line-height: 1.65;
+      color: var(--ink-soft);
+      max-width: 52ch;
+      margin-bottom: 40px;
+      text-wrap: pretty;
+    }
+
+    .lede strong {
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    .rule {
+      height: 1px;
+      background: var(--line);
+      margin: 40px 0 32px;
+    }
+
+    .notes {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 28px 36px;
+    }
+
+    .note .label {
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+      margin-bottom: 8px;
+    }
+
+    .note .body {
+      font-size: 15px;
+      line-height: 1.55;
+      color: var(--ink);
+    }
+
+    .note .body em {
+      font-family: var(--font-serif);
+      font-style: italic;
+      color: var(--ink-soft);
+      font-size: 16px;
+    }
+
+    .signature {
+      margin-top: 44px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .signature .by .from {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+      margin-bottom: 6px;
+    }
+
+    .signature .by .who {
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-size: 28px;
+      color: var(--ink);
+      line-height: 1;
+    }
+
+    .signature .seal {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.3em;
+      color: var(--ink-mute);
+      text-transform: uppercase;
+      text-align: right;
+      line-height: 1.6;
+    }
+
+    .signature .seal .ship {
+      display: inline-block;
+      transform: translateY(1px);
+      margin-left: 4px;
+      color: var(--ink-soft);
+    }
+
+    .footer {
+      margin-top: 24px;
+      text-align: center;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+    }
+
+    .footer .sep { margin: 0 10px; color: var(--line); }
+
+    @media (max-width: 560px) {
+      body { padding: 36px 16px; }
+      .card { padding: 44px 28px 36px; border-radius: 14px; }
+      .page::before { display: none; }
+      .meta { margin-bottom: 36px; flex-wrap: wrap; gap: 12px; }
+      .notes { grid-template-columns: 1fr; gap: 20px; }
+      .signature { flex-direction: column; align-items: flex-start; gap: 16px; }
+      .signature .seal { text-align: left; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <article class="card" aria-label="환영 카드">
+      <header class="meta">
+        <span class="left">
+          <span class="dot" aria-hidden="true"></span>
+          <span>Welcome · 환영합니다</span>
+        </span>
+        <span>2026.05.22 · Seoul</span>
+      </header>
+
+      <div class="brandmark">
+        Alien&nbsp;Agentic<span class="tld">A.A.</span>
+      </div>
+
+      <h1>
+        한 걸음 떨어져서,<br />
+        <span class="accent">매일 한 가지.</span>
+      </h1>
+
+      <p class="lede">
+        지구에 오신 것을 환영합니다. 우리는 사람이 <strong>자기 자신으로부터 한 걸음 떨어져</strong>
+        자기를 정확히 알고, 그 앎으로 누군가를 도우며 살 수 있게 — 외계의 효율로 돕는 곳입니다.
+        이 카드가 첫 신호입니다. 천천히 시작해도 괜찮습니다.
+      </p>
+
+      <div class="rule" aria-hidden="true"></div>
+
+      <div class="notes">
+        <div class="note">
+          <div class="label">For</div>
+          <div class="body">처음 도착한 당신, 그리고 다음 한 사람</div>
+        </div>
+        <div class="note">
+          <div class="label">From</div>
+          <div class="body"><em>The Alien Plan</em> · 27인의 동료들</div>
+        </div>
+        <div class="note">
+          <div class="label">First step</div>
+          <div class="body">오늘은 단 한 가지. 무엇이든 가장 작은 것부터.</div>
+        </div>
+        <div class="note">
+          <div class="label">Promise</div>
+          <div class="body">시간 · 평화 · 존엄을 돌려드립니다.</div>
+        </div>
+      </div>
+
+      <div class="signature">
+        <div class="by">
+          <div class="from">With warmth,</div>
+          <div class="who">Alien Agentic</div>
+        </div>
+        <div class="seal">
+          Signed in cream &amp; ink<br />
+          Seoul · Earth <span class="ship" aria-hidden="true">🛸</span>
+        </div>
+      </div>
+    </article>
+
+    <div class="footer">
+      외계의 효율로 <span class="sep">·</span> 따뜻한 종이 위에서
+    </div>
+  </div>
+</body>
+</html>
