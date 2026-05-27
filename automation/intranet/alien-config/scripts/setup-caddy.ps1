@@ -136,11 +136,18 @@ $content = $content -replace '\{\{LOG_DIR\}\}',       $logDirFwd
 [System.IO.File]::WriteAllText($caddyfile, $content, [System.Text.UTF8Encoding]::new($false))
 Write-Host "      OK: $caddyfile"
 
-# Caddyfile 검증
-$validation = & $caddyExe validate --config $caddyfile 2>&1
-if ($LASTEXITCODE -ne 0) {
+# Caddyfile 검증 -- Caddy 는 stderr 로 info 로그를 쓰는데, PS 5.1 의
+# $ErrorActionPreference="Stop" 가 stderr 출력을 NativeCommandError 로 오해해 멈춤.
+# 회피: 로컬에서 EAP 를 Continue 로 풀고, $LASTEXITCODE 로만 성공/실패 판단.
+$prevEAP = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+$validation = (& $caddyExe validate --config $caddyfile 2>&1) | Out-String
+$validateExit = $LASTEXITCODE
+$ErrorActionPreference = $prevEAP
+
+if ($validateExit -ne 0) {
     Write-Error @"
-Caddyfile 검증 실패:
+Caddyfile 검증 실패 (exit $validateExit):
 $validation
 "@
     exit 1
