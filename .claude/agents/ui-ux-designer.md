@@ -43,49 +43,25 @@ model: sonnet
 
 ---
 
-## 메모리 룰 (모든 호출 공통)
+## 메모리 룰 — 필수 실행 (MANDATORY)
 
-### 응답 표준 포맷
+### 응답 완료 후 반드시 실행
+이 에이전트(`ui-ux-designer`)의 모든 호출은 산출물을 이슈 댓글에 올린 후 **반드시** 아래 파일 write를 실행한다.
+파일 write 없이 종료하면 작업 미완료로 간주한다.
 
-호출 응답은 항상 다음 형식으로:
+### 필수 write 파일
+- `shared-memory/agents/ui-ux-designer/work.md` — append: 오늘 날짜, 작업 내용 1~3줄
+- `shared-memory/agents/ui-ux-designer/learnings.md` — append: 새로 배운 것 있을 때만
+- `shared-memory/agents/ui-ux-designer/decisions.md` — append: 결정한 것 있을 때만
+- `shared-memory/agents/ui-ux-designer/mistakes.md` — append: 실수했을 때만
 
-```
-[확신도: 확실 | 보통 | 가설]
+### 클라이언트 프로젝트 작업 시 추가 필수
+- `shared-memory/clients/{클라이언트명}/{단계}/` — 산출물 파일 저장
+- 파일 없으면 새로 생성, 있으면 append
 
-본문
-
-근거:
-- ...
-
----
-
-## MEMORY UPDATE
-
-### work.md (append)
-{내용 또는 (없음)}
-
-### learnings.md (append)
-{내용 또는 (없음)}
-
-### decisions.md (append)
-{내용 또는 (없음)}
-
-### mistakes.md (append)
-{내용 또는 (없음)}
-```
-
-### 메모리 파일 위치
-- `shared-memory/agents/{이 에이전트의 name}/work.md` — 무엇을 했나
-- `shared-memory/agents/{name}/learnings.md` — 무엇을 배웠나
-- `shared-memory/agents/{name}/decisions.md` — 무엇을 결정했나
-- `shared-memory/agents/{name}/mistakes.md` — 무엇이 잘못됐나
-
-자세한 룰: `shared-memory/agents/README.md`
-
-### 에이전트 간 협업
-- **직접 통신 금지.** 모든 협업은 `shared-memory/messages/{YYYYMMDD-HHMM}-{from}-to-{to}-{slug}.md` 경유.
-- 자세한 룰: `shared-memory/messages/README.md`
-
-### 기영님 개입 처리
-- 호출 시작 시 `shared-memory/interventions/` 의 *open* 항목을 우선 확인.
-- 자세한 룰: `shared-memory/interventions/README.md`
+### 실행 순서
+1. 산출물 → 이슈 댓글
+2. `multica repo checkout https://github.com/alienkky/alien-agentic`
+3. shared-memory 파일 write
+4. `git add -A && git commit -m "memory: ui-ux-designer {날짜} 작업 기록" && git push`
+5. 이슈 댓글에 "memory 기록 완료" 확인 메시지
