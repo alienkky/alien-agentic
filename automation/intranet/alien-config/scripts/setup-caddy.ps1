@@ -1,10 +1,10 @@
-# setup-caddy.ps1 — Multica HTTPS 종결을 tailscale serve 에서 Caddy 로 교체.
+﻿# setup-caddy.ps1 -- Multica HTTPS 종결을 tailscale serve 에서 Caddy 로 교체.
 #
 # 배경: tailscale serve 가 WebSocket Upgrade 를 forward 못 해 Multica 실시간 푸시가
 #       죽는 사고(2026-05-27). Caddy 가 WS native 프록시 + Tailscale cert 직접 사용.
 #
 # 1회 실행. 인증서 만료 갱신은 refresh-tailscale-cert.ps1 이 주간 처리.
-# 관리자 PowerShell 권장 — Task Scheduler 등록을 위해.
+# 관리자 PowerShell 권장 -- Task Scheduler 등록을 위해.
 
 $ErrorActionPreference = "Stop"
 
@@ -18,20 +18,20 @@ $caddyfile = Join-Path $caddyDir "Caddyfile"
 $envFile   = Join-Path $caddyDir ".env"
 
 Write-Host ""
-Write-Host "========== Alien Agentic — Caddy 셋업 =========="
+Write-Host "========== Alien Agentic -- Caddy 셋업 =========="
 Write-Host ""
 
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 # 1. 디렉토리 보장
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 if (-not (Test-Path $certDir)) { New-Item -ItemType Directory -Path $certDir -Force | Out-Null }
 if (-not (Test-Path $logDir))  { New-Item -ItemType Directory -Path $logDir  -Force | Out-Null }
 
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 # 2. caddy.exe 확보
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 if (-not (Test-Path $caddyExe)) {
-    Write-Host "[1/7] caddy.exe 없음 — 다운로드 시도..."
+    Write-Host "[1/7] caddy.exe 없음 -- 다운로드 시도..."
     $caddyUrl = "https://caddyserver.com/api/download?os=windows&arch=amd64"
     try {
         Invoke-WebRequest -Uri $caddyUrl -OutFile $caddyExe -UseBasicParsing
@@ -47,16 +47,16 @@ caddy.exe 자동 다운로드 실패. 수동 다운로드:
         exit 1
     }
 } else {
-    Write-Host "[1/7] caddy.exe 존재 — 스킵"
+    Write-Host "[1/7] caddy.exe 존재 -- 스킵"
 }
 
 # 버전 확인
 $caddyVersion = & $caddyExe version 2>&1
 Write-Host "      Caddy: $caddyVersion"
 
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 # 3. Tailscale IP + hostname 추출
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 Write-Host "[2/7] Tailscale 정보 추출..."
 
 $tsCmd = Get-Command tailscale -ErrorAction SilentlyContinue
@@ -81,9 +81,9 @@ if (-not $tsHost) {
 Write-Host "      IP:   $tsIP"
 Write-Host "      Host: $tsHost"
 
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 # 4. Tailscale cert 발급
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 Write-Host "[3/7] Tailscale 인증서 발급..."
 
 $certCrt = Join-Path $certDir "$tsHost.crt"
@@ -112,9 +112,9 @@ if (-not (Test-Path $certCrt)) {
 }
 Write-Host "      OK: $certCrt"
 
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 # 5. Caddyfile 생성 (템플릿 치환)
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 Write-Host "[4/7] Caddyfile 생성..."
 
 if (-not (Test-Path $template)) {
@@ -122,7 +122,7 @@ if (-not (Test-Path $template)) {
     exit 1
 }
 
-# 경로는 Caddy 가 forward slash 를 선호 — Windows 경로 변환
+# 경로는 Caddy 가 forward slash 를 선호 -- Windows 경로 변환
 $certDirFwd = $certDir.Replace('\', '/')
 $logDirFwd  = $logDir.Replace('\', '/')
 
@@ -132,7 +132,7 @@ $content = $content -replace '\{\{TAILSCALE_IP\}\}',  $tsIP
 $content = $content -replace '\{\{CERT_DIR\}\}',      $certDirFwd
 $content = $content -replace '\{\{LOG_DIR\}\}',       $logDirFwd
 
-# UTF-8 (BOM 없이) — Caddy 가 BOM 을 못 읽음
+# UTF-8 (BOM 없이) -- Caddy 가 BOM 을 못 읽음
 [System.IO.File]::WriteAllText($caddyfile, $content, [System.Text.UTF8Encoding]::new($false))
 Write-Host "      OK: $caddyfile"
 
@@ -155,9 +155,9 @@ CADDY_DIR=$caddyDir
 CERT_DIR=$certDir
 "@ | Out-File -FilePath $envFile -Encoding utf8 -Force
 
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 # 6. tailscale serve 해제 (443 점유 풀기)
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 Write-Host "[5/7] tailscale serve 해제 (443 점유 풀기)..."
 tailscale serve reset 2>&1 | ForEach-Object { Write-Host "      $_" }
 
@@ -171,15 +171,15 @@ if (Test-Path $autostart) {
     }
 }
 
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 # 7. Task Scheduler 등록
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 Write-Host "[6/7] Task Scheduler 등록..."
 
 $runCaddy   = Join-Path $PSScriptRoot "run-caddy.ps1"
 $refreshScr = Join-Path $PSScriptRoot "refresh-tailscale-cert.ps1"
 
-# (a) AlienAgentic-Caddy — 로그온 시 Caddy 가동
+# (a) AlienAgentic-Caddy -- 로그온 시 Caddy 가동
 $caddyTaskName = "AlienAgentic-Caddy"
 Unregister-ScheduledTask -TaskName $caddyTaskName -Confirm:$false -ErrorAction SilentlyContinue
 
@@ -187,7 +187,7 @@ $caddyAction  = New-ScheduledTaskAction `
     -Execute "powershell.exe" `
     -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$runCaddy`""
 $caddyTrigger = New-ScheduledTaskTrigger -AtLogOn
-$caddyTrigger.Delay = "PT30S"   # 30초 지연 — Tailscale 준비 시간
+$caddyTrigger.Delay = "PT30S"   # 30초 지연 -- Tailscale 준비 시간
 $caddySettings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
@@ -198,12 +198,12 @@ Register-ScheduledTask `
     -Action $caddyAction `
     -Trigger $caddyTrigger `
     -Settings $caddySettings `
-    -Description "Alien Agentic — Caddy reverse proxy (Multica HTTPS + WS)" `
+    -Description "Alien Agentic -- Caddy reverse proxy (Multica HTTPS + WS)" `
     -RunLevel Highest `
     -Force | Out-Null
 Write-Host "      등록: $caddyTaskName (로그온 +30초)"
 
-# (b) AlienAgentic-CertRefresh — 매주 일요일 03:00
+# (b) AlienAgentic-CertRefresh -- 매주 일요일 03:00
 $certTaskName = "AlienAgentic-CertRefresh"
 Unregister-ScheduledTask -TaskName $certTaskName -Confirm:$false -ErrorAction SilentlyContinue
 
@@ -220,14 +220,14 @@ Register-ScheduledTask `
     -Action $certAction `
     -Trigger $certTrigger `
     -Settings $certSettings `
-    -Description "Alien Agentic — Tailscale cert 30일 이하 남으면 갱신" `
+    -Description "Alien Agentic -- Tailscale cert 30일 이하 남으면 갱신" `
     -RunLevel Highest `
     -Force | Out-Null
 Write-Host "      등록: $certTaskName (매주 일 03:00)"
 
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 # 8. Caddy 즉시 가동
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 Write-Host "[7/7] Caddy 가동..."
 Start-ScheduledTask -TaskName $caddyTaskName
 Start-Sleep -Seconds 3
@@ -239,9 +239,9 @@ if ($caddyProc) {
     Write-Warning "Caddy 프로세스 미확인. logs/access.log 와 Task Scheduler 'AlienAgentic-Caddy' 마지막 실행 결과 확인."
 }
 
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 # 완료
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 Write-Host ""
 Write-Host "=========================================================="
 Write-Host "DONE. Caddy 셋업 완료."

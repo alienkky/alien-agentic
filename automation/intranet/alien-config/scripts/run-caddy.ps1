@@ -1,4 +1,4 @@
-# run-caddy.ps1 — AlienAgentic-Caddy Task Scheduler 가 로그온 +30초에 호출.
+﻿# run-caddy.ps1 -- AlienAgentic-Caddy Task Scheduler 가 로그온 +30초에 호출.
 # Caddy 를 포어그라운드로 실행 (Task 가 lifecycle 관리).
 # 자체 로그는 caddy 가 logs/access.log 와 stderr 로 떨군다.
 
@@ -14,13 +14,13 @@ $log = Join-Path $logDir ("aa-caddy-{0}.log" -f (Get-Date -Format "yyyy-MM-dd"))
 
 "=== {0} caddy start ===" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss") | Out-File -FilePath $log -Append -Encoding utf8
 
-# 사전 점검 — Caddyfile + caddy.exe 둘 다 있어야 함
+# 사전 점검 -- Caddyfile + caddy.exe 둘 다 있어야 함
 if (-not (Test-Path $caddyExe)) {
-    "ERROR: caddy.exe 없음 — setup-caddy.ps1 먼저 실행" | Out-File -FilePath $log -Append -Encoding utf8
+    "ERROR: caddy.exe 없음 -- setup-caddy.ps1 먼저 실행" | Out-File -FilePath $log -Append -Encoding utf8
     exit 1
 }
 if (-not (Test-Path $cfg)) {
-    "ERROR: Caddyfile 없음 — setup-caddy.ps1 먼저 실행" | Out-File -FilePath $log -Append -Encoding utf8
+    "ERROR: Caddyfile 없음 -- setup-caddy.ps1 먼저 실행" | Out-File -FilePath $log -Append -Encoding utf8
     exit 1
 }
 
@@ -31,7 +31,7 @@ Get-Process caddy -ErrorAction SilentlyContinue | ForEach-Object {
 }
 Start-Sleep -Seconds 1
 
-# Caddy 가동 (포어그라운드 — Task 가 살아있는 동안 살아있음)
+# Caddy 가동 (포어그라운드 -- Task 가 살아있는 동안 살아있음)
 Set-Location $caddyDir
 & $caddyExe run --config $cfg --adapter caddyfile *>&1 |
     Out-File -FilePath $log -Append -Encoding utf8

@@ -1,5 +1,5 @@
-# Caddyfile.template — setup-caddy.ps1 가 {{HOST}}, {{TAILSCALE_IP}}, {{CERT_DIR}},
-# {{LOG_DIR}} 치환 후 Caddyfile 로 떨궈둠. 직접 수정 금지 — 템플릿만 고치고
+﻿# Caddyfile.template -- setup-caddy.ps1 가 {{HOST}}, {{TAILSCALE_IP}}, {{CERT_DIR}},
+# {{LOG_DIR}} 치환 후 Caddyfile 로 떨궈둠. 직접 수정 금지 -- 템플릿만 고치고
 # setup-caddy.ps1 재실행.
 #
 # 목적: tailscale serve 가 WebSocket Upgrade 를 forward 못 해서 Multica 실시간
@@ -9,11 +9,11 @@
 {
     auto_https off
     admin off
-    # 외부 ACME 안 씀 — Tailscale cert 를 직접 마운트
+    # 외부 ACME 안 씀 -- Tailscale cert 를 직접 마운트
 }
 
 {{HOST}}:443 {
-    # Tailscale 인터페이스 IP 에만 listen — 공용 NIC 노출 0
+    # Tailscale 인터페이스 IP 에만 listen -- 공용 NIC 노출 0
     bind {{TAILSCALE_IP}}
 
     tls "{{CERT_DIR}}/{{HOST}}.crt" "{{CERT_DIR}}/{{HOST}}.key"
@@ -25,7 +25,7 @@
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-For {remote_host}
         header_up X-Forwarded-Proto {scheme}
-        # 60초 idle 끊김 방지 — WS 장수명 보장
+        # 60초 idle 끊김 방지 -- WS 장수명 보장
         transport http {
             keepalive 30s
             keepalive_idle_conns 16

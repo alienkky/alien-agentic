@@ -1,4 +1,4 @@
-# refresh-tailscale-cert.ps1 — Tailscale 인증서 30일 이하 남으면 갱신.
+﻿# refresh-tailscale-cert.ps1 -- Tailscale 인증서 30일 이하 남으면 갱신.
 # AlienAgentic-CertRefresh Task 가 매주 일요일 03:00 호출.
 # 갱신 후 Caddy 가 새 인증서를 자동 리로드한다 (Caddy 는 디스크 변경 감지).
 
@@ -18,7 +18,7 @@ $log = Join-Path $logDir ("aa-cert-refresh-{0}.log" -f (Get-Date -Format "yyyy-M
 
 # .env 에서 hostname 읽기
 if (-not (Test-Path $envFile)) {
-    "ERROR: .env 없음 — setup-caddy.ps1 먼저 실행" | Out-File -FilePath $log -Append -Encoding utf8
+    "ERROR: .env 없음 -- setup-caddy.ps1 먼저 실행" | Out-File -FilePath $log -Append -Encoding utf8
     exit 1
 }
 
@@ -43,7 +43,7 @@ if (-not (Test-Path $certCrt)) {
         Out-File -FilePath $log -Append -Encoding utf8
 
     if ($daysLeft -gt 30) {
-        "30일 초과 — 갱신 스킵" | Out-File -FilePath $log -Append -Encoding utf8
+        "30일 초과 -- 갱신 스킵" | Out-File -FilePath $log -Append -Encoding utf8
         "=== exit 0 ===" | Out-File -FilePath $log -Append -Encoding utf8
         exit 0
     }
@@ -58,10 +58,10 @@ if ($needsRenew) {
             $_ | Out-File -FilePath $log -Append -Encoding utf8
         }
         if ($LASTEXITCODE -eq 0) {
-            "갱신 성공 — Caddy 가 디스크 변경 감지해 자동 리로드" |
+            "갱신 성공 -- Caddy 가 디스크 변경 감지해 자동 리로드" |
                 Out-File -FilePath $log -Append -Encoding utf8
         } else {
-            "갱신 실패 (exit $LASTEXITCODE) — 다음 주 재시도" |
+            "갱신 실패 (exit $LASTEXITCODE) -- 다음 주 재시도" |
                 Out-File -FilePath $log -Append -Encoding utf8
         }
     } finally {
