@@ -1,4 +1,4 @@
-# Multica 전체 셋업 — fresh clone 후 이 한 줄이면 우리 커스터마이즈가 다 복원된다.
+﻿# Multica 전체 셋업 — fresh clone 후 이 한 줄이면 우리 커스터마이즈가 다 복원된다.
 #   1. 한국어 locale + 브랜딩 복원 (restore-korean-locale.py)
 #   2. Alien Plan 설치 (install-alien-plan.py)
 #   3. docker rebuild 1회 (build override 포함 — autostart 와 이미지 정합)
@@ -22,7 +22,8 @@ if (-not (Test-Path $multica)) {
 
 $steps = @(
     @{ name = "한국어 locale + 브랜딩 복원"; script = "restore-korean-locale.py" },
-    @{ name = "Alien Plan 설치";            script = "install-alien-plan.py" }
+    @{ name = "Alien Plan 설치";            script = "install-alien-plan.py" },
+    @{ name = "Alien Memory 설치";          script = "install-alien-memory.py" }
 )
 
 $i = 0
