@@ -1,0 +1,36 @@
+# Alien Agentic -- Memory API sidecar
+#
+# 자체 docker compose project (Multica 와 분리). 단순한 단일 컨테이너.
+# 호스트 shared-memory/agents/ 를 RESTful 로 노출.
+#
+# 가동:
+#   docker compose up -d --build
+#
+# 헬스체크:
+#   curl http://127.0.0.1:8765/health
+#
+# Caddy 가 https://<tailnet>/api/alien-memory/* 를 여기로 reverse_proxy 한다.
+
+services:
+  alien-memory-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: alien-memory-api:dev
+    container_name: aa-memory-api
+    restart: unless-stopped
+    ports:
+      # 127.0.0.1 only -- 외부 노출은 Caddy 의 역할
+      - "127.0.0.1:8765:8765"
+    volumes:
+      # repo 루트의 shared-memory/agents 를 컨테이너 /data/agents 에 마운트
+      # (alien-config/memory-api/ 에서 4단계 상위가 repo root)
+      - ../../../../shared-memory/agents:/data/agents:rw
+    environment:
+      MEMORY_DATA_DIR: /data/agents
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health').read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s

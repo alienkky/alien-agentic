@@ -30,3 +30,23 @@ docker compose -f docker-compose.selfhost.yml -f docker-compose.selfhost.build.y
 # 직접 `tailscale serve --https` 다시 호출 금지 -- Caddy 와 443 점유 충돌.
 "HTTPS 종결은 Caddy(AlienAgentic-Caddy Task)가 담당 -- 여기서 처리 안 함" |
     Out-File -FilePath $log -Append -Encoding utf8
+
+# Memory API sidecar -- 27명 에이전트 메모리(work/learnings/decisions/mistakes.md)
+# 를 Multica UI 에서 보고 편집할 수 있게 하는 자체 컨테이너.
+# docker compose up -d 는 idempotent -- 이미 떠 있으면 no-op.
+# 자세한 내용: automation/intranet/alien-config/memory-api/README.md
+$memoryDir = "e:\AlienAgentic\alien-agentic\automation\intranet\alien-config\memory-api"
+if (Test-Path (Join-Path $memoryDir "docker-compose.yml")) {
+    "=== {0} memory-api up ===" -f (Get-Date -Format "HH:mm:ss") |
+        Out-File -FilePath $log -Append -Encoding utf8
+    Push-Location $memoryDir
+    try {
+        docker compose up -d *>&1 | Out-File -FilePath $log -Append -Encoding utf8
+        "=== memory-api exit {0} ===" -f $LASTEXITCODE |
+            Out-File -FilePath $log -Append -Encoding utf8
+    } finally {
+        Pop-Location
+    }
+} else {
+    "memory-api 폴더 없음 -- 스킵" | Out-File -FilePath $log -Append -Encoding utf8
+}
