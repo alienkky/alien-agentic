@@ -18,17 +18,32 @@
 
     tls "{{CERT_DIR}}/{{HOST}}.crt" "{{CERT_DIR}}/{{HOST}}.key"
 
-    # localhost:3000 = multica frontend (docker-compose 가 호스트 포트 3000 으로 발행)
+    # Alien Memory API (sidecar) -- /api/alien-memory/* 를 127.0.0.1:8765 로
+    # uri strip_prefix 로 prefix 제거 후 forward
+    # (호출 예: /api/alien-memory/agents -> sidecar 의 /agents)
+    handle /api/alien-memory/* {
+        uri strip_prefix /api/alien-memory
+        reverse_proxy 127.0.0.1:8765 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # 그 외 모든 요청 -> Multica frontend (localhost:3000)
     # WebSocket 은 Caddy 가 Upgrade 헤더를 자동 감지 → 같은 reverse_proxy 로 처리
-    reverse_proxy localhost:3000 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-        # 60초 idle 끊김 방지 -- WS 장수명 보장
-        transport http {
-            keepalive 30s
-            keepalive_idle_conns 16
+    handle {
+        reverse_proxy localhost:3000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+            # 60초 idle 끊김 방지 -- WS 장수명 보장
+            transport http {
+                keepalive 30s
+                keepalive_idle_conns 16
+            }
         }
     }
 
