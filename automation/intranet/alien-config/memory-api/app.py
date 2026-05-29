@@ -39,6 +39,44 @@ DATA_DIR = Path(os.environ.get("MEMORY_DATA_DIR", "/data/agents")).resolve()
 # 헌법 §6 의 4파일 규약 -- 이게 전부. 다른 이름은 거부.
 ALLOWED_FILES = ("work.md", "learnings.md", "decisions.md", "mistakes.md")
 
+# 27명 영어 디렉토리명 → (한글 인명, 역할 라벨)
+# 매핑 출처: alien-config/seeds/seed_agents.py 의 DIVISIONS + seed_skills.py 의 한글 순서.
+# 같은 division 안 같은 순서로 1:1 대응. 사용자가 본 사이드바 표시명과 동일.
+KOREAN_NAMES: dict[str, tuple[str, str]] = {
+    # WHY -- 외계어 통역사
+    "origin-reader":          ("심연우", "Why발굴"),
+    "pain-interpreter":       ("민애린", "페인진단"),
+    "vision-architect":       ("윤지평", "비전설계"),
+    "culture-linguist":       ("서가온", "컬쳐언어"),
+    "story-weaver":           ("한벼리", "내러티브"),
+    # HOW -- 외계 설계자
+    "process-cartographer":   ("고도현", "프로세스"),
+    "agent-architect":        ("구도연", "팀설계"),
+    "workflow-engineer":      ("류한길", "워크플로"),
+    "integration-specialist": ("연다리", "통합설계"),
+    "data-strategist":        ("차곡담", "데이터"),
+    "kpi-translator":         ("정도량", "KPI"),
+    "org-designer":           ("양터전", "조직설계"),
+    # WHAT -- 외계 빌더
+    "prompt-engineer":        ("남말씨", "프롬프트"),
+    "subagent-builder":       ("표본새", "에이전트빌더"),
+    "mcp-connector":          ("방연동", "MCP"),
+    "automation-coder":       ("공도율", "자동화"),
+    "knowledge-architect":    ("장서윤", "지식설계"),
+    "ui-ux-designer":         ("백그림", "UI/UX"),
+    "qa-tester":              ("하검수", "QA"),
+    # CTRL -- 지구 적응
+    "sales-closer":           ("주결음", "영업"),
+    "content-scout":          ("노소문", "콘텐츠"),
+    "client-concierge":       ("안다정", "고객관리"),
+    "finance-tracker":        ("나재율", "재무"),
+    "brand-keeper":           ("문지율", "브랜드검수"),
+    # R&D -- 외계 연구원
+    "trend-hunter":           ("추세현", "트렌드"),
+    "case-curator":           ("모사록", "케이스"),
+    "future-forecaster":      ("오먼동", "미래예측"),
+}
+
 # 파일 1개 최대 크기 (4 MB) -- 메모리 폭주 방지
 MAX_FILE_BYTES = 4 * 1024 * 1024
 
@@ -133,7 +171,13 @@ def list_agents() -> dict:
         if not agent_dir.is_dir() or agent_dir.name.startswith("."):
             continue
         files = [_file_meta(agent_dir / fname) for fname in ALLOWED_FILES]
-        agents.append({"name": agent_dir.name, "files": files})
+        korean_name, role = KOREAN_NAMES.get(agent_dir.name, ("", ""))
+        agents.append({
+            "name": agent_dir.name,
+            "korean_name": korean_name,
+            "role": role,
+            "files": files,
+        })
 
     return {"count": len(agents), "agents": agents}
 

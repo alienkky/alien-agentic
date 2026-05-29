@@ -18,6 +18,8 @@ type FileMeta = {
 
 type Agent = {
   name: string;
+  korean_name?: string;
+  role?: string;
   files: FileMeta[];
 };
 
@@ -268,7 +270,21 @@ export function AlienMemoryPage(): ReactNode {
                   style={styles.agentRow}
                 >
                   <span style={styles.agentCaret}>{isOpen ? "▾" : "▸"}</span>
-                  <span style={styles.agentName}>{agent.name}</span>
+                  <span style={styles.agentNameBox}>
+                    {agent.korean_name ? (
+                      <>
+                        <span style={styles.agentNameTopRow}>
+                          <span style={styles.agentNameKo}>{agent.korean_name}</span>
+                          {agent.role && (
+                            <span style={styles.agentRole}>[{agent.role}]</span>
+                          )}
+                        </span>
+                        <span style={styles.agentNameEn}>{agent.name}</span>
+                      </>
+                    ) : (
+                      <span style={styles.agentNameEn}>{agent.name}</span>
+                    )}
+                  </span>
                   <span style={styles.agentMeta}>{filledCount}/4</span>
                 </button>
                 {isOpen && (
@@ -313,7 +329,14 @@ export function AlienMemoryPage(): ReactNode {
             <>
               <div style={styles.editorHeader}>
                 <div style={styles.breadcrumb}>
-                  <span style={styles.breadcrumbAgent}>{selected.agent}</span>
+                  {(() => {
+                    const a = agents.find((x) => x.name === selected.agent);
+                    return (
+                      <span style={styles.breadcrumbAgent}>
+                        {a?.korean_name ? `${a.korean_name} · ${selected.agent}` : selected.agent}
+                      </span>
+                    );
+                  })()}
                   <span style={styles.breadcrumbSep}>/</span>
                   <span>
                     {fileIcon(selected.file)} {selected.file}
@@ -478,8 +501,41 @@ const styles: Record<string, CSSProperties> = {
     width: 12,
     color: "var(--muted-foreground, #909090)",
   },
-  agentName: {
+  agentNameBox: {
     flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: 1,
+    minWidth: 0,
+  },
+  agentNameTopRow: {
+    display: "flex",
+    alignItems: "baseline",
+    gap: 6,
+    lineHeight: 1.2,
+  },
+  agentNameKo: {
+    fontSize: 13,
+    fontWeight: 600,
+    color: "var(--foreground, #1a1a1a)",
+  },
+  agentRole: {
+    fontSize: 10,
+    fontWeight: 500,
+    color: "var(--muted-foreground, #707070)",
+  },
+  agentNameEn: {
+    fontSize: 10.5,
+    color: "var(--muted-foreground, #909090)",
+    fontFamily:
+      "'JetBrains Mono', ui-monospace, 'Cascadia Code', Menlo, monospace",
+    fontWeight: 400,
+    lineHeight: 1.2,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    maxWidth: "100%",
   },
   agentMeta: {
     fontSize: 11,
