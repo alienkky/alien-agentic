@@ -238,6 +238,10 @@ export function AlienPlanPage() {
   const [modalOpen, setModalOpen] = useState(false);
 
   // ── 서버 저장 레이어 (Multica 전용 이슈를 KV 로) ──
+  // 이중 저장 전략: 서버(Multica 이슈 description) + localStorage 동시.
+  // 어느 한 쪽이 실패해도 다른 쪽에서 복구 가능. 로드 시 richer (logs+tasks 합계 큰 쪽)
+  // 자동 채택 → 데이터 손실 거의 불가능.
+  //
   // useWorkspaceId 는 워크스페이스 라우트 안에서만 유효 — Alien Plan 은
   // [workspaceSlug]/(dashboard)/alien-plan 라우트라 항상 컨텍스트가 있다.
   const wsId = useWorkspaceId();
@@ -250,6 +254,10 @@ export function AlienPlanPage() {
   });
   const createIssue = useCreateIssue();
   const updateIssue = useUpdateIssue();
+
+  // 저장 상태 UI (사용자가 데이터 손실 위험을 바로 알 수 있게)
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
   const { data: agentsRaw } = useQuery(agentListOptions(wsId));
   const agents: PlanAgent[] = ((agentsRaw ?? []) as PlanAgent[]).filter((a) => !a.archived_at);
 
@@ -262,65 +270,113 @@ export function AlienPlanPage() {
     ensurePretendard();
   }, []);
 
-  // 서버에서 1회 로드 — 전용 이슈 description(JSON) → state.
-  // 전용 이슈가 아직 없으면 기존 localStorage 데이터를 마이그레이션 소스로 읽는다
-  // (그 직후 save effect 가 전용 이슈를 생성하며 서버로 승격됨).
+  // 로드 — 서버 + localStorage 둘 다 시도, richer (logs+tasks 합계 큰 쪽) 채택.
+  // 한쪽이 비어있거나 깨졌어도 다른 쪽이 살아있으면 복구된다.
   useEffect(() => {
     if (loaded) return;
     if (issueList === undefined) return; // 이슈 목록 로딩 중 — 대기
-    if (stateIssueId) {
-      if (stateIssueDetail === undefined) return; // 전용 이슈 상세 로딩 중 — 대기
+    if (stateIssueId && stateIssueDetail === undefined) return; // 전용 이슈 상세 로딩 중
+
+    // 서버 데이터 파싱
+    let serverData: PlanState | null = null;
+    if (stateIssueId && stateIssueDetail) {
       try {
         const raw = stateIssueDetail.description;
         if (raw) {
-          const data = JSON.parse(raw) as Partial<PlanState>;
-          setState({ logs: data.logs ?? {}, tasks: data.tasks ?? [] });
+          const parsed = JSON.parse(raw) as Partial<PlanState>;
+          if (parsed.logs || parsed.tasks) {
+            serverData = { logs: parsed.logs ?? {}, tasks: parsed.tasks ?? [] };
+          }
         }
       } catch (e) {
-        console.warn("Alien Plan server load failed", e);
+        console.warn("Alien Plan server load parse failed", e);
       }
-      setLoaded(true);
-      return;
     }
+
+    // localStorage 백업 데이터 파싱
+    let lsData: PlanState | null = null;
     try {
       const lsRaw = localStorage.getItem(STORE_KEY);
       if (lsRaw) {
-        const data = JSON.parse(lsRaw) as Partial<PlanState>;
-        setState({ logs: data.logs ?? {}, tasks: data.tasks ?? [] });
+        const parsed = JSON.parse(lsRaw) as Partial<PlanState>;
+        if (parsed.logs || parsed.tasks) {
+          lsData = { logs: parsed.logs ?? {}, tasks: parsed.tasks ?? [] };
+        }
       }
     } catch (e) {
-      console.warn("Alien Plan localStorage migration failed", e);
+      console.warn("Alien Plan localStorage load parse failed", e);
+    }
+
+    // 둘 중 richer 채택 (의도적 전체 삭제로 빈 상태가 정답인 경우는 매우 드물고,
+    // 데이터 손실 방지가 더 중요)
+    const richness = (d: PlanState | null) =>
+      d ? Object.keys(d.logs).length + d.tasks.length : -1;
+    const chosen = richness(serverData) >= richness(lsData) ? serverData : lsData;
+    if (chosen) {
+      setState(chosen);
+      if (serverData && lsData && richness(lsData) > richness(serverData)) {
+        // localStorage 가 더 풍부 → 서버로 곧 동기화될 것 (save effect 가 처리)
+        console.info("Alien Plan: localStorage 가 서버보다 풍부 — 곧 서버로 sync");
+      }
     }
     setLoaded(true);
   }, [loaded, issueList, stateIssueId, stateIssueDetail]);
 
-  // 변경 시 서버 저장 (debounce 1.5s) — 전용 이슈 find-or-create.
+  // 저장 — localStorage 즉시 + 서버 비동기 (이중 저장).
+  // 서버 실패해도 localStorage 는 살아남아 다음 로드에서 복구된다.
   useEffect(() => {
     if (!loaded) return;
-    // 완전 빈 상태(신규 사용자)면 빈 전용 이슈를 만들지 않는다.
-    if (Object.keys(state.logs).length === 0 && state.tasks.length === 0) return;
+    const payload = JSON.stringify({ logs: state.logs, tasks: state.tasks });
+
+    // 1) localStorage 즉시 백업 — 동기, 빠름, 실패 거의 없음
+    try {
+      localStorage.setItem(STORE_KEY, payload);
+    } catch (e) {
+      console.warn("Alien Plan localStorage save failed", e);
+    }
+
+    // 2) 서버는 debounce 후 비동기 저장
+    // 빈 전용 이슈는 만들지 않음 (신규 사용자) — 단, 한 번이라도 데이터가 있었으면
+    // 이슈가 이미 만들어졌으니 그 이슈는 계속 업데이트.
+    const isEmpty = Object.keys(state.logs).length === 0 && state.tasks.length === 0;
+    const targetId = stateIssueId ?? ensuredIssueIdRef.current;
+    if (isEmpty && !targetId) return;
+
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       if (savingRef.current) return;
       savingRef.current = true;
-      const payload = JSON.stringify({ logs: state.logs, tasks: state.tasks });
-      const done = () => {
+      setSaveStatus("saving");
+      const done = (ok: boolean, errMsg?: string) => {
         savingRef.current = false;
+        if (ok) {
+          setSaveStatus("saved");
+          setSaveError(null);
+          setTimeout(() => setSaveStatus((s) => (s === "saved" ? "idle" : s)), 2000);
+        } else {
+          setSaveStatus("error");
+          setSaveError(errMsg ?? "서버 저장 실패 — 로컬 백업은 안전합니다");
+        }
       };
-      const targetId = stateIssueId ?? ensuredIssueIdRef.current;
       if (targetId) {
         updateIssue
           .mutateAsync({ id: targetId, description: payload })
-          .catch((e) => console.warn("Alien Plan server save failed", e))
-          .finally(done);
+          .then(() => done(true))
+          .catch((e: unknown) => {
+            console.warn("Alien Plan server save failed", e);
+            done(false, e instanceof Error ? e.message : String(e));
+          });
       } else {
         createIssue
           .mutateAsync({ title: STATE_ISSUE_TITLE, status: "todo", description: payload })
           .then((created) => {
             ensuredIssueIdRef.current = (created as { id: string }).id;
+            done(true);
           })
-          .catch((e) => console.warn("Alien Plan server create failed", e))
-          .finally(done);
+          .catch((e: unknown) => {
+            console.warn("Alien Plan server create failed", e);
+            done(false, e instanceof Error ? e.message : String(e));
+          });
       }
     }, 1500);
     return () => {
@@ -504,6 +560,47 @@ export function AlienPlanPage() {
       </main>
 
       {modalOpen && <AddTaskModal onClose={() => setModalOpen(false)} onSubmit={addTask} agents={agents} />}
+
+      {/* 저장 상태 배지 — 우하단 고정. 사용자가 데이터 손실 위험을 즉시 알 수 있게. */}
+      {saveStatus !== "idle" && (
+        <div
+          style={{
+            position: "fixed",
+            right: 16,
+            bottom: 16,
+            zIndex: 9999,
+            padding: "8px 14px",
+            borderRadius: 8,
+            fontSize: 13,
+            fontWeight: 500,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
+            background:
+              saveStatus === "error"
+                ? "var(--error, #fee5e0)"
+                : saveStatus === "saved"
+                  ? "var(--success, #e6f4e0)"
+                  : "var(--muted, #f4f4f5)",
+            color:
+              saveStatus === "error"
+                ? "var(--error-foreground, #a01408)"
+                : saveStatus === "saved"
+                  ? "var(--success-foreground, #2a6f0a)"
+                  : "var(--muted-foreground, #707070)",
+            maxWidth: 320,
+          }}
+        >
+          {saveStatus === "saving" && "저장 중..."}
+          {saveStatus === "saved" && "✓ 저장됨"}
+          {saveStatus === "error" && (
+            <>
+              ⚠ {saveError ?? "서버 저장 실패"}
+              <div style={{ fontSize: 11, marginTop: 4, opacity: 0.85 }}>
+                로컬 백업은 안전 — 다음 변경 시 재시도됨
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
