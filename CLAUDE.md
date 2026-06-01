@@ -217,6 +217,7 @@ E:\AlienAgentic\alien-agentic\
    - 전제: open-design 데몬 가동 (`automation/intranet/open-design`, `pnpm tools-dev run web`). 데몬 URL 기본 7456 과 다르면 `--daemon-url`.
    - anti-AI-slop 가드(discovery·OKLch 결정론 팔레트·5차원 review)로 품질 보장. `--dry-run` 으로 계획 먼저.
    - 셋업·디자인시스템 2층: `docs/guides/open-design-setup.md`, `automation/intranet/alien-config/open-design/README.md`
+   - **인쇄용 (포스터·전단·명함·브로셔·책자) 디자인은 반드시 *미리보기 친화* 표준 prompt 동봉.** OpenDesign 의 기본 출력은 *디자이너 워크보드 톤*(dark background + JS auto-scale) 이라 *화면 미리보기에서 비어 보이는* 함정이 있다. 표준 prompt + 함정 회피: `docs/guides/print-design-prompt-standard.md` (교훈: 2026-05-27 — Neora A1 포스터 미리보기 빈 화면 사고)
 
 ---
 
