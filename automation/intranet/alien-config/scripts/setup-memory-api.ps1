@@ -1,4 +1,4 @@
-﻿# setup-memory-api.ps1 -- Alien Memory API sidecar 빌드 + 가동 + 헬스체크.
+﻿﻿# setup-memory-api.ps1 -- Alien Memory API sidecar 빌드 + 가동 + 헬스체크.
 #
 # 1회 실행. 부팅 후 자동 가동은 autostart-serve.ps1 이 동일 명령을 매번 호출
 # (docker compose up -d 는 idempotent).
@@ -19,6 +19,22 @@ Write-Host ""
 
 Push-Location $memoryDir
 try {
+    # 0) 에이전트 메모리 디렉토리 + 4 빈 파일 보장 (컨테이너 가동 전)
+    # shared-memory/agents/{name}/ 가 없으면 외계인 메모리 페이지에 안 보임.
+    Write-Host "[0/3] 27명 메모리 디렉토리 ensure..."
+    $ensureScript = Join-Path $PSScriptRoot "ensure-agent-memories.py"
+    if (Test-Path $ensureScript) {
+        $venvPy = Join-Path $repo "automation\cli\.venv\Scripts\python.exe"
+        if (Test-Path $venvPy) { $py = $venvPy } else { $py = "python" }
+        & $py $ensureScript 2>&1 | ForEach-Object { Write-Host "      $_" }
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "ensure-agent-memories.py 실패 -- 메모리 페이지에 일부 에이전트만 보일 수 있음"
+        }
+    } else {
+        Write-Warning "ensure-agent-memories.py 없음 -- 스킵"
+    }
+    Write-Host ""
+
     Write-Host "[1/3] docker compose build + up..."
 
     # build + up. EAP=Continue 로 풀어 native stderr 가 에러로 안 잡히게.
