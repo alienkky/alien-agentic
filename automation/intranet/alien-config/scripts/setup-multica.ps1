@@ -22,6 +22,7 @@ if (-not (Test-Path $multica)) {
 
 $steps = @(
     @{ name = "한국어 locale + 브랜딩 복원"; script = "restore-korean-locale.py" },
+    @{ name = "Claude 4.8 모델 추가";        script = "add-claude-4-8-models.py" },
     @{ name = "Alien Plan 설치";            script = "install-alien-plan.py" },
     @{ name = "Alien Memory 설치";          script = "install-alien-memory.py" }
 )
