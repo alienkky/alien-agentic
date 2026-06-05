@@ -17,7 +17,7 @@
 | 도구 | 역할 | 사용 빈도 | 인증 | 비고 |
 |---|---|---|---|---|
 | **Multica REST API** (Alien Plan 저장 이슈) | 메모 저장 타깃 | 메모 1건/회 | Multica session token (브릿지 보유 1개) | 핵심 데이터 경로 |
-| **OpenAI Whisper API** (`whisper-1`) | 음성→텍스트 | 메모 1건/회 | `OPENAI_API_KEY` (브릿지 `.env`) | $0.006/분 |
+| **OpenAI Whisper API** (`whisper-1`) | 음성→텍스트 | 메모 1건/회 | **기존 Alien Agentic OpenAI 키 재사용** (브릿지 `.env` 의 `OPENAI_API_KEY`) | $0.006/분 |
 | **faster-whisper large-v3** (로컬 GPU) | Whisper API 폴백 | 오프라인/장애 시 | 없음 | RTX 4090, ComfyUI 와 GPU 공유 |
 | **Tailscale (`alien-4090.taile7f882.ts.net`)** | 브릿지 관리 채널 | 운영자만 | Tailscale OAuth | **펌웨어 트래픽 경로 아님** (ESP32-S3 미지원) |
 | **가정 WiFi LAN** | 펌웨어→브릿지 트래픽 | 메모 1건/회 | `X-Bridge-Token` | 브릿지가 `0.0.0.0:18080` listen |
@@ -64,7 +64,7 @@ Content-Type: audio/wav
 |---|---|---|---|
 | `X-Bridge-Token` | ✅ | 공유 비밀 | 인증 |
 | `X-Pala-Num` | ✅ | 양의 정수 (기기 단조 증가 카운터) | idempotency 키 구성 |
-| `X-Pala-Tag` | ✅ | `Work` / `Idea` / `Life` 등 (펌웨어 UI 에서 선택) | append 포맷 prefix |
+| `X-Pala-Tag` | ✅ | `Work` / `Idea` / `Life` 3종 고정 (펌웨어 UI 에서 선택) — 기영님 확정 2026-06-05 | append 포맷 prefix |
 | `X-Pala-CreatedUtc` | ✅ | RFC3339 UTC | `dateKey` 계산 (KST 변환은 브릿지가) |
 | `X-Pala-DeviceId` | ✅ | 기기 식별 슬러그 | idempotency 키 + 멀티 기기 대비 |
 
@@ -265,7 +265,7 @@ Phase 1c 가 *"태그 → task 승격"* 을 채택할 경우에만 추가:
 
 ### 5.3 보안
 
-- OpenAI 키는 `.env` 의 `OPENAI_API_KEY`. **펌웨어로 절대 내려보내지 않음.**
+- OpenAI 키는 `.env` 의 `OPENAI_API_KEY` — **기존 Alien Agentic OpenAI 계정 키 재사용** (별도 project 분리 안 함, 기영님 확정 2026-06-05). **펌웨어로 절대 내려보내지 않음.**
 - WAV 는 OpenAI 에 전송 → OpenAI 정책상 모델 학습 미사용(2026 기준). PII 우려 메모는 *나중에 §6 의 PII 정책* 으로 마스킹 (1c 권한).
 
 ---
@@ -391,17 +391,23 @@ PII hook: 브릿지에 `automation/alien-speech/anonymize.py` (stub) — 1c 결�
 | `mcp-connector` | (해당 없음 — 직접 API) | — |
 | `data-strategist` (Phase 1c, 차곡담) | append 포맷·dateKey·idempotency 키·PII 정책 확정 | `data-model.md` |
 | `workflow-engineer` (Phase 1a, 류한길) | E2E 시퀀스·실패 모드 다이어그램 | `workflow.md` |
-| `automation-coder` / `subagent-builder` (Phase 2a, 공도율) | 본 스펙대로 `bridge.py` + 펌웨어 패치 구현 | `automation/alien-speech/`, 펌웨어 |
+| `automation-coder` / `subagent-builder` (Phase 2a, 공도율) | 본 스펙대로 `bridge.py` + 펌웨어 패치 구현 — **기영님 결정 2026-06-05: Phase 1a/1c 완료 전에 같이 진행 (선행 착수)**. 1a/1c 결과가 충돌하면 §4.3/§4.4 만 사후 보정 | `automation/alien-speech/`, 펌웨어 |
 | `qa-tester` (Phase 3) | E2E 시나리오 3종 (해피·중복·다운) | `qa/scenarios.md` |
 
 **cross-check 메시지**: Phase 1a/1c 산출물이 도착하면 본 문서 §4.4 의 append 포맷·§4.3 의 idem key 를 *1c 정의로 교체*. 충돌 발견 시 `shared-memory/messages/` 경유.
 
 ---
 
-## 10. 미해결 (기영님 확인)
+## 10. 미해결
 
-1. **브릿지 LAN IP 고정 방식** — 공유기 DHCP 예약 vs 4090 PC 의 정적 IP. 권장: 공유기 DHCP 예약 (재설정 비용 0).
-2. **WAV 최대 길이** — 펌웨어 V1.0 의 최대 녹음 시간이 60초인가 더 긴가. 본 문서는 60초/4MB 가정. *공도율* 이 펌웨어 코드 확인 후 확정.
-3. **저장 이슈가 동시에 잠겼을 때(UI 와 메모가 같은 1초에 저장)** — 3회 재시도로 회수되지 않으면 SD 에 남기고 다음 동기화. *기영님 결정 불필요* (자동 회수).
+### 기영님 확정 (2026-06-05)
+- **OpenAI 키**: 기존 Alien Agentic 키 재사용 (전용 project 미분리). §1·§5.3 반영.
+- **펌웨어 태그**: `Work` / `Idea` / `Life` 3종 고정. §2.2 반영.
+- **Phase 2a 빌드 타이밍**: 1a/1c 와 같이 진행 (선행 착수). §9 반영. ALI-92 promote.
+
+### 남은 자리
+1. **브릿지 LAN IP 고정 방식** — 공유기 DHCP 예약 vs 4090 PC 의 정적 IP. 권장: 공유기 DHCP 예약 (재설정 비용 0). *공도율*이 셋업 시점에 결정.
+2. **WAV 최대 길이** — 펌웨어 V1.0 의 최대 녹음 시간이 60초인가 더 긴가. 본 문서는 60초/4MB 가정. *공도율*이 펌웨어 코드 확인 후 확정.
+3. **저장 이슈가 동시에 잠겼을 때 (UI 와 메모가 같은 1초에 저장)** — 3회 재시도로 회수되지 않으면 SD 에 남기고 다음 동기화. *기영님 결정 불필요* (자동 회수).
 
 🛸
