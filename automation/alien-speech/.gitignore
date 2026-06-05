@@ -1,0 +1,7 @@
+# Alien Speech 브릿지 — 런타임 데이터 (절대 커밋 X)
+.env
+.cache/
+logs/
+*.wav
+*.wav.done
+.venv/
