@@ -116,11 +116,12 @@ def _existing_keys(log_path: Path) -> set[tuple[str, str, str, str]]:
     return keys
 
 
-def _ensure_header(log_path: Path, folder_name: str) -> None:
+def _ensure_header(log_path: Path, folder_rel: str) -> None:
     if log_path.exists() and "| Time | Event |" in _read(log_path):
         return
     header = [
-        f"# Log: {folder_name}",
+        # H1 에 경로 전체를 박아 duplicate-title 충돌을 피한다.
+        f"# Log: {folder_rel}",
         "",
         "Append-only OpenViking folder log. Newest entries at bottom.",
         "",
@@ -222,7 +223,7 @@ def append_for(folder: Path, *, limit: int, since: str | None, dry_run: bool,
         sys.stderr.write(f"⚠ skip — 폴더 없음: {folder}\n")
         return 0
     log_path = folder / "log.md"
-    _ensure_header(log_path, folder.name or folder.relative_to(ROOT).as_posix())
+    _ensure_header(log_path, folder.relative_to(ROOT).as_posix())
     keys = _existing_keys(log_path)
 
     rows: list[LogRow] = []

@@ -41,6 +41,22 @@ from typing import Iterable
 ROOT = Path(__file__).resolve().parents[1]
 BRANCH_RE = re.compile(r"^agent/[a-z0-9][a-z0-9-]{0,40}/[a-z0-9][a-z0-9._-]{0,60}$")
 
+# ALI-105 aa-index 의 분류기를 단일 진실 원본으로 재사용 (스펙: ALI-101).
+# 실패 시 본 파일 내 DEFAULT_LAYER_RULES 로 폴백.
+_aai_classify = None
+try:
+    from importlib.util import spec_from_file_location, module_from_spec
+    _aai_spec = spec_from_file_location(
+        "_aa_index_for_pr", Path(__file__).resolve().parent / "aa-index.py",
+    )
+    if _aai_spec is not None and _aai_spec.loader is not None:
+        _aai_mod = module_from_spec(_aai_spec)
+        sys.modules["_aa_index_for_pr"] = _aai_mod
+        _aai_spec.loader.exec_module(_aai_mod)
+        _aai_classify = _aai_mod.classify_path  # type: ignore[attr-defined]
+except Exception:  # noqa: BLE001
+    _aai_classify = None
+
 # OpenViking 임시 매핑 — ALI-101 (`shared-memory/context/openviking-mapping.md`) 도착 시
 # `_load_openviking_mapping()` 가 이 표를 덮어쓴다. 현 폴더 구조 기준 골격.
 DEFAULT_LAYER_RULES: list[tuple[str, str]] = [
@@ -159,6 +175,11 @@ def _load_openviking_mapping() -> list[tuple[str, str]]:
 
 
 def _classify(path: str, rules: list[tuple[str, str]]) -> str:
+    # ALI-105: aa-index 가 있으면 그 분류 결과를 신뢰 (단일 진실).
+    if _aai_classify is not None:
+        layer = _aai_classify(path)
+        if layer in {"L0", "L1", "L2"}:
+            return layer
     for pat, layer in rules:
         if re.search(pat, path):
             return layer
@@ -181,11 +202,13 @@ def _collect_index_titles() -> dict[str, list[str]]:
     """기존 index.md / log.md 의 H1 제목 → 파일 목록."""
     titles: dict[str, list[str]] = defaultdict(list)
     for p in ROOT.rglob("index.md"):
+        rel = p.relative_to(ROOT).as_posix()  # Windows backslash 정규화
         for m in H1_RE.finditer(_read(p)):
-            titles[m.group(1).strip().lower()].append(str(p.relative_to(ROOT)))
+            titles[m.group(1).strip().lower()].append(rel)
     for p in ROOT.rglob("log.md"):
+        rel = p.relative_to(ROOT).as_posix()
         for m in H1_RE.finditer(_read(p)):
-            titles[m.group(1).strip().lower()].append(str(p.relative_to(ROOT)))
+            titles[m.group(1).strip().lower()].append(rel)
     return titles
 
 

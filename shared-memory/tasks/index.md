@@ -1,13 +1,13 @@
 ---
 index_version: 1
-generated_at: 2026-06-06T20:28:05+09:00
+generated_at: 2026-06-06T20:31:50+09:00
 root: shared-memory/tasks
 default_layer: L1
 owner: workflow-engineer
 source: auto
 ---
 
-# Index: tasks
+# Index: shared-memory/tasks
 
 ## Scope
 - Layer: L1
@@ -18,7 +18,7 @@ source: auto
 ## Entry Points
 | Path | Layer | Type | Updated | Summary |
 |---|---|---|---|---|
-| README.md | L1 | readme | 2026-05-14 | 진짜 회사의 *Jira / Kanban / Linear* 자리. |
+| README.md | L1 | readme | 2026-06-06 | 진짜 회사의 *Jira / Kanban / Linear* 자리. |
 
 ## Link Graph
 | From | Relation | To |
@@ -30,7 +30,7 @@ source: auto
 |---|---|---|---|
 
 ## Automation Notes
-- Last classifier run: 2026-06-06T20:28:05+09:00
+- Last classifier run: 2026-06-06T20:31:50+09:00
 - Unknown files: 0
 
 ---

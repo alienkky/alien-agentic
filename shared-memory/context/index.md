@@ -1,13 +1,13 @@
 ---
 index_version: 1
-generated_at: 2026-06-06T20:28:05+09:00
+generated_at: 2026-06-06T20:31:50+09:00
 root: shared-memory/context
 default_layer: L1
 owner: data-strategist
 source: auto
 ---
 
-# Index: context
+# Index: shared-memory/context
 
 ## Scope
 - Layer: L1
@@ -18,19 +18,22 @@ source: auto
 ## Entry Points
 | Path | Layer | Type | Updated | Summary |
 |---|---|---|---|---|
+| index-log-readme.md | L1 | readme | 2026-06-06 | > *"폴더의 진실은 폴더 안 `index.md` 한 장과 `log.md` 한 줄에 있다."* |
 | pr-pipeline.md | L1 | note | 2026-06-06 | > ALI-103. 에이전트는 main 에 직접 push 하지 않는다. |
 
 ## Link Graph
 | From | Relation | To |
 |---|---|---|
-| (none) | | |
+| index-log-readme.md | related | openviking-mapping.md |
+| index-log-readme.md | related | index-log-spec.md |
+| index-log-readme.md | related | pr-pipeline.md |
 
 ## Open Questions
 | ID | Question | Owner | Created |
 |---|---|---|---|
 
 ## Automation Notes
-- Last classifier run: 2026-06-06T20:28:05+09:00
+- Last classifier run: 2026-06-06T20:31:50+09:00
 - Unknown files: 0
 
 ---

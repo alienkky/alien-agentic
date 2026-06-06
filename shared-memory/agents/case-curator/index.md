@@ -1,13 +1,13 @@
 ---
 index_version: 1
-generated_at: 2026-06-06T20:28:06+09:00
+generated_at: 2026-06-06T20:31:50+09:00
 root: shared-memory/agents/case-curator
 default_layer: L2
 owner: case-curator
 source: auto
 ---
 
-# Index: case-curator
+# Index: shared-memory/agents/case-curator
 
 ## Scope
 - Layer: L2
@@ -33,7 +33,7 @@ source: auto
 |---|---|---|---|
 
 ## Automation Notes
-- Last classifier run: 2026-06-06T20:28:06+09:00
+- Last classifier run: 2026-06-06T20:31:50+09:00
 - Unknown files: 0
 
 ---

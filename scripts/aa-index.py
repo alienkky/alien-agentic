@@ -362,7 +362,6 @@ def render_index(folder: Path, entries: list[Entry], edges: list[LinkEdge],
                  redact: bool) -> str:
     rel = folder.relative_to(ROOT).as_posix()
     now = datetime.now(tz=KST).replace(microsecond=0).isoformat()
-    name = folder.name or rel
     lines: list[str] = []
     lines.append("---")
     lines.append("index_version: 1")
@@ -373,7 +372,8 @@ def render_index(folder: Path, entries: list[Entry], edges: list[LinkEdge],
     lines.append("source: auto")
     lines.append("---")
     lines.append("")
-    lines.append(f"# Index: {name}")
+    # H1 에 폴더 경로 전체를 박아 duplicate-title 충돌을 피한다.
+    lines.append(f"# Index: {rel}")
     lines.append("")
 
     # Scope

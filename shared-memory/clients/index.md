@@ -1,13 +1,13 @@
 ---
 index_version: 1
-generated_at: 2026-06-06T20:28:05+09:00
+generated_at: 2026-06-06T20:31:50+09:00
 root: shared-memory/clients
 default_layer: L1
 owner: automation-coder
 source: auto
 ---
 
-# Index: clients
+# Index: shared-memory/clients
 
 ## Scope
 - Layer: L1
@@ -30,7 +30,7 @@ source: auto
 |---|---|---|---|
 
 ## Automation Notes
-- Last classifier run: 2026-06-06T20:28:05+09:00
+- Last classifier run: 2026-06-06T20:31:50+09:00
 - Unknown files: 0
 
 ---

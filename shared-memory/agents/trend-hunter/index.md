@@ -1,13 +1,13 @@
 ---
 index_version: 1
-generated_at: 2026-06-06T20:28:06+09:00
+generated_at: 2026-06-06T20:31:51+09:00
 root: shared-memory/agents/trend-hunter
 default_layer: L2
 owner: trend-hunter
 source: auto
 ---
 
-# Index: trend-hunter
+# Index: shared-memory/agents/trend-hunter
 
 ## Scope
 - Layer: L2
@@ -33,7 +33,7 @@ source: auto
 |---|---|---|---|
 
 ## Automation Notes
-- Last classifier run: 2026-06-06T20:28:06+09:00
+- Last classifier run: 2026-06-06T20:31:51+09:00
 - Unknown files: 0
 
 ---
