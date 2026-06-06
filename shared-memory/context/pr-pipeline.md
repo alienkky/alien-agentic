@@ -144,7 +144,7 @@ error 가 1개라도 있으면 PR 라벨은 `knowledge-conflict`, CI job 은 fai
   ```bash
   python scripts/aa-pr.py submit --title "..."
   ```
-- **S6 (index/log 자동화)**: index/log 자동 생성기는 같은 `scripts/aa-pr.py:_collect_index_titles` 를 *읽기 전용*으로 재사용.
+- **S6 (index/log 자동화)**: `scripts/aa-index.py` + `scripts/aa-log.py` 가 PR 직전 `_precompile_indexes()` 로 자동 호출된다. 사양·옵션: [`index-log-readme.md`](index-log-readme.md).
 
 ---
 

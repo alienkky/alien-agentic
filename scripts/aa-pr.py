@@ -434,7 +434,39 @@ def cmd_verify_branch(args: argparse.Namespace) -> int:
     return 1
 
 
+def _precompile_indexes(base: str) -> list[str]:
+    """PR 생성 직전 ALI-105 의 aa-index / aa-log 를 호출해 index/log 재컴파일.
+
+    실패는 치명적이지 않음 (CI 에서 재시도). 메시지만 보고서에 끼워 넣는다.
+    """
+    notes: list[str] = []
+    scripts_dir = ROOT / "scripts"
+    for script, label in (
+        ("aa-index.py", "index"),
+        ("aa-log.py", "log"),
+    ):
+        target = scripts_dir / script
+        if not target.exists():
+            notes.append(f"⚠ {script} 미발견 — precompile 건너뜀")
+            continue
+        cmd = [sys.executable, str(target), "--all"]
+        res = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True,
+                             encoding="utf-8", errors="replace")
+        if res.returncode == 0:
+            tail = (res.stdout or "").strip().splitlines()[-1:] or [""]
+            notes.append(f"✅ {label}: {tail[0]}")
+        else:
+            err = (res.stderr or res.stdout or "").strip().splitlines()[-1:] or [""]
+            notes.append(f"⚠ {label}: returncode={res.returncode} — {err[0]}")
+    return notes
+
+
 def cmd_submit(args: argparse.Namespace) -> int:
+    # ALI-105: 변경 산정 직전에 index.md / log.md 재컴파일.
+    precompile_notes: list[str] = []
+    if not args.skip_precompile:
+        precompile_notes = _precompile_indexes(args.base)
+
     rep = build_report(args.base)
     if args.fail_on_error and rep.has_errors():
         sys.stderr.write("충돌 보고서에 error 가 있어 PR 생성 중단.\n")
@@ -442,7 +474,11 @@ def cmd_submit(args: argparse.Namespace) -> int:
         return 2
 
     body_path = Path(args.body_file) if args.body_file else ROOT / ".aa-pr-body.md"
-    body_path.write_text(render_markdown(rep), encoding="utf-8")
+    body_text = render_markdown(rep)
+    if precompile_notes:
+        body_text += "\n\n## 🧭 Pre-PR Index/Log Compile\n\n"
+        body_text += "\n".join(f"- {n}" for n in precompile_notes) + "\n"
+    body_path.write_text(body_text, encoding="utf-8")
 
     # 현재 브랜치를 origin 으로 푸시 (gh pr create 가 base 필요)
     try:
@@ -489,6 +525,8 @@ def main(argv: list[str] | None = None) -> int:
     p_submit.add_argument("--body-file", default=None,
                           help="비우면 .aa-pr-body.md 에 자동 생성")
     p_submit.add_argument("--fail-on-error", action="store_true", default=True)
+    p_submit.add_argument("--skip-precompile", action="store_true",
+                          help="aa-index / aa-log 사전 호출을 건너뜀 (디버그용)")
     p_submit.set_defaults(func=cmd_submit)
 
     args = p.parse_args(argv)
