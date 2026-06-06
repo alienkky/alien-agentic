@@ -20,7 +20,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from aa.agents import Agent
-from aa.config import CODEX_MODEL
+from aa.config import (
+    CLAUDE_OPUS_MODEL,
+    CLAUDE_SONNET_MODEL,
+    CODEX_MODEL,
+    OLLAMA_DEFAULT_MODEL,
+)
 
 # ── 모달리티 ────────────────────────────────────────────────────────────────
 MODALITIES = ("text", "image", "video")
@@ -56,15 +61,17 @@ T1_KEYWORDS = (
     "복사", "오타", "맞춤법", "번역", "추출",
 )
 
-# 티어 → (공급자, Claude 모델). chatgpt 경로의 모델은 CODEX_MODEL 이 결정.
+# 티어 → (공급자, Claude 모델 ID). 모델 ID 는 config.py 가 .env 로 덮어쓸 수 있게
+# 한 자리에 모아 두므로, 신모델 출시 시 .env 한 줄로 갱신된다.
+# chatgpt 경로의 모델은 CODEX_MODEL 이 결정.
 TIER_ROUTING: dict[str, tuple[str, str]] = {
-    "T1": ("chatgpt", ""),       # 경량 → ChatGPT Pro (Codex CLI)
-    "T2": ("claude", "sonnet"),  # 표준 → Claude Sonnet
-    "T3": ("claude", "opus"),    # 심층 → Claude Opus
+    "T1": ("chatgpt", ""),                    # 경량 → ChatGPT Pro (Codex CLI)
+    "T2": ("claude", CLAUDE_SONNET_MODEL),    # 표준 → Claude Sonnet
+    "T3": ("claude", CLAUDE_OPUS_MODEL),      # 심층 → Claude Opus (기본: 4.8)
 }
 
-# 공급자 — text: claude/chatgpt · image: comfyui(기본)/chatgpt(텍스트·로고) · video: comfyui
-PROVIDERS = ("claude", "chatgpt", "comfyui")
+# 공급자 — text: claude/chatgpt/ollama · image: comfyui(기본)/chatgpt · video: comfyui
+PROVIDERS = ("claude", "chatgpt", "comfyui", "ollama")
 IMAGE_PROVIDERS = ("chatgpt", "comfyui")
 VIDEO_PROVIDERS = ("comfyui",)
 
@@ -195,16 +202,21 @@ def route(
 
     if provider == "comfyui":
         # 텍스트는 ComfyUI 미지원 (이미지·동영상 전용)
-        chosen, model = "claude", "opus" if tier == "T3" else "sonnet"
+        chosen = "claude"
+        model = CLAUDE_OPUS_MODEL if tier == "T3" else CLAUDE_SONNET_MODEL
         reason += " · comfyui 텍스트 미지원 → claude 대체"
     elif provider == "claude":
         chosen = "claude"
-        model = "opus" if tier == "T3" else "sonnet"
+        model = CLAUDE_OPUS_MODEL if tier == "T3" else CLAUDE_SONNET_MODEL
         reason += " · 공급자 수동 지정(claude)"
     elif provider == "chatgpt":
         chosen = "chatgpt"
         model = CODEX_MODEL
         reason += " · 공급자 수동 지정(chatgpt)"
+    elif provider == "ollama":
+        chosen = "ollama"
+        model = OLLAMA_DEFAULT_MODEL
+        reason += f" · 공급자 수동 지정(ollama/4090 로컬, 기본 {model})"
     else:
         chosen = base_provider
         model = CODEX_MODEL if chosen == "chatgpt" else base_model

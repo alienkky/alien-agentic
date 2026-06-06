@@ -36,6 +36,9 @@ from aa.config import (
     AGENT_MEMORY,
     AGENTS_DIR,
     CLAUDE_BIN,
+    CLAUDE_HAIKU_MODEL,
+    CLAUDE_OPUS_MODEL,
+    CLAUDE_SONNET_MODEL,
     CODEX_BIN,
     CODEX_MODEL,
     COMFYUI_OUTPUT_TIMEOUT,
@@ -47,6 +50,9 @@ from aa.config import (
     ENV_FILE,
     INTERVENTIONS,
     MESSAGES,
+    OLLAMA_DEFAULT_MODEL,
+    OLLAMA_TIMEOUT,
+    OLLAMA_URL,
     ROOT,
     USAGE_DIR,
     USER_NAME,
@@ -165,6 +171,71 @@ def list_cmd(
 
 
 # ──────────────────────────────────────────────────────────────────────────
+# aa models — 공급자별 사용 가능 모델 목록 (Claude / Codex / Ollama)
+# ──────────────────────────────────────────────────────────────────────────
+@app.command()
+def models() -> None:
+    """공급자별 사용 가능 모델 — Claude(.env 설정) · Codex · Ollama(4090 라이브 조회)."""
+    console.rule("🛸 사용 가능 모델")
+
+    # Claude — config 의 명시 ID
+    console.print("\n[bold cyan]Claude (Max 구독)[/bold cyan]")
+    claude_tbl = Table(show_header=True, header_style="bold")
+    claude_tbl.add_column("Alias", style="magenta")
+    claude_tbl.add_column("Model ID")
+    claude_tbl.add_column("기본 용도", style="dim")
+    claude_tbl.add_row("opus", CLAUDE_OPUS_MODEL, "T3 심층 — 4층 진단·비전 설계")
+    claude_tbl.add_row("sonnet", CLAUDE_SONNET_MODEL, "T2 표준 — 대부분의 에이전트 작업")
+    claude_tbl.add_row("haiku", CLAUDE_HAIKU_MODEL, "경량 — 빠른 응답")
+    console.print(claude_tbl)
+    console.print(
+        "[dim].env: CLAUDE_OPUS_MODEL / CLAUDE_SONNET_MODEL / CLAUDE_HAIKU_MODEL "
+        "로 한 줄 갱신[/dim]"
+    )
+
+    # Codex — ChatGPT Pro
+    console.print("\n[bold cyan]Codex (ChatGPT Pro)[/bold cyan]")
+    if CODEX_MODEL:
+        console.print(f"  • {CODEX_MODEL}  [dim](CODEX_MODEL 환경변수)[/dim]")
+    else:
+        console.print("  • [dim](계정 기본 — codex CLI 가 결정)[/dim]")
+
+    # Ollama — 4090 라이브 조회
+    console.print(
+        f"\n[bold cyan]Ollama (4090 로컬 오픈 모델)[/bold cyan]  [dim]{OLLAMA_URL}[/dim]"
+    )
+    if not _ollama_alive(OLLAMA_URL):
+        console.print(
+            "[yellow]서버 응답 없음.[/yellow]"
+            " [dim]4090 PC 에서 `ollama serve` 실행 필요."
+            " 포트 다르면 .env 의 OLLAMA_URL 변경.[/dim]"
+        )
+    else:
+        installed = _ollama_models(OLLAMA_URL)
+        if not installed:
+            console.print(
+                "[dim]설치된 모델 없음 — 예: `ollama pull llama3.1:8b`[/dim]"
+            )
+        else:
+            ollama_tbl = Table(show_header=True, header_style="bold")
+            ollama_tbl.add_column("Model")
+            ollama_tbl.add_column("Default", style="dim")
+            for name in installed:
+                default = "← 기본" if name == OLLAMA_DEFAULT_MODEL else ""
+                ollama_tbl.add_row(name, default)
+            console.print(ollama_tbl)
+    console.print(
+        "[dim]호출: aa call <agent> \"<prompt>\" --provider ollama --model <name>[/dim]"
+    )
+    console.print(
+        "[dim]Claude 버전 명시 호출: --model claude-opus-4-8 "
+        "(또는 alias --model opus)[/dim]"
+    )
+
+    _nav_footer()
+
+
+# ──────────────────────────────────────────────────────────────────────────
 # aa status
 # ──────────────────────────────────────────────────────────────────────────
 @app.command()
@@ -263,6 +334,7 @@ _PROVIDER_LABELS = {
     "claude": "Claude Max",
     "chatgpt": "ChatGPT Pro",
     "comfyui": "ComfyUI (4090 로컬)",
+    "ollama": "Ollama (4090 로컬 오픈 모델)",
 }
 
 
@@ -281,6 +353,14 @@ def call(
     ),
     modality: str = typer.Option(
         None, "--modality", help="모달리티 수동 지정: text | image | video"
+    ),
+    model: str = typer.Option(
+        None, "--model", "-m",
+        help=(
+            "모델 ID 직접 지정 — 라우팅 기본을 덮어쓴다. "
+            "예: claude-opus-4-8, claude-sonnet-4-6, llama3.1:8b, qwen2.5:32b. "
+            "사용 가능 목록: `aa models`."
+        ),
     ),
     workflow: str = typer.Option(
         None, "--workflow",
@@ -325,6 +405,17 @@ def call(
             raise typer.Exit(1)
 
     r = route(a, prompt, difficulty, provider, modality)
+
+    # --model 오버라이드 — alias("opus"/"sonnet"/"haiku") 도 명시 ID 로 해석.
+    if model:
+        resolved = _resolve_model_alias(model)
+        r = Route(
+            modality=r.modality, tier=r.tier, provider=r.provider,
+            model=resolved,
+            reason=r.reason + f" · --model {model}"
+            + ("" if resolved == model else f" → {resolved}"),
+        )
+
     model_label = r.model or "계정 기본"
     provider_label = _PROVIDER_LABELS.get(r.provider, r.provider)
 
@@ -371,6 +462,25 @@ def call(
                 "[dim]다른 위치라면 `.env` 에 CODEX_BIN=절대경로 박기.[/dim]"
             )
             raise typer.Exit(1)
+    elif r.provider == "ollama":
+        if not _ollama_alive(OLLAMA_URL):
+            console.print(
+                f"[red]Ollama 서버가 응답하지 않습니다 ({OLLAMA_URL}).[/red]\n"
+                "[dim]4090 PC 에서 `ollama serve` 가 떠 있어야 합니다.[/dim]\n"
+                "[dim]포트가 다르면 `.env` 에 OLLAMA_URL=http://host:포트 박기.[/dim]\n"
+                "[dim]설치된 모델 확인: `aa models`[/dim]"
+            )
+            raise typer.Exit(1)
+        installed = _ollama_models(OLLAMA_URL)
+        if installed and r.model not in installed:
+            console.print(
+                f"[yellow]⚠ Ollama 에 '{r.model}' 모델 없음.[/yellow] "
+                f"[dim]설치된 모델: {', '.join(installed[:6])}"
+                f"{'…' if len(installed) > 6 else ''}[/dim]\n"
+                f"[dim]받기: `ollama pull {r.model}` "
+                f"· 또는 --model 로 다른 이름 지정[/dim]"
+            )
+            raise typer.Exit(1)
     elif CLAUDE_BIN is None:
         console.print(
             "[red]claude CLI 를 찾지 못했습니다.[/red]\n"
@@ -398,6 +508,8 @@ def call(
             returncode, response, stderr = _run_codex(
                 _codex_text_prompt(a, client, prompt), r.model
             )
+        elif r.provider == "ollama":
+            returncode, response, stderr = _run_ollama(a, prompt, r.model)
         else:
             returncode, response, stderr = _run_claude(agent, prompt, r.model)
     _duration_ms = int((time.time() - _t0) * 1000)
@@ -406,6 +518,7 @@ def call(
     if returncode != 0:
         cli_name = {
             "chatgpt": "codex", "claude": "claude", "comfyui": "ComfyUI",
+            "ollama": "Ollama",
         }.get(r.provider, r.provider)
         console.print(f"[red]{cli_name} 에러 (exit {returncode}):[/red]")
         console.print(stderr or "(stderr 비어 있음)")
@@ -505,6 +618,76 @@ def _run_codex_image(a, prompt: str, model: str) -> tuple[int, str, str]:
         "생성한 이미지를 현재 작업 폴더에 저장하고, 저장 경로를 명시해줘."
     )
     return _run_codex(full_prompt, model)
+
+
+# ── 모델 alias 해석 — 짧은 이름을 config 의 명시 ID 로 펼친다 ────────────────
+_CLAUDE_ALIAS = {
+    "opus": CLAUDE_OPUS_MODEL,
+    "sonnet": CLAUDE_SONNET_MODEL,
+    "haiku": CLAUDE_HAIKU_MODEL,
+}
+
+
+def _resolve_model_alias(name: str) -> str:
+    """`--model opus` → `claude-opus-4-8` 같은 alias 전개.
+
+    이미 명시 ID(`claude-opus-4-8`, `llama3.1:8b` 등) 면 그대로 반환.
+    """
+    return _CLAUDE_ALIAS.get(name.lower(), name)
+
+
+# ── Ollama HTTP 클라이언트 — 4090 로컬 GPU, 무-API-키, 오픈 LLM ──────────────
+def _ollama_alive(url: str) -> bool:
+    """Ollama 서버가 응답하는지 — 2초 안에 /api/tags 가 떠야 OK."""
+    try:
+        with urllib.request.urlopen(f"{url}/api/tags", timeout=2) as resp:
+            return resp.status == 200
+    except (urllib.error.URLError, urllib.error.HTTPError, OSError):
+        return False
+
+
+def _ollama_models(url: str) -> list[str]:
+    """설치된 Ollama 모델 이름 목록. 실패 시 빈 리스트."""
+    try:
+        with urllib.request.urlopen(f"{url}/api/tags", timeout=5) as resp:
+            data = json.loads(resp.read())
+    except (urllib.error.URLError, urllib.error.HTTPError, OSError, json.JSONDecodeError):
+        return []
+    return [m["name"] for m in data.get("models", []) if isinstance(m, dict) and m.get("name")]
+
+
+def _run_ollama(a, prompt: str, model: str) -> tuple[int, str, str]:
+    """Ollama /api/generate 호출 — 4090 로컬 오픈 모델.
+
+    에이전트 정의(body) 를 system prompt 로, 사용자 요청을 prompt 로 넣는다.
+    stream=False 로 전체 응답을 한 번에 받는다 — CLI 출력 흐름과 맞춤.
+    """
+    body = json.dumps({
+        "model": model,
+        "prompt": prompt,
+        "system": a.body.strip(),
+        "stream": False,
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        f"{OLLAMA_URL}/api/generate",
+        data=body,
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT) as resp:
+            data = json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        try:
+            err_body = e.read().decode("utf-8", errors="replace")
+        except OSError:
+            err_body = str(e)
+        return e.code or 1, "", err_body
+    except (urllib.error.URLError, OSError, json.JSONDecodeError) as e:
+        return 1, "", str(e)
+    response = (data.get("response") or "").strip()
+    if not response and data.get("error"):
+        return 1, "", str(data["error"])
+    return 0, response, ""
 
 
 # ── ComfyUI HTTP 클라이언트 — 4090 로컬 GPU, 무-API-키, 이미지·동영상 ────────
@@ -758,6 +941,7 @@ def voice(
         difficulty=difficulty,
         provider=provider,
         modality=None,
+        model=None,
         workflow=None,
         dry_run=False,
     )

@@ -134,10 +134,12 @@ aa hello
 | `aa status` | 오늘 일지 + dashboard + 미해결 개입/메시지 카운트 |
 | `aa call <agent> "<prompt>"` | 단일 에이전트 호출 — 모달리티·난이도 자동 라우팅 + 메모리 4파일 자동 갱신 |
 | `aa call <agent> "<prompt>" --difficulty T3` | 난이도 수동 지정 (T1 경량 / T2 표준 / T3 심층) |
-| `aa call <agent> "<prompt>" --provider claude` | 공급자 강제 지정 (claude / chatgpt / comfyui) |
+| `aa call <agent> "<prompt>" --provider claude` | 공급자 강제 지정 (claude / chatgpt / comfyui / ollama) |
 | `aa call <agent> "<prompt>" --modality image` | 모달리티 수동 지정 (text / image / video) |
+| `aa call <agent> "<prompt>" --model claude-opus-4-8` | 모델 ID 직접 지정 — alias(`opus`/`sonnet`/`haiku`) 또는 명시 ID(예: `llama3.1:8b`) |
 | `aa call <agent> "<prompt>" --workflow <이름>` | ComfyUI 워크플로 선택 (comfyui_workflows/ 안 파일명) |
 | `aa call <agent> "<prompt>" --dry-run` | AI 호출 없이 라우팅 결과만 출력 |
+| `aa models` | 공급자별 사용 가능 모델 — Claude(설정) / Codex / Ollama(4090 라이브 조회) |
 | `aa daily-log` | 오늘 일지 보기 |
 | `aa daily-log yesterday` | 어제 일지 |
 | `aa daily-log today --edit` | VS Code (또는 `EDITOR`) 로 일지 편집 |
@@ -170,10 +172,38 @@ aa hello
 | 티어 | 작업 성격 | 라우팅 |
 |---|---|---|
 | **T1 경량** | 포맷 변환·목록 정리·요약·결정론적 작업 | ChatGPT Pro (Codex CLI) |
-| **T2 표준** | 일반 추론·초안 작성·대부분의 에이전트 작업 | Claude Sonnet |
-| **T3 심층** | 4층 진단·비전 설계·복잡 전략 추론 | Claude Opus |
+| **T2 표준** | 일반 추론·초안 작성·대부분의 에이전트 작업 | Claude Sonnet (기본: `claude-sonnet-4-6`) |
+| **T3 심층** | 4층 진단·비전 설계·복잡 전략 추론 | Claude Opus (기본: `claude-opus-4-8`) |
 
-판정 신호 (전부 로컬): ① 에이전트 프론트매터 `model`(opus면 심층 가중) ② 심층/경량 키워드 ③ 프롬프트 길이. 중립이면 T2(Claude)로 둔다. `--modality` / `--difficulty` / `--provider` 로 언제든 덮어쓸 수 있다.
+판정 신호 (전부 로컬): ① 에이전트 프론트매터 `model`(opus면 심층 가중) ② 심층/경량 키워드 ③ 프롬프트 길이. 중립이면 T2(Claude)로 둔다. `--modality` / `--difficulty` / `--provider` / `--model` 로 언제든 덮어쓸 수 있다.
+
+### 모델 ID 직접 지정 — `--model`
+
+라우팅이 고른 기본 모델 대신 원하는 모델 ID 를 그대로 박을 수 있다.
+
+```bash
+# Claude 버전 명시 (4.8 강제)
+aa call story-weaver "마스터 내러티브" --model claude-opus-4-8
+
+# 짧은 alias 도 그대로 — 자동으로 config 의 명시 ID 로 펼친다
+aa call story-weaver "마스터 내러티브" --model opus    # → claude-opus-4-8
+```
+
+신모델 출시 시 `.env` 한 줄로 기본값 갱신 — `CLAUDE_OPUS_MODEL=claude-opus-4-9` 등.
+
+### 4090 PC 오픈 모델 — `--provider ollama`
+
+4090 PC 의 `ollama serve` 가 떠 있으면 설치된 모든 오픈 LLM(llama3.1·qwen2.5·deepseek-r1·mixtral 등)을 그대로 골라 쓸 수 있다. **무-API-키, 무-토큰비용, 완전 로컬.**
+
+```bash
+# 설치된 모델 라이브 조회
+aa models
+
+# 특정 모델로 호출
+aa call origin-reader "Alien Agentic 4층 진단" --provider ollama --model qwen2.5:32b
+```
+
+`.env` 설정: `OLLAMA_URL=http://localhost:11434` · `OLLAMA_DEFAULT_MODEL=llama3.1:8b`. 다른 PC 의 Ollama 면 IP·포트 변경.
 
 ## 사용 예시
 
