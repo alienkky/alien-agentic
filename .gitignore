@@ -1,3 +1,12 @@
+# === Private domain — 가족·심리·번아웃·미공개 의사결정 격리 ===
+# 헌법 §VIII 가족 시간 신성화의 데이터 레이어 확장.
+# README.md 만 추적(경계 안내문), 내부 파일 전부 격리.
+# 정책: shared-memory/context/private-domain-policy.md
+shared-memory/_private/*
+!shared-memory/_private/README.md
+**/_private/*
+!**/_private/README.md
+
 # === Secrets — 절대 추적 금지 ===
 .env
 .env.*
