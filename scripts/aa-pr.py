@@ -208,13 +208,24 @@ def _check_duplicate_titles(
     return out
 
 
+def _strip_code(text: str) -> str:
+    """Fenced ```...``` 블록과 인라인 `...` 코드 스팬을 제거.
+
+    링크 검사가 예시 코드 안의 `[text](path)` 를 잡지 않게 한다.
+    """
+    text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
+    text = re.sub(r"~~~.*?~~~", "", text, flags=re.DOTALL)
+    text = re.sub(r"`[^`\n]*`", "", text)
+    return text
+
+
 def _check_missing_links(changed_md: list[str]) -> list[Conflict]:
     out: list[Conflict] = []
     for rel in changed_md:
         p = ROOT / rel
         if not p.exists():
             continue
-        text = _read(p)
+        text = _strip_code(_read(p))
         for m in LINK_RE.finditer(text):
             target = m.group(2).split("#")[0].strip()
             if not target or target.startswith(("http://", "https://", "mailto:", "mention://", "#")):
