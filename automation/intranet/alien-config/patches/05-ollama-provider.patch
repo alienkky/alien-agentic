@@ -1,0 +1,295 @@
+diff --git a/server/pkg/agent/agent.go b/server/pkg/agent/agent.go
+index 1f34c58..37d1fb8 100644
+--- a/server/pkg/agent/agent.go
++++ b/server/pkg/agent/agent.go
+@@ -152,8 +152,10 @@ func New(agentType string, cfg Config) (Backend, error) {
+ 		return &kiroBackend{cfg: cfg}, nil
+ 	case "antigravity":
+ 		return &antigravityBackend{cfg: cfg}, nil
++	case "ollama":
++		return &ollamaBackend{cfg: cfg}, nil
+ 	default:
+-		return nil, fmt.Errorf("unknown agent type: %q (supported: claude, codex, copilot, opencode, openclaw, hermes, gemini, pi, cursor, kimi, kiro, antigravity)", agentType)
++		return nil, fmt.Errorf("unknown agent type: %q (supported: claude, codex, copilot, opencode, openclaw, hermes, gemini, pi, cursor, kimi, kiro, antigravity, ollama)", agentType)
+ 	}
+ }
+ 
+@@ -181,6 +183,7 @@ var launchHeaders = map[string]string{
+ 	"openclaw":    "openclaw agent (json)",
+ 	"opencode":    "opencode run (json)",
+ 	"pi":          "pi (json mode)",
++	"ollama":      "POST /api/generate (HTTP)",
+ }
+ 
+ // LaunchHeader returns the user-visible launch skeleton for agentType, or an
+diff --git a/server/pkg/agent/models.go b/server/pkg/agent/models.go
+index 94f2aa7..83039e0 100644
+--- a/server/pkg/agent/models.go
++++ b/server/pkg/agent/models.go
+@@ -141,6 +141,10 @@ func ListModels(ctx context.Context, providerType, executablePath string) ([]Mod
+ 		return cachedDiscovery(providerType, func() ([]Model, error) {
+ 			return discoverOpenclawAgents(ctx, executablePath)
+ 		})
++	case "ollama":
++		return cachedDiscovery(discoveryCacheKey(providerType, executablePath), func() ([]Model, error) {
++			return discoverOllamaModels(ctx, executablePath)
++		})
+ 	default:
+ 		return nil, fmt.Errorf("unknown agent type: %q", providerType)
+ 	}
+diff --git a/server/pkg/agent/ollama.go b/server/pkg/agent/ollama.go
+new file mode 100644
+index 0000000..d24cc18
+--- /dev/null
++++ b/server/pkg/agent/ollama.go
+@@ -0,0 +1,250 @@
++package agent
++
++import (
++	"bytes"
++	"context"
++	"encoding/json"
++	"fmt"
++	"io"
++	"net/http"
++	"os"
++	"strings"
++	"time"
++)
++
++// ollamaBackend implements Backend by speaking the Ollama HTTP API on the
++// user's local host (4090 GPU + open LLMs: llama3.1, qwen2.5, deepseek-r1,
++// mixtral, …). Unlike the CLI-spawning backends, there is no subprocess: the
++// daemon POSTs to /api/generate and streams the NDJSON response.
++//
++// ExecutablePath is repurposed as the Ollama server URL. An empty value (or
++// the legacy default "ollama") falls back to the OLLAMA_URL env var or the
++// usual http://localhost:11434.
++type ollamaBackend struct {
++	cfg Config
++}
++
++const (
++	ollamaDefaultURL       = "http://localhost:11434"
++	ollamaConnectTimeout   = 5 * time.Second
++	ollamaInactivityWindow = 5 * time.Minute
++)
++
++func (b *ollamaBackend) Execute(ctx context.Context, prompt string, opts ExecOptions) (*Session, error) {
++	url := resolveOllamaURL(b.cfg.ExecutablePath, b.cfg.Env)
++
++	// Per-call deadline. A zero opts.Timeout means "no wall-clock cap" —
++	// matches the other backends; the daemon's inactivity watchdog still
++	// kills hung streams.
++	runCtx, cancel := runContext(ctx, opts.Timeout)
++
++	body, err := json.Marshal(map[string]any{
++		"model":  opts.Model,
++		"prompt": prompt,
++		"system": opts.SystemPrompt,
++		"stream": true,
++	})
++	if err != nil {
++		cancel()
++		return nil, fmt.Errorf("marshal ollama request: %w", err)
++	}
++
++	req, err := http.NewRequestWithContext(runCtx, "POST", url+"/api/generate", bytes.NewReader(body))
++	if err != nil {
++		cancel()
++		return nil, fmt.Errorf("ollama request: %w", err)
++	}
++	req.Header.Set("Content-Type", "application/json")
++
++	httpClient := &http.Client{}
++	resp, err := httpClient.Do(req)
++	if err != nil {
++		cancel()
++		return nil, fmt.Errorf("ollama POST %s: %w", url, err)
++	}
++	if resp.StatusCode/100 != 2 {
++		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
++		resp.Body.Close()
++		cancel()
++		return nil, fmt.Errorf("ollama %s returned %s: %s", url, resp.Status, strings.TrimSpace(string(respBody)))
++	}
++
++	b.cfg.Logger.Info("ollama started", "url", url, "model", opts.Model, "system_chars", len(opts.SystemPrompt))
++
++	msgCh := make(chan Message, 256)
++	resCh := make(chan Result, 1)
++
++	go func() {
++		defer cancel()
++		defer close(msgCh)
++		defer close(resCh)
++		defer resp.Body.Close()
++
++		startTime := time.Now()
++		finalStatus := "completed"
++		var finalError string
++		var output strings.Builder
++		usage := make(map[string]TokenUsage)
++
++		trySend(msgCh, Message{Type: MessageStatus, Status: "running"})
++
++		dec := json.NewDecoder(resp.Body)
++		for {
++			var evt struct {
++				Response    string `json:"response"`
++				Done        bool   `json:"done"`
++				DoneReason  string `json:"done_reason"`
++				Error       string `json:"error"`
++				PromptCount int64  `json:"prompt_eval_count"`
++				EvalCount   int64  `json:"eval_count"`
++			}
++			if err := dec.Decode(&evt); err != nil {
++				if err == io.EOF {
++					break
++				}
++				if runCtx.Err() != nil {
++					finalStatus = ctxStatus(runCtx)
++					break
++				}
++				finalStatus = "failed"
++				finalError = fmt.Sprintf("ollama stream decode: %v", err)
++				break
++			}
++			if evt.Error != "" {
++				finalStatus = "failed"
++				finalError = evt.Error
++				break
++			}
++			if evt.Response != "" {
++				output.WriteString(evt.Response)
++				trySend(msgCh, Message{Type: MessageText, Content: evt.Response})
++			}
++			if evt.Done {
++				if evt.PromptCount > 0 || evt.EvalCount > 0 {
++					usage[opts.Model] = TokenUsage{
++						InputTokens:  evt.PromptCount,
++						OutputTokens: evt.EvalCount,
++					}
++				}
++				if evt.DoneReason != "" && evt.DoneReason != "stop" {
++					finalStatus = evt.DoneReason
++				}
++				break
++			}
++		}
++
++		resCh <- Result{
++			Status:     finalStatus,
++			Output:     output.String(),
++			Error:      finalError,
++			DurationMs: time.Since(startTime).Milliseconds(),
++			Usage:      usage,
++		}
++	}()
++
++	return &Session{Messages: msgCh, Result: resCh}, nil
++}
++
++// resolveOllamaURL picks the Ollama server URL from (in order): an explicit
++// ExecutablePath that looks like a URL, the OLLAMA_URL env var (per-runtime
++// override), and the default localhost endpoint. ExecutablePath values that
++// look like a CLI name (no scheme) are treated as "unset" and fall through.
++func resolveOllamaURL(execPath string, env map[string]string) string {
++	if u := normaliseOllamaURL(execPath); u != "" {
++		return u
++	}
++	if env != nil {
++		if u := normaliseOllamaURL(env["OLLAMA_URL"]); u != "" {
++			return u
++		}
++	}
++	if u := normaliseOllamaURL(os.Getenv("OLLAMA_URL")); u != "" {
++		return u
++	}
++	return ollamaDefaultURL
++}
++
++func normaliseOllamaURL(v string) string {
++	v = strings.TrimSpace(v)
++	if v == "" {
++		return ""
++	}
++	if !strings.HasPrefix(v, "http://") && !strings.HasPrefix(v, "https://") {
++		return ""
++	}
++	return strings.TrimRight(v, "/")
++}
++
++func ctxStatus(ctx context.Context) string {
++	if ctx.Err() == context.DeadlineExceeded {
++		return "timeout"
++	}
++	return "cancelled"
++}
++
++// ollamaStaticModels is the fallback catalog used when /api/tags is
++// unreachable (server down, network blip). It lists the most common open
++// models a 4090 host runs so the picker is never empty. The default flag is
++// a UI hint only — the daemon picks per-call.
++func ollamaStaticModels() []Model {
++	return []Model{
++		{ID: "llama3.1:8b", Label: "Llama 3.1 8B", Provider: "ollama", Default: true},
++		{ID: "llama3.1:70b", Label: "Llama 3.1 70B", Provider: "ollama"},
++		{ID: "qwen2.5:7b", Label: "Qwen 2.5 7B", Provider: "ollama"},
++		{ID: "qwen2.5:32b", Label: "Qwen 2.5 32B", Provider: "ollama"},
++		{ID: "deepseek-r1:8b", Label: "DeepSeek R1 8B", Provider: "ollama"},
++		{ID: "mixtral:8x7b", Label: "Mixtral 8x7B", Provider: "ollama"},
++	}
++}
++
++// discoverOllamaModels queries /api/tags on the configured Ollama server
++// and turns each installed model into a picker entry. On any failure
++// (server down, malformed JSON, timeout) it falls back to the static
++// catalog so the dropdown still shows something rather than going blank.
++//
++// executablePath repurposes the same "URL in the binary slot" trick as
++// the Execute path; an empty value uses OLLAMA_URL or the default.
++func discoverOllamaModels(ctx context.Context, executablePath string) ([]Model, error) {
++	url := resolveOllamaURL(executablePath, nil)
++
++	reqCtx, cancel := context.WithTimeout(ctx, ollamaConnectTimeout)
++	defer cancel()
++
++	req, err := http.NewRequestWithContext(reqCtx, "GET", url+"/api/tags", nil)
++	if err != nil {
++		return ollamaStaticModels(), nil
++	}
++	resp, err := http.DefaultClient.Do(req)
++	if err != nil {
++		return ollamaStaticModels(), nil
++	}
++	defer resp.Body.Close()
++	if resp.StatusCode/100 != 2 {
++		return ollamaStaticModels(), nil
++	}
++
++	var payload struct {
++		Models []struct {
++			Name string `json:"name"`
++		} `json:"models"`
++	}
++	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
++		return ollamaStaticModels(), nil
++	}
++	if len(payload.Models) == 0 {
++		return ollamaStaticModels(), nil
++	}
++
++	out := make([]Model, 0, len(payload.Models))
++	for _, m := range payload.Models {
++		name := strings.TrimSpace(m.Name)
++		if name == "" {
++			continue
++		}
++		out = append(out, Model{ID: name, Label: name, Provider: "ollama"})
++	}
++	if len(out) == 0 {
++		return ollamaStaticModels(), nil
++	}
++	return out, nil
++}
