@@ -1,6 +1,7 @@
 # CLAUDE.md — Alien Agentic 마스터 오케스트레이터 운영 매뉴얼
 
-> 이 파일은 **매 세션 자동 로드**된다. 회사 헌법 전문은 [CONSTITUTION.md](CONSTITUTION.md), 영구 기억은 `C:\Users\AlienK\.claude\projects\E--AlienAgentic-alien-agentic\memory\` 에 있다.
+> 공식 진입 순서: [agent.md](agent.md) → **CLAUDE.md** → [CONSTITUTION.md](CONSTITUTION.md).
+> 이 파일은 **매 세션 자동 로드**되는 운영 매뉴얼이다. 루트 [agent.md](agent.md)는 전체 에이전트 통합 룰, 회사 헌법 전문은 [CONSTITUTION.md](CONSTITUTION.md), 영구 기억은 `C:\Users\AlienK\.claude\projects\E--AlienAgentic-alien-agentic\memory\` 에 있다.
 
 ---
 
