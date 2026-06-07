@@ -1,8 +1,91 @@
+diff --git a/server/internal/daemon/config.go b/server/internal/daemon/config.go
+index 084d942..2eee2fe 100644
+--- a/server/internal/daemon/config.go
++++ b/server/internal/daemon/config.go
+@@ -3,6 +3,7 @@ package daemon
+ import (
+ 	"context"
+ 	"fmt"
++	"net/http"
+ 	"net/url"
+ 	"os"
+ 	"os/exec"
+@@ -14,6 +15,55 @@ import (
+ 	"github.com/mattn/go-shellwords"
+ )
+ 
++// defaultOllamaURL is the localhost endpoint we probe when neither
++// MULTICA_OLLAMA_URL nor MULTICA_OLLAMA_PATH is set. Matches the upstream
++// Ollama default — operators on a different host/port override via
++// MULTICA_OLLAMA_URL=http://host:port (no rebuild).
++const defaultOllamaURL = "http://localhost:11434"
++
++// ollamaProbeTimeout caps the daemon-startup HTTP probe to Ollama. If the
++// server is unreachable within this window we silently skip ollama
++// registration rather than blocking the daemon — same behaviour as a CLI
++// that isn't installed.
++const ollamaProbeTimeout = 1500 * time.Millisecond
++
++// probeOllama returns an AgentEntry pointing at a reachable Ollama server
++// (Path = URL, Model = env override) when /api/version answers within the
++// timeout. Unreachable → (zero, false), no error logged: an Ollama-less
++// host is the common case and shouldn't spam stderr.
++func probeOllama() (AgentEntry, bool) {
++	rawURL := strings.TrimSpace(os.Getenv("MULTICA_OLLAMA_URL"))
++	if rawURL == "" {
++		rawURL = strings.TrimSpace(os.Getenv("MULTICA_OLLAMA_PATH"))
++	}
++	if rawURL == "" {
++		rawURL = defaultOllamaURL
++	}
++	rawURL = strings.TrimRight(rawURL, "/")
++	if !strings.HasPrefix(rawURL, "http://") && !strings.HasPrefix(rawURL, "https://") {
++		return AgentEntry{}, false
++	}
++
++	ctx, cancel := context.WithTimeout(context.Background(), ollamaProbeTimeout)
++	defer cancel()
++	req, err := http.NewRequestWithContext(ctx, "GET", rawURL+"/api/version", nil)
++	if err != nil {
++		return AgentEntry{}, false
++	}
++	resp, err := http.DefaultClient.Do(req)
++	if err != nil {
++		return AgentEntry{}, false
++	}
++	defer resp.Body.Close()
++	if resp.StatusCode/100 != 2 {
++		return AgentEntry{}, false
++	}
++	return AgentEntry{
++		Path:  rawURL,
++		Model: strings.TrimSpace(os.Getenv("MULTICA_OLLAMA_MODEL")),
++	}, true
++}
++
+ const (
+ 	DefaultServerURL         = "ws://localhost:8080/ws"
+ 	DefaultPollInterval      = 30 * time.Second
+@@ -239,8 +289,13 @@ func LoadConfig(overrides Overrides) (Config, error) {
+ 	if e, ok := probe("MULTICA_ANTIGRAVITY_PATH", "agy", ""); ok {
+ 		agents["antigravity"] = e
+ 	}
++	// Ollama: HTTP server, not a CLI. Probed last so a missing local server
++	// doesn't slow startup for hosts that only use CLI providers.
++	if e, ok := probeOllama(); ok {
++		agents["ollama"] = e
++	}
+ 	if len(agents) == 0 {
+-		return Config{}, fmt.Errorf("no agent CLI found: install claude, codex, copilot, opencode, openclaw, hermes, gemini, pi, cursor-agent, kimi, kiro-cli, or agy and ensure it is on PATH")
++		return Config{}, fmt.Errorf("no agent CLI found: install claude, codex, copilot, opencode, openclaw, hermes, gemini, pi, cursor-agent, kimi, kiro-cli, or agy (or run an Ollama server reachable via MULTICA_OLLAMA_URL)")
+ 	}
+ 
+ 	claudeArgs, err := shellArgsFromEnv("MULTICA_CLAUDE_ARGS")
 diff --git a/server/pkg/agent/agent.go b/server/pkg/agent/agent.go
-index 1f34c58..37d1fb8 100644
+index 1f34c58..d8de17b 100644
 --- a/server/pkg/agent/agent.go
 +++ b/server/pkg/agent/agent.go
-@@ -152,8 +152,10 @@ func New(agentType string, cfg Config) (Backend, error) {
+@@ -152,13 +152,21 @@ func New(agentType string, cfg Config) (Backend, error) {
  		return &kiroBackend{cfg: cfg}, nil
  	case "antigravity":
  		return &antigravityBackend{cfg: cfg}, nil
@@ -14,7 +97,18 @@ index 1f34c58..37d1fb8 100644
  	}
  }
  
-@@ -181,6 +183,7 @@ var launchHeaders = map[string]string{
+ // DetectVersion runs the agent CLI with --version and returns the output.
++// An HTTP/HTTPS-shaped executablePath is treated as an Ollama server URL and
++// probed via /api/version instead, so the daemon can register an Ollama
++// runtime whose Path is a URL rather than a binary on disk.
+ func DetectVersion(ctx context.Context, executablePath string) (string, error) {
++	if IsOllamaURL(executablePath) {
++		return detectOllamaVersion(ctx, executablePath)
++	}
+ 	return detectCLIVersion(ctx, executablePath)
+ }
+ 
+@@ -181,6 +189,7 @@ var launchHeaders = map[string]string{
  	"openclaw":    "openclaw agent (json)",
  	"opencode":    "opencode run (json)",
  	"pi":          "pi (json mode)",
@@ -39,10 +133,10 @@ index 94f2aa7..83039e0 100644
  	}
 diff --git a/server/pkg/agent/ollama.go b/server/pkg/agent/ollama.go
 new file mode 100644
-index 0000000..d24cc18
+index 0000000..6e632cb
 --- /dev/null
 +++ b/server/pkg/agent/ollama.go
-@@ -0,0 +1,250 @@
+@@ -0,0 +1,296 @@
 +package agent
 +
 +import (
@@ -240,6 +334,52 @@ index 0000000..d24cc18
 +		{ID: "deepseek-r1:8b", Label: "DeepSeek R1 8B", Provider: "ollama"},
 +		{ID: "mixtral:8x7b", Label: "Mixtral 8x7B", Provider: "ollama"},
 +	}
++}
++
++// IsOllamaURL reports whether path is shaped like an Ollama server URL
++// (http:// or https:// prefix). The daemon registration path uses this to
++// route DetectVersion through the HTTP probe instead of shelling out to a
++// non-existent binary, so the Ollama runtime registers on Path = URL.
++func IsOllamaURL(path string) bool {
++	p := strings.TrimSpace(path)
++	return strings.HasPrefix(p, "http://") || strings.HasPrefix(p, "https://")
++}
++
++// detectOllamaVersion hits /api/version and returns the server's reported
++// version. The daemon's CheckMinVersion has no entry for "ollama", so any
++// non-empty value passes the registration gate (we still need a non-empty
++// string so the runtime row has something to display).
++func detectOllamaVersion(ctx context.Context, urlPath string) (string, error) {
++	url := normaliseOllamaURL(urlPath)
++	if url == "" {
++		url = ollamaDefaultURL
++	}
++	reqCtx, cancel := context.WithTimeout(ctx, ollamaConnectTimeout)
++	defer cancel()
++
++	req, err := http.NewRequestWithContext(reqCtx, "GET", url+"/api/version", nil)
++	if err != nil {
++		return "", fmt.Errorf("ollama version request: %w", err)
++	}
++	resp, err := http.DefaultClient.Do(req)
++	if err != nil {
++		return "", fmt.Errorf("ollama version GET %s: %w", url, err)
++	}
++	defer resp.Body.Close()
++	if resp.StatusCode/100 != 2 {
++		return "", fmt.Errorf("ollama %s/api/version returned %s", url, resp.Status)
++	}
++	var body struct {
++		Version string `json:"version"`
++	}
++	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
++		return "", fmt.Errorf("ollama version decode: %w", err)
++	}
++	v := strings.TrimSpace(body.Version)
++	if v == "" {
++		return "ollama", nil
++	}
++	return "ollama " + v, nil
 +}
 +
 +// discoverOllamaModels queries /api/tags on the configured Ollama server
