@@ -3,13 +3,12 @@
  *
  * OCCT(B-rep) 가 진짜 CAD 불리언이지만, FAST 모드에서도 "구멍 뚫기"가 즉시·확실히
  * 되도록 메시 CSG 로 합/차/교를 처리한다. 메인 스레드에서 CPU(BVH) 로 동작 — WebGL 불필요.
- *
- * 결과는 메시 수준이라 면 ID 를 보존하지 못한다 → 단일 면(faceId 0)으로 둔다.
- * 외곽선은 EdgesGeometry 로 재생성한다.
+ * 이동 기즈모 오프셋은 brush 의 월드 변환으로 반영한다.
  */
 import * as THREE from "three";
 import { Evaluator, Brush, ADDITION, SUBTRACTION, INTERSECTION } from "three-bvh-csg";
-import type { TessellatedMesh, EdgePolyline, BooleanOp } from "./types";
+import type { TessellatedMesh, BooleanOp } from "./types";
+import { geometryToTessellated } from "./geometryToTessellated";
 
 const OP: Record<BooleanOp, number> = {
   fuse: ADDITION,
@@ -23,45 +22,6 @@ function toGeometry(m: TessellatedMesh): THREE.BufferGeometry {
   geo.setAttribute("normal", new THREE.BufferAttribute(m.normals, 3));
   geo.setIndex(new THREE.BufferAttribute(m.indices, 1));
   return geo;
-}
-
-function toTessellated(geo: THREE.BufferGeometry, shapeId: string): TessellatedMesh {
-  const nonIndexed = geo.index ? geo.toNonIndexed() : geo;
-  const posAttr = nonIndexed.getAttribute("position");
-  const positions = new Float32Array(posAttr.array);
-
-  if (!nonIndexed.getAttribute("normal")) {
-    nonIndexed.computeVertexNormals();
-  }
-  const normals = new Float32Array(nonIndexed.getAttribute("normal").array);
-
-  const vertCount = positions.length / 3;
-  const indices = new Uint32Array(vertCount);
-  for (let i = 0; i < vertCount; i++) indices[i] = i;
-  const triFaceId = new Uint32Array(vertCount / 3); // 전부 0
-
-  const edges: EdgePolyline[] = [];
-  const edgesGeo = new THREE.EdgesGeometry(nonIndexed, 20);
-  const ep = edgesGeo.getAttribute("position");
-  for (let i = 0; i < ep.count; i += 2) {
-    edges.push({
-      edgeId: i / 2,
-      positions: new Float32Array([
-        ep.getX(i), ep.getY(i), ep.getZ(i),
-        ep.getX(i + 1), ep.getY(i + 1), ep.getZ(i + 1),
-      ]),
-    });
-  }
-
-  return {
-    positions,
-    normals,
-    indices,
-    triFaceId,
-    faceRanges: [{ faceId: 0, start: 0, count: indices.length }],
-    edges,
-    shapeId,
-  };
 }
 
 export function meshBoolean(
@@ -85,5 +45,5 @@ export function meshBoolean(
   evaluator.attributes = ["position", "normal"];
   const result = evaluator.evaluate(brushA, brushB, OP[op]);
 
-  return toTessellated(result.geometry, resultId);
+  return geometryToTessellated(result.geometry, resultId);
 }

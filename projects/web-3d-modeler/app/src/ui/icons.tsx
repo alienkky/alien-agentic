@@ -86,6 +86,24 @@ export function TrashIcon(): JSX.Element {
   );
 }
 
+export function SketchIcon(): JSX.Element {
+  return (
+    <svg {...base}>
+      <path d="M4 20l4-1L19 8a2 2 0 0 0-3-3L5 16z" />
+      <path d="M14 7l3 3" />
+    </svg>
+  );
+}
+
+export function ExtrudeIcon(): JSX.Element {
+  return (
+    <svg {...base}>
+      <rect x="5" y="13" width="9" height="6" />
+      <path d="M5 13l4-4h9v6M14 13l4-4M14 19l4-4v-6" />
+    </svg>
+  );
+}
+
 export function EyeIcon(): JSX.Element {
   return (
     <svg {...base}>

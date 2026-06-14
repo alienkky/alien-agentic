@@ -4,6 +4,7 @@ import { TopBar } from "./ui/TopBar";
 import { ToolRail } from "./ui/ToolRail";
 import { ItemsPanel } from "./ui/ItemsPanel";
 import { ContextBar } from "./ui/ContextBar";
+import { SketchBar } from "./ui/SketchBar";
 import { StatusPill } from "./ui/StatusPill";
 import { useAppStore } from "./store/useAppStore";
 import { useResponsiveShell } from "./device/useResponsiveShell";
@@ -23,6 +24,7 @@ export function App(): JSX.Element {
       <ToolRail />
       <ItemsPanel />
       <ContextBar />
+      <SketchBar />
       <StatusPill layout={layout} />
     </div>
   );

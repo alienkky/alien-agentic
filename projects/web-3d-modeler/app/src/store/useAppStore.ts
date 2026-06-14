@@ -7,6 +7,7 @@ import { createKernelClient, type KernelHandle } from "../kernel/bridge";
 import type { KernelBackend } from "../kernel/worker";
 import type { TessellatedMesh, BooleanOp } from "../kernel/types";
 import { meshBoolean } from "../kernel/meshBoolean";
+import { extrudeProfile, type SketchPoint } from "../kernel/extrude";
 import {
   defaultCamera,
   orbit as orbitCam,
@@ -36,6 +37,10 @@ interface AppState {
   selectedShapeIds: string[];
   /** 이동 기즈모 드래그 중 — 카메라 입력을 막는다 */
   gizmoDragging: boolean;
+  /** 스케치 모드 활성 여부 */
+  sketchActive: boolean;
+  /** 스케치 중인 지면(XZ) 점들 */
+  sketchPoints: SketchPoint[];
   backend: KernelBackend;
   status: string;
   busy: boolean;
@@ -59,6 +64,12 @@ interface AppState {
   clearSelection: () => void;
   setTransform: (shapeId: string, pos: Vec3) => void;
   setGizmoDragging: (dragging: boolean) => void;
+
+  beginSketch: () => void;
+  addSketchPoint: (p: SketchPoint) => void;
+  undoSketchPoint: () => void;
+  cancelSketch: () => void;
+  commitExtrude: (depth: number) => void;
 }
 
 let kernel: KernelHandle | null = null;
@@ -77,6 +88,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   hovered: null,
   selectedShapeIds: [],
   gizmoDragging: false,
+  sketchActive: false,
+  sketchPoints: [],
   backend: "deterministic",
   status: "초기화 중…",
   busy: false,
@@ -223,4 +236,34 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({ transforms: { ...s.transforms, [shapeId]: pos } })),
 
   setGizmoDragging: (dragging) => set({ gizmoDragging: dragging }),
+
+  beginSketch: () =>
+    set({ sketchActive: true, sketchPoints: [], selectedShapeIds: [], status: "스케치: 지면을 탭해 점을 찍으세요 (3개 이상)" }),
+
+  addSketchPoint: (p) =>
+    set((s) => ({ sketchPoints: [...s.sketchPoints, p], status: `스케치 점 ${s.sketchPoints.length + 1}개` })),
+
+  undoSketchPoint: () => set((s) => ({ sketchPoints: s.sketchPoints.slice(0, -1) })),
+
+  cancelSketch: () => set({ sketchActive: false, sketchPoints: [], status: "스케치 취소" }),
+
+  commitExtrude: (depth) => {
+    const pts = get().sketchPoints;
+    if (pts.length < 3) {
+      set({ status: "돌출: 점이 3개 이상이어야 합니다" });
+      return;
+    }
+    try {
+      const shapeId = `extrude-${++counter}`;
+      const mesh = extrudeProfile(pts, depth, shapeId);
+      set((s) => ({
+        shapes: [...s.shapes, mesh],
+        sketchActive: false,
+        sketchPoints: [],
+        status: `돌출 완료 → ${shapeId}`,
+      }));
+    } catch (err) {
+      set({ status: `오류: ${err instanceof Error ? err.message : String(err)}` });
+    }
+  },
 }));

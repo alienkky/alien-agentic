@@ -38,7 +38,7 @@ updated_by: master-orchestrator
 ## 🛠 진행 중 자체 프로젝트
 | id | 프로젝트 | 단계 | 다음 |
 |---|---|---|---|
-| [T-20260614-001](tasks/T-20260614-001.md) | ALIEN SPACE (웹 3D 모델러, 자체 IP) | Phase 0 완료 · Phase 1 코드 완료 | OCCT 불리언 디바이스 검증 ([T-20260614-003](tasks/T-20260614-003.md)) |
+| [T-20260614-001](tasks/T-20260614-001.md) | ALIEN SPACE (웹 3D 모델러, 자체 IP) | Phase 0·1 완료 · Phase 2(스케치→돌출) 슬라이스1 | 스케치 손맛·평면선택·돌출옵션 ([T-20260614-004](tasks/T-20260614-004.md)) |
 
 ## 📅 이번 주 우선순위
 1. ALIEN SPACE Phase 1 OCCT 불리언 디바이스 검증 → Phase 2(스케치) 착수
