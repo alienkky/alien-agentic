@@ -1,11 +1,14 @@
 /**
- * 한 셰이프(TessellatedMesh)를 렌더 + 면 호버 + 셰이프 선택 + 모서리 표시.
+ * 한 셰이프 렌더 + 통합 선택(면·모서리·바디).
+ *  - 면 탭 → 그 면 선택(하이라이트)
+ *  - 모서리 탭 → 그 모서리 선택
+ *  - 바디 선택(아이템 패널/더블탭)은 전체 틴트
  *
- * 핵심: r3f 교차 삼각형 인덱스(faceIndex)를 triFaceId 로 역추적해 '어느 면인지' 안다
- * (메타데이터 포맷이 살아있다는 증명, WORKFLOW §4). 클릭하면 셰이프를 불리언 선택에 토글.
+ * 메타데이터(triFaceId/faceRanges/edges)로 삼각형↔면, 폴리라인↔모서리를 역추적한다.
  */
 import { useMemo } from "react";
 import * as THREE from "three";
+import { Line } from "@react-three/drei";
 import type { TessellatedMesh } from "../kernel/types";
 import { useAppStore } from "../store/useAppStore";
 
@@ -33,37 +36,40 @@ function buildFaceGeometry(mesh: TessellatedMesh, faceId: number): THREE.BufferG
   return geo;
 }
 
-/** 모서리 폴리라인들을 하나의 LineSegments 지오메트리로. */
-function buildEdgesGeometry(mesh: TessellatedMesh): THREE.BufferGeometry | null {
-  const segs: number[] = [];
-  for (const edge of mesh.edges) {
-    const p = edge.positions;
-    const pointCount = p.length / 3;
-    for (let i = 0; i < pointCount - 1; i++) {
-      const a = i * 3;
-      const b = (i + 1) * 3;
-      segs.push(p[a]!, p[a + 1]!, p[a + 2]!, p[b]!, p[b + 1]!, p[b + 2]!);
-    }
+function edgePoints(positions: Float32Array): [number, number, number][] {
+  const out: [number, number, number][] = [];
+  for (let i = 0; i < positions.length; i += 3) {
+    out.push([positions[i]!, positions[i + 1]!, positions[i + 2]!]);
   }
-  if (segs.length === 0) return null;
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(segs), 3));
-  return geo;
+  return out;
 }
 
 export function ShapeMesh({ mesh }: { mesh: TessellatedMesh }): JSX.Element {
   const setHovered = useAppStore((s) => s.setHovered);
-  const toggleShapeSelection = useAppStore((s) => s.toggleShapeSelection);
+  const selectEntity = useAppStore((s) => s.selectEntity);
   const hovered = useAppStore((s) => s.hovered);
-  const isSelected = useAppStore((s) => s.selectedShapeIds.includes(mesh.shapeId));
+  const selection = useAppStore((s) => s.selection);
   const sketchActive = useAppStore((s) => s.sketchActive);
 
   const geometry = useMemo(() => buildGeometry(mesh), [mesh]);
-  const edgesGeometry = useMemo(() => buildEdgesGeometry(mesh), [mesh]);
+  const edges = useMemo(
+    () => mesh.edges.map((e) => ({ edgeId: e.edgeId, pts: edgePoints(e.positions) })),
+    [mesh],
+  );
+
+  const bodySelected = selection.some((it) => it.kind === "body" && it.shapeId === mesh.shapeId);
+  const selFaceIds = selection.filter((it) => it.kind === "face" && it.shapeId === mesh.shapeId).map((it) => it.index);
+  const selEdgeIds = new Set(
+    selection.filter((it) => it.kind === "edge" && it.shapeId === mesh.shapeId).map((it) => it.index),
+  );
 
   const hoverGeo = useMemo(
     () => (hovered?.shapeId === mesh.shapeId ? buildFaceGeometry(mesh, hovered.faceId) : null),
     [mesh, hovered],
+  );
+  const selFaceGeos = useMemo(
+    () => selFaceIds.map((id) => ({ id, geo: buildFaceGeometry(mesh, id) })),
+    [mesh, selFaceIds.join(",")],
   );
 
   const faceIdFromEvent = (e: { faceIndex?: number | null }): number | null => {
@@ -91,13 +97,14 @@ export function ShapeMesh({ mesh }: { mesh: TessellatedMesh }): JSX.Element {
             ? undefined
             : (e) => {
                 e.stopPropagation();
-                toggleShapeSelection(mesh.shapeId);
+                const faceId = faceIdFromEvent(e);
+                if (faceId !== null) selectEntity({ kind: "face", shapeId: mesh.shapeId, index: faceId });
               }
         }
       >
         <meshStandardMaterial
-          color={isSelected ? "#4fd1c5" : "#9aa7bd"}
-          emissive={isSelected ? "#173f3b" : "#000000"}
+          color={bodySelected ? "#4fd1c5" : "#9aa7bd"}
+          emissive={bodySelected ? "#173f3b" : "#000000"}
           metalness={0.1}
           roughness={0.6}
           flatShading
@@ -105,22 +112,41 @@ export function ShapeMesh({ mesh }: { mesh: TessellatedMesh }): JSX.Element {
         />
       </mesh>
 
-      {edgesGeometry && (
-        <lineSegments geometry={edgesGeometry} renderOrder={1}>
-          <lineBasicMaterial color="#0b0e14" transparent opacity={0.55} />
-        </lineSegments>
-      )}
+      {/* 모서리 — 개별 선택 가능 */}
+      {edges.map((e) => (
+        <Line
+          key={e.edgeId}
+          points={e.pts}
+          color={selEdgeIds.has(e.edgeId) ? "#4fd1c5" : "#0b0e14"}
+          lineWidth={selEdgeIds.has(e.edgeId) ? 4 : 2}
+          transparent
+          opacity={selEdgeIds.has(e.edgeId) ? 1 : 0.55}
+          onClick={
+            sketchActive
+              ? undefined
+              : (e2) => {
+                  e2.stopPropagation();
+                  selectEntity({ kind: "edge", shapeId: mesh.shapeId, index: e.edgeId });
+                }
+          }
+        />
+      ))}
 
+      {/* 호버 면 */}
       {hoverGeo && (
         <mesh geometry={hoverGeo} renderOrder={2}>
-          <meshBasicMaterial
-            color="#4fd1c5"
-            transparent
-            opacity={0.35}
-            depthTest={false}
-            side={THREE.DoubleSide}
-          />
+          <meshBasicMaterial color="#4fd1c5" transparent opacity={0.22} depthTest={false} side={THREE.DoubleSide} />
         </mesh>
+      )}
+
+      {/* 선택된 면 */}
+      {selFaceGeos.map(
+        ({ id, geo }) =>
+          geo && (
+            <mesh key={id} geometry={geo} renderOrder={3}>
+              <meshBasicMaterial color="#4fd1c5" transparent opacity={0.45} depthTest={false} side={THREE.DoubleSide} />
+            </mesh>
+          ),
       )}
     </group>
   );

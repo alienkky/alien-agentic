@@ -42,8 +42,17 @@
 | 11.2 ToleranceManager | 조립 공극 오프셋 | ⬜ |
 | 12 CadAutomationAPI | 스크립트 API | ⬜ |
 
+## 선택 시스템 (모든 편집의 토대 — 기영님 우선순위)
+| 기능 | 상태 | 비고 |
+|---|---|---|
+| **면(face) 탭 선택** | ✅ | triFaceId 역추적, 하이라이트 |
+| **모서리(edge) 탭 선택** | ✅ | 개별 Line 픽킹, 하이라이트 |
+| **바디(body) 선택** | ✅ | 아이템 패널 행 클릭 |
+| 다중 선택(토글) + 빈곳 해제 | ✅ | onPointerMissed |
+| 불리언/이동은 선택→부모바디 도출 | ✅ | selectionBodyIds |
+
 ## 순차 구현 순서 (다음부터)
-1. **ProfileDetector 블루 필** (닫힌 면 파란색) ← *이번*
+1. ✅ ProfileDetector 블루 필 + ✅ 통합 선택(면·모서리·바디)
 2. **돌출 컷 + AutoContext** (기존 바디에 구멍, 자동 add/cut)
 3. **회전(Revolve)** + 돌출 옵션(방향/대칭)
 4. **회전·스케일 기즈모** (Transform 완성)

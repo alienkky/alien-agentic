@@ -3,14 +3,16 @@
  * 생성된 솔리드 목록 — 행 클릭으로 선택(불리언 대상), 휴지통으로 삭제.
  */
 import { TrashIcon } from "./icons";
-import { useAppStore } from "../store/useAppStore";
+import { useAppStore, selectionBodyIds } from "../store/useAppStore";
 
 export function ItemsPanel(): JSX.Element {
   const shapes = useAppStore((s) => s.shapes);
-  const selected = useAppStore((s) => s.selectedShapeIds);
-  const toggleShapeSelection = useAppStore((s) => s.toggleShapeSelection);
+  const selection = useAppStore((s) => s.selection);
+  const selectEntity = useAppStore((s) => s.selectEntity);
   const removeShape = useAppStore((s) => s.removeShape);
   const clear = useAppStore((s) => s.clear);
+
+  const bodyIds = selectionBodyIds(selection);
 
   return (
     <div className="pointer-events-auto absolute right-3 top-16 z-10 flex max-h-[70vh] w-56 flex-col rounded-2xl border border-aa-border bg-aa-surface/90 backdrop-blur">
@@ -34,8 +36,8 @@ export function ItemsPanel(): JSX.Element {
           </p>
         ) : (
           shapes.map((m, i) => {
-            const isSel = selected.includes(m.shapeId);
-            const order = selected.indexOf(m.shapeId);
+            const isSel = bodyIds.includes(m.shapeId);
+            const order = bodyIds.indexOf(m.shapeId);
             return (
               <div
                 key={m.shapeId}
@@ -46,7 +48,7 @@ export function ItemsPanel(): JSX.Element {
               >
                 <button
                   type="button"
-                  onClick={() => toggleShapeSelection(m.shapeId)}
+                  onClick={() => selectEntity({ kind: "body", shapeId: m.shapeId, index: -1 })}
                   className="flex flex-1 items-center gap-2 text-left"
                 >
                   <span
