@@ -107,7 +107,7 @@ interface TessellatedMesh {
 | 무엇 | 어디 |
 |---|---|
 | 코드 | `projects/web-3d-modeler/app/` |
-| 페이즈 교훈 | `shared-memory/insights/{date}-nebula-phaseN.md` |
+| 페이즈 교훈 | `shared-memory/insights/{date}-alien-space-phaseN.md` |
 | 실패 케이스 | `shared-memory/meta/` (가장 비싼 자산) |
 | 일일 진행 | `shared-memory/daily-logs/{date}.md` |
 | UI 시안 | `content/designs/` (`aa design --system alien-agentic`) |

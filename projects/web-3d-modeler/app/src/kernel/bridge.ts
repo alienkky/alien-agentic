@@ -15,7 +15,7 @@ export interface KernelHandle {
 export function createKernelClient(): KernelHandle {
   const worker = new Worker(new URL("./worker.ts", import.meta.url), {
     type: "module",
-    name: "nebula-kernel",
+    name: "alien-space-kernel",
   });
   const client = Comlink.wrap<KernelWorker>(worker);
   return {

@@ -1,4 +1,4 @@
-# Nebula — 웹 3D 모델러 (app)
+# ALIEN SPACE — 웹 3D 모델러 (app)
 
 > ⚠️ **이 폴더(`projects/web-3d-modeler/app/`) 안에서** 명령을 실행한다.
 > 레포 루트(`E:\AlienAgentic\alien-agentic`)에는 package.json 이 없어서 `npm install` 이 ENOENT 로 깨진다.

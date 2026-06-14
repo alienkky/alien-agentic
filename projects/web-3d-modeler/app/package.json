@@ -1,9 +1,9 @@
 {
-  "name": "nebula-modeler",
+  "name": "alien-space",
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Nebula — 브라우저에서 도는 파라메트릭 솔리드 CAD 모델러 (Alien Agentic 자체 IP)",
+  "description": "ALIEN SPACE — 브라우저에서 도는 파라메트릭 솔리드 CAD 모델러 (Alien Agentic 자체 IP)",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

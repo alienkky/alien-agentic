@@ -4,5 +4,5 @@
 
 | id | 제목 | 담당 | 우선순위 | 마감 |
 |---|---|---|---|---|
-| [T-20260614-001](T-20260614-001.md) | Nebula — 웹 3D 모델러 (EPIC, AA 자체 IP) | master-orchestrator | P2 | 2026-12-31 |
-| [T-20260614-002](T-20260614-002.md) | Nebula Phase 0 — 토대 (구현 완료, 디바이스 게이트 대기) | automation-coder | P1 | 2026-07-05 |
+| [T-20260614-001](T-20260614-001.md) | ALIEN SPACE — 웹 3D 모델러 (EPIC, AA 자체 IP) | master-orchestrator | P2 | 2026-12-31 |
+| [T-20260614-003](T-20260614-003.md) | ALIEN SPACE Phase 1 — 프리미티브 + 불리언 (코드 완료, OCCT 디바이스 게이트) | automation-coder | P1 | 2026-07-12 |

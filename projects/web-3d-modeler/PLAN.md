@@ -1,6 +1,6 @@
 # PLAN — 웹 기반 3D 모델러 (Shapr3D-like)
 
-> 코드명: **Nebula** (가칭) — 브라우저에서 도는 파라메트릭 솔리드 모델러.
+> 코드명: **ALIEN SPACE** (가칭) — 브라우저에서 도는 파라메트릭 솔리드 모델러.
 > 작성: master-orchestrator · 2026-06-14 · 상태: 설계(Design)
 > **소유: Alien Agentic 자체 IP** (클라이언트 납품물 아님 — 자체 제품/플랫폼)
 > **타깃 디바이스 우선순위: iPad(Apple Pencil) → Galaxy Tab(S Pen) → Galaxy Z Fold 6(폴더블)**

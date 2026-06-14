@@ -5,6 +5,7 @@ import type { ScreenLayout } from "../device/posture";
 export function StatusBar({ layout }: { layout: ScreenLayout }): JSX.Element {
   const status = useAppStore((s) => s.status);
   const shapes = useAppStore((s) => s.shapes);
+  const selectedCount = useAppStore((s) => s.selectedShapeIds.length);
 
   const deviceLabel =
     layout.posture === "folded"
@@ -19,7 +20,7 @@ export function StatusBar({ layout }: { layout: ScreenLayout }): JSX.Element {
         {status}
       </div>
       <div className="pointer-events-auto rounded-lg border border-aa-border bg-aa-surface/90 px-3 py-2 backdrop-blur">
-        셰이프 {shapes.length} · {deviceLabel} · {layout.width}×{layout.height}
+        셰이프 {shapes.length} · 선택 {selectedCount}/2 · {deviceLabel} · {layout.width}×{layout.height}
       </div>
     </div>
   );
