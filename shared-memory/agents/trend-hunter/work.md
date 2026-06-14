@@ -1,3 +1,13 @@
+---
+agent: trend-hunter
+korean_name: 추세현
+role: 트렌드
+division: rnd
+type: agent-memory
+file_type: work
+tags: [agent, work, rnd]
+---
+
 # trend-hunter / work.md
 > 무엇을 했나 — 시간순 누적
 

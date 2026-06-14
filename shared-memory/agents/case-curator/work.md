@@ -1,3 +1,13 @@
+---
+agent: case-curator
+korean_name: 모사록
+role: 케이스
+division: rnd
+type: agent-memory
+file_type: work
+tags: [agent, work, rnd]
+---
+
 # work.md — case-curator
 
 ## 2026-05-19

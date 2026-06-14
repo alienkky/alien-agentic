@@ -1,0 +1,12 @@
+---
+agent: agent-architect
+korean_name: 구도연
+role: 팀설계
+division: how
+type: agent-memory
+file_type: mistakes
+tags: [agent, mistakes, how, mistake]
+---
+
+# Mistakes — 실패·교훈 (가장 비싼 자산)
+

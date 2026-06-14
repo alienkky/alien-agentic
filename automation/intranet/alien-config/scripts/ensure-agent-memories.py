@@ -1,21 +1,24 @@
-"""ensure-agent-memories.py — 27명 에이전트의 메모리 디렉토리 + 4 빈 파일 보장.
+"""ensure-agent-memories.py — 27명 에이전트의 메모리 디렉토리 + 4파일 보장 + Obsidian frontmatter.
 
 배경: 외계인 메모리 페이지가 호스트의 shared-memory/agents/{name}/ 디렉토리를
 스캔해서 트리를 만든다. 디렉토리가 없으면 그 에이전트는 메모리 페이지에 안
-보임. 사용자가 에이전트와 처음 대화하기 전까지는 디렉토리가 생성 안 되는데,
-*에이전트가 일을 시작하기 전*에도 미리 자리를 만들어둬야 한다.
+보임. 또 Obsidian Vault 로 열었을 때 Dataview·그래프뷰가 강력하려면 각 메모리
+파일에 YAML frontmatter(agent·korean_name·division·file_type·tags)가 필요하다.
 
 설계: .claude/agents/*.md 의 frontmatter `name` 을 진실의 원천으로 사용.
 각 에이전트마다 다음 구조 보장:
 
     shared-memory/agents/<name>/
-        work.md
-        learnings.md
-        decisions.md
-        mistakes.md
+        work.md       (frontmatter: file_type=work,      tags=[agent, work, <div>])
+        learnings.md  (frontmatter: file_type=learnings, tags=[agent, learnings, <div>])
+        decisions.md  (frontmatter: file_type=decisions, tags=[agent, decisions, <div>])
+        mistakes.md   (frontmatter: file_type=mistakes,  tags=[agent, mistakes, <div>, mistake])
 
-idempotent — 이미 있는 파일은 절대 덮어쓰지 않음. 빈 파일만 새로 만든다.
-사용자가 작성한 메모리는 항상 보존된다.
+idempotent + 비파괴:
+  - 신규 파일: frontmatter + 헤더로 생성
+  - 기존 파일에 frontmatter 없음: frontmatter 만 맨 앞에 prepend (기존 본문 100% 보존)
+  - 기존 파일에 frontmatter 있음: 절대 안 건드림
+어떤 사용자 메모리도 손실되지 않는다.
 
 호출: setup-memory-api.ps1 이 컨테이너 가동 *전*에 자동 호출.
 또는 수동: python ensure-agent-memories.py
@@ -33,7 +36,7 @@ MEMORY_DIR = REPO / "shared-memory" / "agents"
 
 FILES = ("work.md", "learnings.md", "decisions.md", "mistakes.md")
 
-# 새 빈 파일을 만들 때 박는 헤더 (사람이 읽기 좋게)
+# 파일별 본문 헤더 (사람이 읽기 좋게)
 HEADERS = {
     "work.md":      "# Work — 진행 중·완료된 작업 기록\n\n",
     "learnings.md": "# Learnings — 배운 것·통찰\n\n",
@@ -41,14 +44,49 @@ HEADERS = {
     "mistakes.md":  "# Mistakes — 실패·교훈 (가장 비싼 자산)\n\n",
 }
 
+# 영문 디렉토리명 → (한글 인명, 역할 라벨, division)
+# 출처: memory-api/app.py 의 KOREAN_NAMES + seeds/seed_agents.py 의 DIVISIONS.
+# division 태그는 소문자: WHY→why, HOW→how, WHAT→what, CTRL→ctrl, R&D→rnd.
+ROSTER: dict[str, tuple[str, str, str]] = {
+    # WHY — 외계어 통역사
+    "origin-reader":          ("심연우", "Why발굴",       "why"),
+    "pain-interpreter":       ("민애린", "페인진단",      "why"),
+    "vision-architect":       ("윤지평", "비전설계",      "why"),
+    "culture-linguist":       ("서가온", "컬쳐언어",      "why"),
+    "story-weaver":           ("한벼리", "내러티브",      "why"),
+    # HOW — 외계 설계자
+    "process-cartographer":   ("고도현", "프로세스",      "how"),
+    "agent-architect":        ("구도연", "팀설계",        "how"),
+    "workflow-engineer":      ("류한길", "워크플로",      "how"),
+    "integration-specialist": ("연다리", "통합설계",      "how"),
+    "data-strategist":        ("차곡담", "데이터",        "how"),
+    "kpi-translator":         ("정도량", "KPI",          "how"),
+    "org-designer":           ("양터전", "조직설계",      "how"),
+    # WHAT — 외계 빌더
+    "prompt-engineer":        ("남말씨", "프롬프트",      "what"),
+    "subagent-builder":       ("표본새", "에이전트빌더",  "what"),
+    "mcp-connector":          ("방연동", "MCP",          "what"),
+    "automation-coder":       ("공도율", "자동화",        "what"),
+    "knowledge-architect":    ("장서윤", "지식설계",      "what"),
+    "ui-ux-designer":         ("백그림", "UI/UX",        "what"),
+    "qa-tester":              ("하검수", "QA",           "what"),
+    # CTRL — 지구 적응
+    "sales-closer":           ("주결음", "영업",          "ctrl"),
+    "content-scout":          ("노소문", "콘텐츠",        "ctrl"),
+    "client-concierge":       ("안다정", "고객관리",      "ctrl"),
+    "finance-tracker":        ("나재율", "재무",          "ctrl"),
+    "brand-keeper":           ("문지율", "브랜드검수",    "ctrl"),
+    # R&D — 외계 연구원
+    "trend-hunter":           ("추세현", "트렌드",        "rnd"),
+    "case-curator":           ("모사록", "케이스",        "rnd"),
+    "future-forecaster":      ("오먼동", "미래예측",      "rnd"),
+}
+
 FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---", re.DOTALL)
 
 
 def extract_agent_names() -> list[str]:
-    """.claude/agents/*.md 의 frontmatter name 필드 추출.
-
-    name 필드가 없으면 파일명(stem)으로 fallback.
-    """
+    """.claude/agents/*.md 의 frontmatter name 필드 추출 (없으면 stem fallback)."""
     if not AGENTS_SRC.is_dir():
         print(f"FAIL: .claude/agents 디렉토리 없음 -- {AGENTS_SRC}", file=sys.stderr)
         return []
@@ -71,20 +109,60 @@ def extract_agent_names() -> list[str]:
     return names
 
 
-def ensure(name: str) -> tuple[int, int]:
-    """에이전트의 디렉토리 + 4파일 보장. (생성된 항목, 스킵된 항목) 반환."""
-    agent_dir = MEMORY_DIR / name
+def build_frontmatter(agent: str, fname: str) -> str:
+    """에이전트 + 파일 종류에 맞는 YAML frontmatter 생성."""
+    korean, role, div = ROSTER.get(agent, ("", "", "etc"))
+    file_type = fname.replace(".md", "")
+    tags = ["agent", file_type, div]
+    if file_type == "mistakes":
+        tags.append("mistake")  # 그래프뷰에서 빨강 그룹 매칭
+    tag_str = ", ".join(tags)
+    lines = [
+        "---",
+        f"agent: {agent}",
+    ]
+    if korean:
+        lines.append(f"korean_name: {korean}")
+        lines.append(f"role: {role}")
+        lines.append(f"division: {div}")
+    lines.append("type: agent-memory")
+    lines.append(f"file_type: {file_type}")
+    lines.append(f"tags: [{tag_str}]")
+    lines.append("---")
+    lines.append("")
+    return "\n".join(lines) + "\n"
+
+
+def ensure(agent: str) -> tuple[int, int, int]:
+    """디렉토리 + 4파일 보장 + frontmatter. (신규, frontmatter추가, 스킵) 반환."""
+    agent_dir = MEMORY_DIR / agent
     created = 0
+    fm_added = 0
     skipped = 0
     agent_dir.mkdir(parents=True, exist_ok=True)
+
     for fname in FILES:
         fp = agent_dir / fname
-        if fp.exists():
+        fm = build_frontmatter(agent, fname)
+
+        if not fp.exists():
+            # 신규: frontmatter + 헤더
+            fp.write_text(fm + HEADERS.get(fname, ""), encoding="utf-8")
+            created += 1
+            continue
+
+        # 기존 파일
+        text = fp.read_text(encoding="utf-8")
+        if text.lstrip().startswith("---"):
+            # 이미 frontmatter 있음 — 절대 안 건드림
             skipped += 1
             continue
-        fp.write_text(HEADERS.get(fname, ""), encoding="utf-8")
-        created += 1
-    return created, skipped
+
+        # frontmatter 없음 — 맨 앞에 prepend (본문 100% 보존)
+        fp.write_text(fm + text, encoding="utf-8")
+        fm_added += 1
+
+    return created, fm_added, skipped
 
 
 def main() -> int:
@@ -98,30 +176,35 @@ def main() -> int:
         print("FAIL: 에이전트 이름을 못 찾음", file=sys.stderr)
         return 1
 
-    print(f"[ensure] {len(names)}명의 메모리 디렉토리 + 4파일 보장")
+    print(f"[ensure] {len(names)}명의 메모리 디렉토리 + 4파일 + Obsidian frontmatter")
     print(f"  src: {AGENTS_SRC}")
     print(f"  dst: {MEMORY_DIR}")
     print()
 
-    total_created = 0
-    total_skipped = 0
+    t_created = 0
+    t_fm = 0
+    t_skip = 0
     for name in names:
-        c, s = ensure(name)
-        total_created += c
-        total_skipped += s
-        if c > 0:
-            print(f"  + {name:<25} 신규 {c}/4 파일")
-        else:
-            print(f"  = {name:<25} 모두 존재")
+        c, f, s = ensure(name)
+        t_created += c
+        t_fm += f
+        t_skip += s
+        parts = []
+        if c:
+            parts.append(f"신규 {c}")
+        if f:
+            parts.append(f"frontmatter +{f}")
+        status = " · ".join(parts) if parts else "모두 OK"
+        print(f"  {name:<25} {status}")
 
     print()
-    print(f"결과: 신규 {total_created} 파일 / 스킵 {total_skipped} 파일")
-    print(f"      에이전트 {len(names)}명 디렉토리 ensured")
+    print(f"결과: 신규 {t_created} · frontmatter 추가 {t_fm} · 스킵 {t_skip}")
+    print(f"      에이전트 {len(names)}명 ensured")
 
-    if total_created > 0:
-        print("\n외계인 메모리 페이지 새로고침 시 모든 에이전트가 트리에 나타남.")
+    if t_created or t_fm:
+        print("\nObsidian Vault 새로고침 시 Dataview·그래프뷰가 division·file_type 별로 인덱싱.")
     else:
-        print("\n변경 없음 (모든 메모리 파일이 이미 존재).")
+        print("\n변경 없음 (모든 파일이 이미 frontmatter 포함).")
 
     return 0
 

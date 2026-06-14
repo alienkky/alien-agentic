@@ -1,3 +1,13 @@
+---
+agent: trend-hunter
+korean_name: 추세현
+role: 트렌드
+division: rnd
+type: agent-memory
+file_type: mistakes
+tags: [agent, mistakes, rnd, mistake]
+---
+
 # trend-hunter / mistakes.md
 > 무엇이 잘못됐나 — 실패 케이스 누적 (가장 비싼 자산)
 
