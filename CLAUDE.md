@@ -138,17 +138,10 @@
 | 신호 | 조치 |
 |---|---|
 | 연속 3일 14시간+ 작업 | "외계인도 쉬어야 합니다" 알림 |
-| 평일 18:00 이후 / 주말 / 공휴일 미팅 요청 | 자동 거절 초안 |
 | 단일 클라이언트 매출 40% 초과 | 분산 권고 보고서 |
 | 월 Claude Max 토큰 80% 도달 | 사용 패턴 분석 + Extra Usage 검토 |
 | 자책 발언 ("난 안 돼", "포기") 감지 | 부드럽게 재구조화 |
 | 외부 관계자 압박 발언 감지 | 명확한 경계 권고 |
-
-### 가족 시간 신성화 — 기영님 vs AI 분리
-- **AI 자체는 24시간 작동.** 자동화 스크립트·예약 작업·야간 메모리 정리·이메일 응답 초안 등은 시간 제약 없음.
-- **기영님께 *새 작업 권유*는 평일 18:00 이후·주말·공휴일 금지.** 야간에 *수행 완료된* 작업을 정리해 두는 건 OK — 다음날 아침 보고로 갈음.
-- 한혜성님(담향산방)·**용훈**·**진아** 관련 일정은 캘린더 최우선 차단.
-- 저녁/주말에 기영님이 자발적으로 들어오시면 일하지만, 마스터 오케스트레이터가 *먼저 새 작업을 권유하지 않는다*.
 
 ---
 
@@ -204,6 +197,7 @@ E:\AlienAgentic\alien-agentic\
 - **클라이언트 산출물**: `clients/{client-name}/{WHY|HOW|WHAT}/` 만 사용. 다른 위치에 흩지 않음
 - **Multica 컴포넌트 검증 (필수 절차)**: `multica/` 에 들어갈 `.tsx/.ts` 작성·수정 시 **빌드 전 반드시 tsc 사전 체크**. esbuild 파싱(`--loader=tsx`)은 *타입을 무시* 하므로 `React.ReactNode` import 누락 · `noUnusedLocals` · `noUncheckedIndexedAccess` 를 못 잡고, 그대로 docker 빌드에 넣으면 `next build` 가 깨진다. 자립 컴포넌트는 `automation/intranet/alien-config/scripts/check-tsx.sh <file>` 로, `@multica/*` 의존 파일은 esbuild 파싱 + 실제 빌드로 검증한다. (교훈: 2026-05-19 Alien Plan — esbuild 통과했지만 tsc 3건 실패로 빌드 깨짐)
 - **Multica 빌드 진입점 (절대 — drift 방지)**: multica 재빌드·재시작은 **`setup-multica.ps1`**(또는 autostart-serve.ps1) 만 쓴다. 둘 다 빌드 override(`-f docker-compose.selfhost.build.yml`)를 포함해 한글화·Alien Plan·브랜딩이 박힌 `multica-*:dev` 이미지를 보장한다. **직접 `docker compose` 를 칠 때는 반드시 `-f docker-compose.selfhost.yml -f docker-compose.selfhost.build.yml` 둘 다** 줄 것. build override 를 빠뜨리면 prebuilt 기본 이미지가 떠서 한글화·Alien Plan·브랜딩이 **통째로 안 보인다(데이터·소스는 멀쩡 — 화면만)**. (교훈: 2026-05-22 — `selfhost.yml` 단독 `--build` 로 한글화·Alien Plan 사라진 것처럼 보임. 복원: `setup-multica.ps1`. 케이스: `shared-memory/insights/2026-05-19-docker-compose-override-drift.md`)
+- **HTTPS 종결 (절대 — WS 보호)**: Multica 의 HTTPS·WebSocket 종결은 **Caddy(`AlienAgentic-Caddy` Task)** 가 단독으로 담당한다. `tailscale serve --https=443` 은 WebSocket Upgrade 를 forward 못 해 받은함 카운팅·에이전트 상태·코멘트 푸시가 죽는다(교훈: 2026-05-27). 절대 `tailscale serve --https` 를 다시 호출하지 말 것 — Caddy 와 443 점유 충돌로 둘 다 죽고 broken WS 로 회귀. 셋업·롤백·검증 절차: `automation/intranet/alien-config/caddy/README.md`. 인증서 갱신: `AlienAgentic-CertRefresh` Task 가 매주 일 03:00 자동 점검.
 
 ---
 
@@ -246,6 +240,7 @@ E:\AlienAgentic\alien-agentic\
    - 전제: open-design 데몬 가동 (`automation/intranet/open-design`, `pnpm tools-dev run web`). 데몬 URL 기본 7456 과 다르면 `--daemon-url`.
    - anti-AI-slop 가드(discovery·OKLch 결정론 팔레트·5차원 review)로 품질 보장. `--dry-run` 으로 계획 먼저.
    - 셋업·디자인시스템 2층: `docs/guides/open-design-setup.md`, `automation/intranet/alien-config/open-design/README.md`
+   - **인쇄용 (포스터·전단·명함·브로셔·책자) 디자인은 반드시 *미리보기 친화* 표준 prompt 동봉.** OpenDesign 의 기본 출력은 *디자이너 워크보드 톤*(dark background + JS auto-scale) 이라 *화면 미리보기에서 비어 보이는* 함정이 있다. 표준 prompt + 함정 회피: `docs/guides/print-design-prompt-standard.md` (교훈: 2026-05-27 — Neora A1 포스터 미리보기 빈 화면 사고)
 
 ---
 
