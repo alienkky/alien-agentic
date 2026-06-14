@@ -56,6 +56,7 @@ export function ShapeMesh({ mesh }: { mesh: TessellatedMesh }): JSX.Element {
   const toggleShapeSelection = useAppStore((s) => s.toggleShapeSelection);
   const hovered = useAppStore((s) => s.hovered);
   const isSelected = useAppStore((s) => s.selectedShapeIds.includes(mesh.shapeId));
+  const sketchActive = useAppStore((s) => s.sketchActive);
 
   const geometry = useMemo(() => buildGeometry(mesh), [mesh]);
   const edgesGeometry = useMemo(() => buildEdgesGeometry(mesh), [mesh]);
@@ -75,16 +76,24 @@ export function ShapeMesh({ mesh }: { mesh: TessellatedMesh }): JSX.Element {
     <group>
       <mesh
         geometry={geometry}
-        onPointerMove={(e) => {
-          e.stopPropagation();
-          const faceId = faceIdFromEvent(e);
-          if (faceId !== null) setHovered({ shapeId: mesh.shapeId, faceId });
-        }}
-        onPointerOut={() => setHovered(null)}
-        onClick={(e) => {
-          e.stopPropagation();
-          toggleShapeSelection(mesh.shapeId);
-        }}
+        onPointerMove={
+          sketchActive
+            ? undefined
+            : (e) => {
+                e.stopPropagation();
+                const faceId = faceIdFromEvent(e);
+                if (faceId !== null) setHovered({ shapeId: mesh.shapeId, faceId });
+              }
+        }
+        onPointerOut={sketchActive ? undefined : () => setHovered(null)}
+        onClick={
+          sketchActive
+            ? undefined
+            : (e) => {
+                e.stopPropagation();
+                toggleShapeSelection(mesh.shapeId);
+              }
+        }
       >
         <meshStandardMaterial
           color={isSelected ? "#4fd1c5" : "#9aa7bd"}

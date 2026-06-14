@@ -1,49 +1,50 @@
 /** 씬 구성 — 조명, 그리드, 기준 축, 셰이프들(+ 1개 선택 시 이동 기즈모). */
-import { useRef } from "react";
+import { useState } from "react";
 import * as THREE from "three";
 import { Grid, TransformControls } from "@react-three/drei";
 import { useAppStore, type Vec3 } from "../store/useAppStore";
 import type { TessellatedMesh } from "../kernel/types";
-
-const ORIGIN: Vec3 = [0, 0, 0];
 import { CameraRig } from "./CameraRig";
 import { ShapeMesh } from "./ShapeMesh";
+import { SketchLayer } from "./SketchLayer";
+
+const ORIGIN: Vec3 = [0, 0, 0];
 
 function MovableShape({ mesh, gizmo }: { mesh: TessellatedMesh; gizmo: boolean }): JSX.Element {
-  const groupRef = useRef<THREE.Group>(null);
+  // 감싸는 방식 대신 우리 그룹을 object 로 직접 제어한다.
+  // (감싸면 drei 가 내부 래퍼를 움직여 실제 위치가 저장되지 않고 deselect 시 원위치로 튕긴다.)
+  const [obj, setObj] = useState<THREE.Group | null>(null);
   const pos = useAppStore((s) => s.transforms[mesh.shapeId] ?? ORIGIN);
   const setTransform = useAppStore((s) => s.setTransform);
   const setGizmoDragging = useAppStore((s) => s.setGizmoDragging);
 
-  const content = (
-    <group ref={groupRef} position={pos}>
-      <ShapeMesh mesh={mesh} />
-    </group>
-  );
-
-  if (!gizmo) return content;
-
   return (
-    <TransformControls
-      mode="translate"
-      onMouseDown={() => setGizmoDragging(true)}
-      onMouseUp={() => setGizmoDragging(false)}
-      onObjectChange={() => {
-        const g = groupRef.current;
-        if (g) setTransform(mesh.shapeId, [g.position.x, g.position.y, g.position.z]);
-      }}
-    >
-      {content}
-    </TransformControls>
+    <>
+      <group ref={setObj} position={pos}>
+        <ShapeMesh mesh={mesh} />
+      </group>
+      {gizmo && obj && (
+        <TransformControls
+          object={obj}
+          mode="translate"
+          onMouseDown={() => setGizmoDragging(true)}
+          onMouseUp={() => setGizmoDragging(false)}
+          onObjectChange={() =>
+            setTransform(mesh.shapeId, [obj.position.x, obj.position.y, obj.position.z])
+          }
+        />
+      )}
+    </>
   );
 }
 
 export function Scene(): JSX.Element {
   const shapes = useAppStore((s) => s.shapes);
   const selected = useAppStore((s) => s.selectedShapeIds);
+  const sketchActive = useAppStore((s) => s.sketchActive);
 
-  // 정확히 1개 선택일 때만 이동 기즈모를 보인다.
-  const gizmoId = selected.length === 1 ? selected[0] : null;
+  // 정확히 1개 선택이고 스케치 중이 아닐 때만 이동 기즈모를 보인다.
+  const gizmoId = !sketchActive && selected.length === 1 ? selected[0] : null;
 
   return (
     <>
@@ -67,6 +68,8 @@ export function Scene(): JSX.Element {
       {shapes.map((mesh) => (
         <MovableShape key={mesh.shapeId} mesh={mesh} gizmo={mesh.shapeId === gizmoId} />
       ))}
+
+      <SketchLayer />
     </>
   );
 }

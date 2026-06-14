@@ -3,11 +3,13 @@
  * Phase 1 도구: 프리미티브 생성. (스케치·돌출 등은 후속 페이즈에서 이 레일에 추가)
  */
 import { IconButton } from "./IconButton";
-import { BoxIcon, CylinderIcon, SphereIcon } from "./icons";
+import { BoxIcon, CylinderIcon, SphereIcon, SketchIcon } from "./icons";
 import { useAppStore } from "../store/useAppStore";
 
 export function ToolRail(): JSX.Element {
   const addPrimitive = useAppStore((s) => s.addPrimitive);
+  const beginSketch = useAppStore((s) => s.beginSketch);
+  const sketchActive = useAppStore((s) => s.sketchActive);
   const busy = useAppStore((s) => s.busy);
 
   return (
@@ -21,6 +23,10 @@ export function ToolRail(): JSX.Element {
         </IconButton>
         <IconButton label="구 (Sphere)" onClick={() => void addPrimitive("sphere")} disabled={busy}>
           <SphereIcon />
+        </IconButton>
+        <div className="my-0.5 h-px w-7 bg-aa-border" />
+        <IconButton label="스케치 → 돌출 (Sketch)" onClick={beginSketch} active={sketchActive}>
+          <SketchIcon />
         </IconButton>
       </div>
     </div>
