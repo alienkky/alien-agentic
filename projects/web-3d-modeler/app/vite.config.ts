@@ -16,6 +16,10 @@ export default defineConfig({
     host: true,
     port: 4173,
   },
+  // three 가 여러 번 번들되면 r3f/three-bvh-csg 가 깨진다 — 단일 인스턴스로 강제.
+  resolve: {
+    dedupe: ["three"],
+  },
   optimizeDeps: {
     exclude: ["opencascade.js"],
   },

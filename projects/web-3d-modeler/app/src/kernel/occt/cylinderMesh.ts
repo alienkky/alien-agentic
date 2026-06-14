@@ -33,7 +33,8 @@ export function tessellateCylinder(radius: number, height: number, shapeId: stri
     const t0 = pushVertex(radius * c0, hy, radius * s0, c0, 0, s0);
     const b1 = pushVertex(radius * c1, -hy, radius * s1, c1, 0, s1);
     const t1 = pushVertex(radius * c1, hy, radius * s1, c1, 0, s1);
-    indices.push(b0, b1, t1, b0, t1, t0);
+    // 바깥면 CCW (법선이 라디얼 바깥)
+    indices.push(b0, t1, b1, b0, t0, t1);
     triFaceId.push(0, 0);
   }
   faceRanges.push({ faceId: 0, start, count: indices.length - start });
@@ -46,7 +47,7 @@ export function tessellateCylinder(radius: number, height: number, shapeId: stri
     const a1 = ((i + 1) / SEGMENTS) * Math.PI * 2;
     const r0 = pushVertex(radius * Math.cos(a0), hy, radius * Math.sin(a0), 0, 1, 0);
     const r1 = pushVertex(radius * Math.cos(a1), hy, radius * Math.sin(a1), 0, 1, 0);
-    indices.push(topCenter, r0, r1);
+    indices.push(topCenter, r1, r0); // +Y 바깥
     triFaceId.push(1);
   }
   faceRanges.push({ faceId: 1, start, count: indices.length - start });
@@ -59,7 +60,7 @@ export function tessellateCylinder(radius: number, height: number, shapeId: stri
     const a1 = ((i + 1) / SEGMENTS) * Math.PI * 2;
     const r0 = pushVertex(radius * Math.cos(a0), -hy, radius * Math.sin(a0), 0, -1, 0);
     const r1 = pushVertex(radius * Math.cos(a1), -hy, radius * Math.sin(a1), 0, -1, 0);
-    indices.push(botCenter, r1, r0);
+    indices.push(botCenter, r0, r1); // -Y 바깥
     triFaceId.push(2);
   }
   faceRanges.push({ faceId: 2, start, count: indices.length - start });

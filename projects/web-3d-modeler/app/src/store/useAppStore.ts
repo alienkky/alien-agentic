@@ -6,6 +6,7 @@ import { create } from "zustand";
 import { createKernelClient, type KernelHandle } from "../kernel/bridge";
 import type { KernelBackend } from "../kernel/worker";
 import type { TessellatedMesh, BooleanOp } from "../kernel/types";
+import { meshBoolean } from "../kernel/meshBoolean";
 import {
   defaultCamera,
   orbit as orbitCam,
@@ -122,21 +123,27 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   booleanOp: async (op) => {
     const sel = get().selectedShapeIds;
-    if (!kernel || get().busy) return;
+    if (get().busy) return;
     if (sel.length < 2) {
       set({ status: "불리언: 셰이프 2개를 선택하세요 (대상 → 도구 순서)" });
       return;
     }
-    if (get().backend !== "occt") {
-      set({ status: "불리언은 OCCT 백엔드 필요 — 상단 OCCT 토글을 켜세요" });
-      return;
-    }
     const idA = sel[0]!;
     const idB = sel[1]!;
+    const a = get().shapes.find((m) => m.shapeId === idA);
+    const b = get().shapes.find((m) => m.shapeId === idB);
+    if (!a || !b) {
+      set({ status: "불리언: 선택한 셰이프를 찾을 수 없습니다" });
+      return;
+    }
     set({ busy: true, status: `${BOOL_LABEL[op]} 중…` });
     try {
       const resultId = `bool-${++counter}`;
-      const mesh = await kernel.client.boolean(op, idA, idB, resultId);
+      // OCCT 모드면 진짜 B-rep 불리언(워커), 아니면 메시 CSG(메인 스레드).
+      const mesh =
+        get().backend === "occt" && kernel
+          ? await kernel.client.boolean(op, idA, idB, resultId)
+          : meshBoolean(a, b, op, resultId);
       set((s) => ({
         shapes: [...s.shapes.filter((m) => m.shapeId !== idA && m.shapeId !== idB), mesh],
         selectedShapeIds: [],

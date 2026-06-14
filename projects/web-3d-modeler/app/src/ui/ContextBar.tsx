@@ -10,14 +10,11 @@ export function ContextBar(): JSX.Element | null {
   const selected = useAppStore((s) => s.selectedShapeIds);
   const booleanOp = useAppStore((s) => s.booleanOp);
   const clearSelection = useAppStore((s) => s.clearSelection);
-  const backend = useAppStore((s) => s.backend);
-  const setBackend = useAppStore((s) => s.setBackend);
   const busy = useAppStore((s) => s.busy);
 
   if (selected.length === 0) return null;
 
   const ready = selected.length === 2;
-  const isOcct = backend === "occt";
 
   return (
     <div className="pointer-events-none absolute bottom-6 left-0 right-0 z-10 flex justify-center px-3">
@@ -26,17 +23,7 @@ export function ContextBar(): JSX.Element | null {
           {ready ? "불리언" : `${selected.length}/2 선택 — 하나 더`}
         </span>
 
-        {ready && !isOcct && (
-          <button
-            type="button"
-            onClick={() => void setBackend("occt")}
-            className="min-h-[44px] rounded-lg bg-aa-accent px-3 text-sm font-semibold text-aa-bg"
-          >
-            OCCT 켜고 불리언
-          </button>
-        )}
-
-        {ready && isOcct && (
+        {ready && (
           <>
             <IconButton label="빼기 (Subtract)" onClick={() => void booleanOp("cut")} disabled={busy}>
               <SubtractIcon />
