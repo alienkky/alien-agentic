@@ -54,9 +54,11 @@ interface AppState {
   sketchActive: boolean;
   /** 현재 스케치 도구 */
   sketchTool: SketchTool;
-  /** 사각형·원의 첫 탭(시작점). 두 번째 탭에서 프로파일 확정 */
-  sketchStart: SketchPoint | null;
-  /** 스케치 중인 지면(XZ) 점들 (확정된 프로파일) */
+  /** 사각형·원 드래그 초안 (시작점→현재점). 드래그 중 실시간 미리보기 */
+  sketchDraft: { start: SketchPoint; current: SketchPoint } | null;
+  /** 커서 위치 (선 도구 미리보기용) */
+  sketchHover: SketchPoint | null;
+  /** 확정된 프로파일 점들 (지면 XZ) */
   sketchPoints: SketchPoint[];
   backend: KernelBackend;
   status: string;
@@ -84,7 +86,11 @@ interface AppState {
 
   beginSketch: () => void;
   setSketchTool: (tool: SketchTool) => void;
-  sketchTap: (p: SketchPoint) => void;
+  /** 사각형·원: 드래그 시작 / 이동 / 종료. 선: 점 클릭 */
+  sketchDragStart: (p: SketchPoint) => void;
+  sketchDragMove: (p: SketchPoint) => void;
+  sketchDragEnd: () => void;
+  sketchClickPoint: (p: SketchPoint) => void;
   undoSketchPoint: () => void;
   cancelSketch: () => void;
   commitExtrude: (depth: number) => void;
@@ -108,7 +114,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   gizmoDragging: false,
   sketchActive: false,
   sketchTool: "rectangle",
-  sketchStart: null,
+  sketchDraft: null,
+  sketchHover: null,
   sketchPoints: [],
   backend: "deterministic",
   status: "초기화 중…",
@@ -258,60 +265,75 @@ export const useAppStore = create<AppState>((set, get) => ({
   setGizmoDragging: (dragging) => set({ gizmoDragging: dragging }),
 
   beginSketch: () =>
-    set({
+    set((s) => ({
       sketchActive: true,
       sketchPoints: [],
-      sketchStart: null,
+      sketchDraft: null,
+      sketchHover: null,
       selectedShapeIds: [],
-      status: "스케치: 사각형 — 두 모서리를 탭하세요",
-    }),
+      camera: viewPreset(s.camera, "top"), // 평면을 정면으로 — 2D 처럼
+      status: "스케치: 사각형을 드래그해 그리세요",
+    })),
 
   setSketchTool: (tool) =>
     set({
       sketchTool: tool,
-      sketchStart: null,
+      sketchDraft: null,
       sketchPoints: [],
       status:
         tool === "rectangle"
-          ? "사각형 — 두 모서리를 탭"
+          ? "사각형 — 드래그해 그리기"
           : tool === "circle"
-            ? "원 — 중심과 반지름을 탭"
+            ? "원 — 중심에서 바깥으로 드래그"
             : "선 — 점을 순서대로 탭 (3개 이상)",
     }),
 
-  sketchTap: (raw) => {
+  // 사각형·원: 드래그
+  sketchDragStart: (raw) => {
+    if (get().sketchTool === "line") return;
     const p: SketchPoint = { x: snap(raw.x), z: snap(raw.z) };
-    const { sketchTool, sketchStart } = get();
+    set({ sketchDraft: { start: p, current: p }, sketchPoints: [] });
+  },
 
-    if (sketchTool === "line") {
-      set((s) => ({ sketchPoints: [...s.sketchPoints, p], status: `선 — 점 ${s.sketchPoints.length + 1}개` }));
-      return;
-    }
+  sketchDragMove: (raw) => {
+    const p: SketchPoint = { x: snap(raw.x), z: snap(raw.z) };
+    set((s) => (s.sketchDraft ? { sketchDraft: { start: s.sketchDraft.start, current: p }, sketchHover: p } : { sketchHover: p }));
+  },
 
-    // rectangle / circle: 2-탭
-    if (!sketchStart) {
-      set({ sketchStart: p, status: sketchTool === "rectangle" ? "반대 모서리를 탭" : "반지름 지점을 탭" });
-      return;
-    }
+  sketchDragEnd: () => {
+    const { sketchDraft, sketchTool } = get();
+    if (!sketchDraft) return;
+    const { start, current } = sketchDraft;
     let pts: SketchPoint[];
-    if (sketchTool === "rectangle") {
-      pts = [
-        { x: sketchStart.x, z: sketchStart.z },
-        { x: p.x, z: sketchStart.z },
-        { x: p.x, z: p.z },
-        { x: sketchStart.x, z: p.z },
-      ];
+    if (sketchTool === "circle") {
+      const r = Math.hypot(current.x - start.x, current.z - start.z);
+      pts = r > 0.01 ? circlePolygon(start, r) : [];
     } else {
-      const r = Math.hypot(p.x - sketchStart.x, p.z - sketchStart.z);
-      pts = circlePolygon(sketchStart, r);
+      pts =
+        Math.abs(current.x - start.x) > 0.01 && Math.abs(current.z - start.z) > 0.01
+          ? [
+              { x: start.x, z: start.z },
+              { x: current.x, z: start.z },
+              { x: current.x, z: current.z },
+              { x: start.x, z: current.z },
+            ]
+          : [];
     }
-    set({ sketchPoints: pts, sketchStart: null, status: "프로파일 완성 — 돌출하세요" });
+    set({ sketchDraft: null, sketchPoints: pts, status: pts.length ? "프로파일 완성 — 돌출하세요" : "너무 작아요 — 다시 드래그" });
+  },
+
+  // 선: 점 클릭 누적
+  sketchClickPoint: (raw) => {
+    if (get().sketchTool !== "line") return;
+    const p: SketchPoint = { x: snap(raw.x), z: snap(raw.z) };
+    set((s) => ({ sketchPoints: [...s.sketchPoints, p], status: `선 — 점 ${s.sketchPoints.length + 1}개` }));
   },
 
   undoSketchPoint: () =>
-    set((s) => ({ sketchPoints: s.sketchPoints.slice(0, -1), sketchStart: null })),
+    set((s) => ({ sketchPoints: s.sketchPoints.slice(0, -1), sketchDraft: null })),
 
-  cancelSketch: () => set({ sketchActive: false, sketchPoints: [], sketchStart: null, status: "스케치 취소" }),
+  cancelSketch: () =>
+    set({ sketchActive: false, sketchPoints: [], sketchDraft: null, sketchHover: null, status: "스케치 취소" }),
 
   commitExtrude: (depth) => {
     const pts = get().sketchPoints;
@@ -326,7 +348,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         shapes: [...s.shapes, mesh],
         sketchActive: false,
         sketchPoints: [],
-        sketchStart: null,
+        sketchDraft: null,
+        sketchHover: null,
         status: `돌출 완료 → ${shapeId}`,
       }));
     } catch (err) {

@@ -1,56 +1,120 @@
 /**
- * 스케치 모드 레이어 — 지면(XZ, Y=0)을 탭해 점을 찍고, 진행 중 프로파일을 미리 보여준다.
- * 큰 투명 평면이 레이캐스트를 받아 탭 위치를 지면 좌표로 변환한다.
+ * 스케치 모드 레이어 (Shapr3D 방식):
+ *  - 평면을 정면(탑다운)으로 보고 그린다 (beginSketch 가 카메라를 top 으로).
+ *  - 사각형/원: 드래그(누르고 끌어 놓기) — 실시간 러버밴드 미리보기 + 치수 표시.
+ *  - 선: 점을 순서대로 탭, 커서까지 미리보기 선.
  */
-import { Line } from "@react-three/drei";
+import { Line, Html } from "@react-three/drei";
 import { useAppStore } from "../store/useAppStore";
+import type { SketchPoint } from "../kernel/extrude";
+
+function rectPts(a: SketchPoint, b: SketchPoint): SketchPoint[] {
+  return [
+    { x: a.x, z: a.z },
+    { x: b.x, z: a.z },
+    { x: b.x, z: b.z },
+    { x: a.x, z: b.z },
+  ];
+}
+
+function circlePts(c: SketchPoint, r: number, seg = 48): SketchPoint[] {
+  const out: SketchPoint[] = [];
+  for (let i = 0; i < seg; i++) {
+    const a = (i / seg) * Math.PI * 2;
+    out.push({ x: c.x + r * Math.cos(a), z: c.z + r * Math.sin(a) });
+  }
+  return out;
+}
 
 export function SketchLayer(): JSX.Element | null {
   const active = useAppStore((s) => s.sketchActive);
+  const tool = useAppStore((s) => s.sketchTool);
+  const draft = useAppStore((s) => s.sketchDraft);
+  const hover = useAppStore((s) => s.sketchHover);
   const points = useAppStore((s) => s.sketchPoints);
-  const start = useAppStore((s) => s.sketchStart);
-  const sketchTap = useAppStore((s) => s.sketchTap);
+  const dragStart = useAppStore((s) => s.sketchDragStart);
+  const dragMove = useAppStore((s) => s.sketchDragMove);
+  const dragEnd = useAppStore((s) => s.sketchDragEnd);
+  const clickPoint = useAppStore((s) => s.sketchClickPoint);
 
   if (!active) return null;
 
-  const pts3: [number, number, number][] = points.map((p) => [p.x, 0.02, p.z]);
-  // 닫힌 루프 미리보기: 점 3개 이상이면 첫 점으로 되돌아오는 선
-  const linePts: [number, number, number][] =
-    pts3.length >= 2 ? (pts3.length >= 3 ? [...pts3, pts3[0]!] : pts3) : [];
+  // 미리보기 프로파일 + 치수
+  let preview: SketchPoint[] = [];
+  let close = false;
+  let dim: { label: string; at: [number, number, number] } | null = null;
+
+  if (draft) {
+    const { start, current } = draft;
+    if (tool === "circle") {
+      const r = Math.hypot(current.x - start.x, current.z - start.z);
+      preview = circlePts(start, r);
+      close = true;
+      dim = { label: `R ${r.toFixed(1)}`, at: [start.x, 0.1, start.z] };
+    } else {
+      preview = rectPts(start, current);
+      close = true;
+      dim = {
+        label: `${Math.abs(current.x - start.x).toFixed(1)} × ${Math.abs(current.z - start.z).toFixed(1)}`,
+        at: [(start.x + current.x) / 2, 0.1, (start.z + current.z) / 2],
+      };
+    }
+  } else if (tool === "line") {
+    preview = hover ? [...points, hover] : points;
+    close = false;
+  } else {
+    preview = points;
+    close = points.length >= 3;
+  }
+
+  const loop: [number, number, number][] = preview.map((p) => [p.x, 0.02, p.z]);
+  const linePts = close && loop.length >= 3 ? [...loop, loop[0]!] : loop;
 
   return (
     <group>
-      {/* 레이캐스트용 지면 평면 (거의 투명) */}
+      {/* 레이캐스트용 지면 평면 */}
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
         position={[0, 0, 0]}
-        onClick={(e) => {
+        onPointerDown={(e) => {
           e.stopPropagation();
-          sketchTap({ x: e.point.x, z: e.point.z });
+          if (tool === "line") clickPoint({ x: e.point.x, z: e.point.z });
+          else dragStart({ x: e.point.x, z: e.point.z });
+        }}
+        onPointerMove={(e) => {
+          e.stopPropagation();
+          dragMove({ x: e.point.x, z: e.point.z });
+        }}
+        onPointerUp={(e) => {
+          e.stopPropagation();
+          dragEnd();
         }}
       >
         <planeGeometry args={[400, 400]} />
-        <meshBasicMaterial color="#4fd1c5" transparent opacity={0.05} />
+        <meshBasicMaterial color="#4fd1c5" transparent opacity={0.04} />
       </mesh>
 
-      {/* 사각형·원 시작점 마커 */}
-      {start && (
-        <mesh position={[start.x, 0.02, start.z]}>
-          <sphereGeometry args={[0.16, 16, 16]} />
-          <meshBasicMaterial color="#e6ebf2" />
-        </mesh>
-      )}
+      {/* 확정 점 마커 (선 도구) */}
+      {tool === "line" &&
+        !draft &&
+        points.map((p, i) => (
+          <mesh key={i} position={[p.x, 0.02, p.z]}>
+            <sphereGeometry args={[0.12, 16, 16]} />
+            <meshBasicMaterial color="#4fd1c5" />
+          </mesh>
+        ))}
 
-      {/* 확정 프로파일 점 마커 */}
-      {pts3.map((p, i) => (
-        <mesh key={i} position={p}>
-          <sphereGeometry args={[0.12, 16, 16]} />
-          <meshBasicMaterial color="#4fd1c5" />
-        </mesh>
-      ))}
-
-      {/* 프로파일 선 */}
+      {/* 프로파일 / 러버밴드 선 */}
       {linePts.length >= 2 && <Line points={linePts} color="#4fd1c5" lineWidth={2} />}
+
+      {/* 실시간 치수 */}
+      {dim && (
+        <Html position={dim.at} center style={{ pointerEvents: "none" }}>
+          <div className="whitespace-nowrap rounded bg-aa-bg/90 px-1.5 py-0.5 text-xs font-semibold text-aa-accent">
+            {dim.label}
+          </div>
+        </Html>
+      )}
     </group>
   );
 }

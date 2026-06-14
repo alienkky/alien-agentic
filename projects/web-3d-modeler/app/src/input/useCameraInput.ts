@@ -58,8 +58,11 @@ export function useCameraInput(): CameraInputHandlers {
         // capture 하지 않는다 — 탭이면 r3f 가 클릭을 받아 선택이 되도록.
       },
       onPointerMove: (e) => {
+        const st = useAppStore.getState();
         // 이동 기즈모 드래그 중엔 카메라를 멈춘다.
-        if (useAppStore.getState().gizmoDragging) return;
+        if (st.gizmoDragging) return;
+        // 스케치 중엔 한 손가락 드래그는 '그리기'다 — 카메라 궤도/팬을 막는다(두 손가락 줌은 허용).
+        if (st.sketchActive && resolver.current.activeCount < 2) return;
         // 두 손가락 이상: 항상 제스처(핀치/팬)
         if (resolver.current.activeCount >= 2) {
           apply(resolver.current.move(sampleOf(e)));
