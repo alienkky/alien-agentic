@@ -69,10 +69,14 @@ export function meshBoolean(
   b: TessellatedMesh,
   op: BooleanOp,
   resultId: string,
+  posA: [number, number, number] = [0, 0, 0],
+  posB: [number, number, number] = [0, 0, 0],
 ): TessellatedMesh {
   const brushA = new Brush(toGeometry(a));
+  brushA.position.set(posA[0], posA[1], posA[2]);
   brushA.updateMatrixWorld();
   const brushB = new Brush(toGeometry(b));
+  brushB.position.set(posB[0], posB[1], posB[2]);
   brushB.updateMatrixWorld();
 
   const evaluator = new Evaluator();

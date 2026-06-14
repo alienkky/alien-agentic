@@ -24,12 +24,18 @@ export interface FaceRef {
 
 export type PrimitiveKind = "box" | "cylinder" | "sphere";
 
+export type Vec3 = [number, number, number];
+
 interface AppState {
   camera: CameraState;
   shapes: TessellatedMesh[];
+  /** 셰이프별 위치 오프셋 (이동 기즈모). 없으면 원점. */
+  transforms: Record<string, Vec3>;
   hovered: FaceRef | null;
   /** 불리언 대상으로 고른 셰이프들 (최대 2, 순서: 대상→도구) */
   selectedShapeIds: string[];
+  /** 이동 기즈모 드래그 중 — 카메라 입력을 막는다 */
+  gizmoDragging: boolean;
   backend: KernelBackend;
   status: string;
   busy: boolean;
@@ -51,6 +57,8 @@ interface AppState {
   setHovered: (ref: FaceRef | null) => void;
   toggleShapeSelection: (shapeId: string) => void;
   clearSelection: () => void;
+  setTransform: (shapeId: string, pos: Vec3) => void;
+  setGizmoDragging: (dragging: boolean) => void;
 }
 
 let kernel: KernelHandle | null = null;
@@ -65,8 +73,10 @@ const BOOL_LABEL: Record<BooleanOp, string> = {
 export const useAppStore = create<AppState>((set, get) => ({
   camera: defaultCamera(),
   shapes: [],
+  transforms: {},
   hovered: null,
   selectedShapeIds: [],
+  gizmoDragging: false,
   backend: "deterministic",
   status: "초기화 중…",
   busy: false,
@@ -139,16 +149,24 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ busy: true, status: `${BOOL_LABEL[op]} 중…` });
     try {
       const resultId = `bool-${++counter}`;
+      const t = get().transforms;
       // OCCT 모드면 진짜 B-rep 불리언(워커), 아니면 메시 CSG(메인 스레드).
+      // 메시 CSG 는 이동 기즈모 오프셋을 월드 변환으로 반영한다.
       const mesh =
         get().backend === "occt" && kernel
           ? await kernel.client.boolean(op, idA, idB, resultId)
-          : meshBoolean(a, b, op, resultId);
-      set((s) => ({
-        shapes: [...s.shapes.filter((m) => m.shapeId !== idA && m.shapeId !== idB), mesh],
-        selectedShapeIds: [],
-        status: `${BOOL_LABEL[op]} 완료 → ${resultId}`,
-      }));
+          : meshBoolean(a, b, op, resultId, t[idA] ?? [0, 0, 0], t[idB] ?? [0, 0, 0]);
+      set((s) => {
+        const transforms = { ...s.transforms };
+        delete transforms[idA];
+        delete transforms[idB];
+        return {
+          shapes: [...s.shapes.filter((m) => m.shapeId !== idA && m.shapeId !== idB), mesh],
+          transforms,
+          selectedShapeIds: [],
+          status: `${BOOL_LABEL[op]} 완료 → ${resultId}`,
+        };
+      });
     } catch (err) {
       set({ status: `오류: ${err instanceof Error ? err.message : String(err)}` });
     } finally {
@@ -158,12 +176,17 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   removeShape: async (shapeId) => {
     if (kernel) await kernel.client.deleteShape(shapeId);
-    set((s) => ({
-      shapes: s.shapes.filter((m) => m.shapeId !== shapeId),
-      selectedShapeIds: s.selectedShapeIds.filter((id) => id !== shapeId),
-      hovered: s.hovered?.shapeId === shapeId ? null : s.hovered,
-      status: `${shapeId} 삭제`,
-    }));
+    set((s) => {
+      const transforms = { ...s.transforms };
+      delete transforms[shapeId];
+      return {
+        shapes: s.shapes.filter((m) => m.shapeId !== shapeId),
+        selectedShapeIds: s.selectedShapeIds.filter((id) => id !== shapeId),
+        hovered: s.hovered?.shapeId === shapeId ? null : s.hovered,
+        transforms,
+        status: `${shapeId} 삭제`,
+      };
+    });
   },
 
   undoLast: async () => {
@@ -179,7 +202,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         await kernel.client.deleteShape(m.shapeId);
       }
     }
-    set({ shapes: [], hovered: null, selectedShapeIds: [], status: "비움" });
+    set({ shapes: [], transforms: {}, hovered: null, selectedShapeIds: [], status: "비움" });
   },
 
   setHovered: (ref) => set({ hovered: ref }),
@@ -195,4 +218,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     }),
 
   clearSelection: () => set({ selectedShapeIds: [] }),
+
+  setTransform: (shapeId, pos) =>
+    set((s) => ({ transforms: { ...s.transforms, [shapeId]: pos } })),
+
+  setGizmoDragging: (dragging) => set({ gizmoDragging: dragging }),
 }));
