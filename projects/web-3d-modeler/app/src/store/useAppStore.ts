@@ -81,6 +81,8 @@ interface AppState {
   sketchHover: SketchPoint | null;
   /** 확정된 프로파일 점들 (평면 (u,v)) */
   sketchPoints: SketchPoint[];
+  /** 치수 편집 중인 선분 인덱스 (points[i]→points[i+1]) */
+  sketchSelectedSeg: number | null;
   /** 내역(History) — 단계별 작업 로그 (우측 패널). 명세 Module 1.2 토대 */
   history: { id: string; label: string }[];
   backend: KernelBackend;
@@ -128,6 +130,10 @@ interface AppState {
   sketchDragMove: (p: SketchPoint) => void;
   sketchDragEnd: () => void;
   sketchClickPoint: (p: SketchPoint) => void;
+  /** 선분 치수 편집 선택 / 길이 설정 / 해제 */
+  selectSketchSegment: (i: number) => void;
+  setSegmentLength: (i: number, len: number) => void;
+  clearSketchSegment: () => void;
   undoSketchPoint: () => void;
   cancelSketch: () => void;
   commitExtrude: (depth: number) => void;
@@ -155,6 +161,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   sketchDraft: null,
   sketchHover: null,
   sketchPoints: [],
+  sketchSelectedSeg: null,
   history: [],
   displayMode: "shaded",
   panels: { items: true, history: true },
@@ -395,14 +402,36 @@ export const useAppStore = create<AppState>((set, get) => ({
   sketchClickPoint: (raw) => {
     if (get().sketchTool !== "line" || !get().sketchPlane) return;
     const p: SketchPoint = { u: snap(raw.u), v: snap(raw.v) };
-    set((s) => ({ sketchPoints: [...s.sketchPoints, p], status: `선 — 점 ${s.sketchPoints.length + 1}개` }));
+    set((s) => ({ sketchPoints: [...s.sketchPoints, p], sketchSelectedSeg: null, status: `선 — 점 ${s.sketchPoints.length + 1}개` }));
   },
 
+  selectSketchSegment: (i) => set({ sketchSelectedSeg: i }),
+  clearSketchSegment: () => set({ sketchSelectedSeg: null }),
+
+  setSegmentLength: (i, len) =>
+    set((s) => {
+      const a = s.sketchPoints[i];
+      const b = s.sketchPoints[i + 1];
+      if (!a || !b || len <= 0) return { sketchSelectedSeg: null };
+      const du = b.u - a.u;
+      const dv = b.v - a.v;
+      const cur = Math.hypot(du, dv);
+      if (cur < 1e-6) return { sketchSelectedSeg: null };
+      const k = len / cur;
+      const deltaU = du * k - du;
+      const deltaV = dv * k - dv;
+      // i+1 부터 끝까지 동일 델타로 이동 → 폴리라인 연결 유지
+      const pts = s.sketchPoints.map((p, idx) =>
+        idx > i ? { u: p.u + deltaU, v: p.v + deltaV } : p,
+      );
+      return { sketchPoints: pts, sketchSelectedSeg: null, status: `선 길이 ${len} mm` };
+    }),
+
   undoSketchPoint: () =>
-    set((s) => ({ sketchPoints: s.sketchPoints.slice(0, -1), sketchDraft: null })),
+    set((s) => ({ sketchPoints: s.sketchPoints.slice(0, -1), sketchDraft: null, sketchSelectedSeg: null })),
 
   cancelSketch: () =>
-    set({ sketchActive: false, sketchPlane: null, sketchPoints: [], sketchDraft: null, sketchHover: null, status: "스케치 취소" }),
+    set({ sketchActive: false, sketchPlane: null, sketchPoints: [], sketchDraft: null, sketchHover: null, sketchSelectedSeg: null, status: "스케치 취소" }),
 
   commitExtrude: (depth) => {
     const { sketchPoints: pts, sketchPlane } = get();

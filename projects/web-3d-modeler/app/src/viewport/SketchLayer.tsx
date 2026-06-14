@@ -3,7 +3,7 @@
  *  1) 기준면 미선택: 3개 평면(XY/YZ/XZ)을 보여주고 클릭 → 그 면을 정면으로 정렬.
  *  2) 면 선택됨: 그 평면 위에서 드래그로 그리기(러버밴드 + 실시간 치수 + 파란 면).
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import * as THREE from "three";
 import { Line, Html } from "@react-three/drei";
 import { useAppStore } from "../store/useAppStore";
@@ -42,6 +42,46 @@ function circlePts(c: SketchPoint, r: number, seg = 48): SketchPoint[] {
   }
   return out;
 }
+
+function segLen(a: SketchPoint, b: SketchPoint): number {
+  return Math.hypot(b.u - a.u, b.v - a.v);
+}
+function midUV(a: SketchPoint, b: SketchPoint): SketchPoint {
+  return { u: (a.u + b.u) / 2, v: (a.v + b.v) / 2 };
+}
+
+/** 선분 치수 입력 박스 (펜/터치: inputMode decimal → 숫자 키패드). */
+function SegmentDimInput({ value, onCommit, onCancel }: { value: number; onCommit: (n: number) => void; onCancel: () => void }): JSX.Element {
+  const [text, setText] = useState(value.toFixed(2));
+  return (
+    <input
+      autoFocus
+      type="number"
+      inputMode="decimal"
+      step="0.5"
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onPointerDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Enter") {
+          const n = parseFloat(text);
+          if (!Number.isNaN(n)) onCommit(n);
+        } else if (e.key === "Escape") {
+          onCancel();
+        }
+      }}
+      onBlur={() => {
+        const n = parseFloat(text);
+        if (!Number.isNaN(n) && Math.abs(n - value) > 1e-6) onCommit(n);
+        else onCancel();
+      }}
+      className="w-20 rounded bg-blue-600 px-1.5 py-1 text-center text-sm font-semibold text-white outline-none ring-2 ring-blue-300"
+    />
+  );
+}
+
+const DIM_LABEL = "whitespace-nowrap rounded bg-aa-bg/90 px-1.5 py-0.5 text-xs font-semibold text-aa-accent";
 
 /** 평면 선택 UI — 3개 클릭 가능한 사각형. */
 function PlanePicker(): JSX.Element {
@@ -82,6 +122,9 @@ export function SketchLayer(): JSX.Element | null {
   const dragMove = useAppStore((s) => s.sketchDragMove);
   const dragEnd = useAppStore((s) => s.sketchDragEnd);
   const clickPoint = useAppStore((s) => s.sketchClickPoint);
+  const selectedSeg = useAppStore((s) => s.sketchSelectedSeg);
+  const selectSegment = useAppStore((s) => s.selectSketchSegment);
+  const setSegmentLength = useAppStore((s) => s.setSegmentLength);
 
   const plane = planeId ? SKETCH_PLANES[planeId] : null;
 
@@ -159,25 +202,65 @@ export function SketchLayer(): JSX.Element | null {
         </mesh>
       )}
 
-      {tool === "line" && !draft &&
-        points.map((p, i) => {
-          const w = toWorld(p);
-          return (
-            <mesh key={i} position={w}>
-              <sphereGeometry args={[0.12, 16, 16]} />
+      {/* 선 도구: 선분별 클릭+치수, 그 외: 단일 루프 */}
+      {tool === "line" ? (
+        <>
+          {points.map((p, i) => (
+            <mesh key={`pt${i}`} position={toWorld(p)}>
+              <sphereGeometry args={[0.1, 12, 12]} />
               <meshBasicMaterial color="#4fd1c5" />
             </mesh>
-          );
-        })}
+          ))}
 
-      {linePts.length >= 2 && <Line points={linePts} color="#4fd1c5" lineWidth={2} />}
+          {points.map((a, i) => {
+            const b = points[i + 1];
+            if (!b) return null;
+            const isSel = selectedSeg === i;
+            return (
+              <group key={`seg${i}`}>
+                <Line
+                  points={[toWorld(a), toWorld(b)]}
+                  color={isSel ? "#5b9cff" : "#4fd1c5"}
+                  lineWidth={isSel ? 4 : 2}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    selectSegment(i);
+                  }}
+                />
+                <Html position={toWorld(midUV(a, b))} center style={{ pointerEvents: isSel ? "auto" : "none" }}>
+                  {isSel ? (
+                    <SegmentDimInput
+                      value={segLen(a, b)}
+                      onCommit={(n) => setSegmentLength(i, n)}
+                      onCancel={() => useAppStore.getState().clearSketchSegment()}
+                    />
+                  ) : (
+                    <div className={DIM_LABEL}>{segLen(a, b).toFixed(2)} mm</div>
+                  )}
+                </Html>
+              </group>
+            );
+          })}
 
-      {dim && (
-        <Html position={toWorld(dim.uv)} center style={{ pointerEvents: "none" }}>
-          <div className="whitespace-nowrap rounded bg-aa-bg/90 px-1.5 py-0.5 text-xs font-semibold text-aa-accent">
-            {dim.label}
-          </div>
-        </Html>
+          {/* 러버밴드: 마지막 점 → 커서, 실시간 길이 */}
+          {hover && points.length > 0 && (
+            <group>
+              <Line points={[toWorld(points[points.length - 1]!), toWorld(hover)]} color="#8b97a8" lineWidth={1.5} />
+              <Html position={toWorld(midUV(points[points.length - 1]!, hover))} center style={{ pointerEvents: "none" }}>
+                <div className={DIM_LABEL}>{segLen(points[points.length - 1]!, hover).toFixed(2)} mm</div>
+              </Html>
+            </group>
+          )}
+        </>
+      ) : (
+        <>
+          {linePts.length >= 2 && <Line points={linePts} color="#4fd1c5" lineWidth={2} />}
+          {dim && (
+            <Html position={toWorld(dim.uv)} center style={{ pointerEvents: "none" }}>
+              <div className={DIM_LABEL}>{dim.label}</div>
+            </Html>
+          )}
+        </>
       )}
     </group>
   );
