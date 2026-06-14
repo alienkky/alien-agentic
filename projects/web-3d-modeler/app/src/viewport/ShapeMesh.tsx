@@ -50,6 +50,7 @@ export function ShapeMesh({ mesh }: { mesh: TessellatedMesh }): JSX.Element {
   const hovered = useAppStore((s) => s.hovered);
   const selection = useAppStore((s) => s.selection);
   const sketchActive = useAppStore((s) => s.sketchActive);
+  const displayMode = useAppStore((s) => s.displayMode);
 
   const geometry = useMemo(() => buildGeometry(mesh), [mesh]);
   const edges = useMemo(
@@ -109,6 +110,10 @@ export function ShapeMesh({ mesh }: { mesh: TessellatedMesh }): JSX.Element {
           roughness={0.6}
           flatShading
           side={THREE.DoubleSide}
+          wireframe={displayMode === "wireframe"}
+          transparent={displayMode === "xray"}
+          opacity={displayMode === "xray" ? 0.32 : 1}
+          depthWrite={displayMode !== "xray"}
         />
       </mesh>
 

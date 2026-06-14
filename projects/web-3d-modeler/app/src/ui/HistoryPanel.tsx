@@ -4,9 +4,11 @@
  */
 import { useAppStore } from "../store/useAppStore";
 
-export function HistoryPanel(): JSX.Element {
+export function HistoryPanel(): JSX.Element | null {
   const history = useAppStore((s) => s.history);
+  const show = useAppStore((s) => s.panels.history);
 
+  if (!show) return null;
   return (
     <div className="pointer-events-auto absolute right-0 top-12 bottom-0 z-20 flex w-60 flex-col border-l border-aa-border bg-aa-surface/95 backdrop-blur">
       <div className="flex items-center justify-between border-b border-aa-border px-3 py-2.5">

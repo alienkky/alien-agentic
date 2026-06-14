@@ -96,6 +96,13 @@ interface AppState {
   undoLast: () => Promise<void>;
   clear: () => Promise<void>;
 
+  setStatus: (msg: string) => void;
+  /** 디스플레이 모드 (뷰 메뉴) */
+  displayMode: "shaded" | "wireframe" | "xray";
+  setDisplayMode: (mode: "shaded" | "wireframe" | "xray") => void;
+  /** 사이드바 표시 (뷰 메뉴 토글) */
+  panels: { items: boolean; history: boolean };
+  togglePanel: (p: "items" | "history") => void;
   setHovered: (ref: FaceRef | null) => void;
   /** 항목 선택 토글 (탭). additive=false 면 단일 선택으로 교체 */
   selectEntity: (item: SelItem, additive?: boolean) => void;
@@ -137,6 +144,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   sketchHover: null,
   sketchPoints: [],
   history: [],
+  displayMode: "shaded",
+  panels: { items: true, history: true },
   backend: "deterministic",
   status: "초기화 중…",
   busy: false,
@@ -268,6 +277,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ shapes: [], transforms: {}, hovered: null, selection: [], history: [], status: "비움" });
   },
 
+  setStatus: (msg) => set({ status: msg }),
+  setDisplayMode: (mode) => set({ displayMode: mode, status: `디스플레이: ${mode}` }),
+  togglePanel: (p) => set((s) => ({ panels: { ...s.panels, [p]: !s.panels[p] } })),
   setHovered: (ref) => set({ hovered: ref }),
 
   selectEntity: (item, additive = true) =>

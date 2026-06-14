@@ -5,13 +5,15 @@
 import { TrashIcon } from "./icons";
 import { useAppStore, selectionBodyIds } from "../store/useAppStore";
 
-export function ItemsPanel(): JSX.Element {
+export function ItemsPanel(): JSX.Element | null {
   const shapes = useAppStore((s) => s.shapes);
   const selection = useAppStore((s) => s.selection);
   const selectEntity = useAppStore((s) => s.selectEntity);
   const removeShape = useAppStore((s) => s.removeShape);
   const clear = useAppStore((s) => s.clear);
+  const show = useAppStore((s) => s.panels.items);
 
+  if (!show) return null;
   const bodyIds = selectionBodyIds(selection);
 
   return (

@@ -7,6 +7,7 @@ import { HistoryPanel } from "./ui/HistoryPanel";
 import { ViewportControls } from "./ui/ViewportControls";
 import { ContextBar } from "./ui/ContextBar";
 import { SketchBar } from "./ui/SketchBar";
+import { SketchConstraintsPanel } from "./ui/SketchConstraintsPanel";
 import { StatusPill } from "./ui/StatusPill";
 import { useAppStore } from "./store/useAppStore";
 import { useResponsiveShell } from "./device/useResponsiveShell";
@@ -27,6 +28,7 @@ export function App(): JSX.Element {
       <LeftToolbar />
       <HistoryPanel />
       <ViewportControls />
+      <SketchConstraintsPanel />
       <ContextBar />
       <SketchBar />
       <StatusPill layout={layout} />

@@ -194,6 +194,52 @@ export function CameraIcon(): JSX.Element {
   );
 }
 
+export function CloseIcon(): JSX.Element {
+  return (<svg {...base}><path d="M6 6l12 12M18 6L6 18" /></svg>);
+}
+export function LineIcon(): JSX.Element {
+  return (<svg {...base}><path d="M4 20 20 4" /><circle cx="4" cy="20" r="1.3" /><circle cx="20" cy="4" r="1.3" /></svg>);
+}
+export function ArcIcon(): JSX.Element {
+  return (<svg {...base}><path d="M4 18a14 14 0 0 1 16 0" /></svg>);
+}
+export function SplineIcon(): JSX.Element {
+  return (<svg {...base}><path d="M3 17c4 0 4-10 9-10s5 10 9 10" /></svg>);
+}
+export function RectIcon(): JSX.Element {
+  return (<svg {...base}><rect x="4" y="6" width="16" height="12" rx="1" /></svg>);
+}
+export function Circle2DIcon(): JSX.Element {
+  return (<svg {...base}><circle cx="12" cy="12" r="8" /></svg>);
+}
+export function EllipseIcon(): JSX.Element {
+  return (<svg {...base}><ellipse cx="12" cy="12" rx="9" ry="6" /></svg>);
+}
+export function PolygonIcon(): JSX.Element {
+  return (<svg {...base}><path d="M12 3l8 6-3 9H7L4 9z" /></svg>);
+}
+export function OffsetIcon(): JSX.Element {
+  return (<svg {...base}><rect x="5" y="5" width="14" height="14" rx="1" /><rect x="8" y="8" width="8" height="8" rx="1" strokeDasharray="2 2" /></svg>);
+}
+export function MirrorIcon(): JSX.Element {
+  return (<svg {...base}><path d="M12 3v18" strokeDasharray="2 2" /><path d="M9 7 4 12l5 5zM15 7l5 5-5 5z" /></svg>);
+}
+export function PatternIcon(): JSX.Element {
+  return (<svg {...base}><rect x="3" y="3" width="6" height="6" /><rect x="15" y="3" width="6" height="6" /><rect x="3" y="15" width="6" height="6" /><rect x="15" y="15" width="6" height="6" /></svg>);
+}
+export function ProjectIcon(): JSX.Element {
+  return (<svg {...base}><path d="M4 6h16M4 6v12M4 18h16" /><path d="M8 10l4 4 4-4" /></svg>);
+}
+export function TextIcon(): JSX.Element {
+  return (<svg {...base}><path d="M5 6h14M12 6v13M9 19h6" /></svg>);
+}
+export function TrimIcon(): JSX.Element {
+  return (<svg {...base}><circle cx="6" cy="7" r="2.5" /><circle cx="6" cy="17" r="2.5" /><path d="M8 8l12 9M8 16l12-9" /></svg>);
+}
+export function GearIcon(): JSX.Element {
+  return (<svg {...base}><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" /></svg>);
+}
+
 export function EyeIcon(): JSX.Element {
   return (
     <svg {...base}>
