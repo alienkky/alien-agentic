@@ -89,16 +89,25 @@ Write-Host ""
 Write-Host "[3/5] 업스트림 pull..."
 Push-Location $multica
 try {
-    # working tree 리셋 (우리 패치는 스크립트로 재생성되므로 버려도 안전)
-    git checkout . 2>&1 | ForEach-Object { Write-Host "      $_" }
-    # 우리가 복사한 자립 폴더 제거 (업스트림에 없는 것)
-    git clean -fd packages/views/alien-plan packages/views/alien-memory 2>&1 |
-        ForEach-Object { Write-Host "      $_" }
+    # git 은 stderr 로 정보 메시지를 출력함 (PowerShell 5.1 의 NativeCommandError
+    # 함정). EAP=Continue 로 풀고, $LASTEXITCODE 만으로 성공/실패 판단.
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
 
-    git fetch origin 2>&1 | ForEach-Object { Write-Host "      $_" }
-    git pull origin $Ref 2>&1 | ForEach-Object { Write-Host "      $_" }
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "git pull 실패. 백업으로 롤백 가능: $backupDir"
+    # working tree 리셋 (우리 패치는 스크립트로 재생성되므로 버려도 안전)
+    (git checkout . 2>&1) | Out-String | ForEach-Object { Write-Host "      $_" }
+    # 우리가 복사한 자립 폴더 제거 (업스트림에 없는 것)
+    (git clean -fd packages/views/alien-plan packages/views/alien-memory 2>&1) |
+        Out-String | ForEach-Object { Write-Host "      $_" }
+
+    (git fetch origin 2>&1) | Out-String | ForEach-Object { Write-Host "      $_" }
+    (git pull origin $Ref 2>&1) | Out-String | ForEach-Object { Write-Host "      $_" }
+    $pullExit = $LASTEXITCODE
+
+    $ErrorActionPreference = $prevEAP
+
+    if ($pullExit -ne 0) {
+        Write-Error "git pull 실패 (exit $pullExit). 백업으로 롤백 가능: $backupDir"
         exit 1
     }
     $afterCommit = (git log --oneline -1) 2>&1
