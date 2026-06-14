@@ -92,6 +92,7 @@ export function ShapeMesh({ mesh }: { mesh: TessellatedMesh }): JSX.Element {
           metalness={0.1}
           roughness={0.6}
           flatShading
+          side={THREE.DoubleSide}
         />
       </mesh>
 
