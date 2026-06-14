@@ -2,7 +2,7 @@
 import { useState } from "react";
 import * as THREE from "three";
 import { Grid, TransformControls } from "@react-three/drei";
-import { useAppStore, type Vec3 } from "../store/useAppStore";
+import { useAppStore, selectionBodyIds, type Vec3 } from "../store/useAppStore";
 import type { TessellatedMesh } from "../kernel/types";
 import { CameraRig } from "./CameraRig";
 import { ShapeMesh } from "./ShapeMesh";
@@ -40,11 +40,12 @@ function MovableShape({ mesh, gizmo }: { mesh: TessellatedMesh; gizmo: boolean }
 
 export function Scene(): JSX.Element {
   const shapes = useAppStore((s) => s.shapes);
-  const selected = useAppStore((s) => s.selectedShapeIds);
+  const selection = useAppStore((s) => s.selection);
   const sketchActive = useAppStore((s) => s.sketchActive);
 
-  // 정확히 1개 선택이고 스케치 중이 아닐 때만 이동 기즈모를 보인다.
-  const gizmoId = !sketchActive && selected.length === 1 ? selected[0] : null;
+  // 선택이 정확히 한 바디에 속할 때만 이동 기즈모를 보인다.
+  const bodyIds = selectionBodyIds(selection);
+  const gizmoId = !sketchActive && bodyIds.length === 1 ? bodyIds[0] : null;
 
   return (
     <>

@@ -8,8 +8,16 @@ import { useAppStore } from "../store/useAppStore";
 
 const EXTRUDE_DEPTH = 4;
 
+const TOOLS = [
+  { id: "rectangle", label: "사각형" },
+  { id: "circle", label: "원" },
+  { id: "line", label: "선" },
+] as const;
+
 export function SketchBar(): JSX.Element | null {
   const active = useAppStore((s) => s.sketchActive);
+  const tool = useAppStore((s) => s.sketchTool);
+  const setSketchTool = useAppStore((s) => s.setSketchTool);
   const count = useAppStore((s) => s.sketchPoints.length);
   const undoSketchPoint = useAppStore((s) => s.undoSketchPoint);
   const commitExtrude = useAppStore((s) => s.commitExtrude);
@@ -22,8 +30,24 @@ export function SketchBar(): JSX.Element | null {
   return (
     <div className="pointer-events-none absolute bottom-6 left-0 right-0 z-10 flex justify-center px-3">
       <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-aa-border bg-aa-surface/95 px-2 py-2 shadow-lg backdrop-blur">
-        <span className="px-2 text-xs text-aa-text-dim">
-          스케치 · 점 {count}개 {canExtrude ? "" : "(3개 이상 필요)"}
+        <div className="flex items-center gap-0.5">
+          {TOOLS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setSketchTool(t.id)}
+              className={[
+                "min-h-[44px] rounded-lg px-3 text-sm font-medium transition-colors",
+                tool === t.id ? "bg-aa-accent text-aa-bg" : "text-aa-text aa-hoverable",
+              ].join(" ")}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div className="h-6 w-px bg-aa-border" />
+        <span className="px-1 text-xs text-aa-text-dim">
+          {canExtrude ? "프로파일 OK" : "프로파일 그리는 중"}
         </span>
         <IconButton label="점 되돌리기" onClick={undoSketchPoint} disabled={count === 0}>
           <UndoIcon />

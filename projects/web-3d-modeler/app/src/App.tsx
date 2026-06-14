@@ -1,10 +1,13 @@
 import { useEffect } from "react";
 import { Viewport } from "./viewport/Viewport";
-import { TopBar } from "./ui/TopBar";
-import { ToolRail } from "./ui/ToolRail";
+import { TopMenuBar } from "./ui/TopMenuBar";
+import { LeftToolbar } from "./ui/LeftToolbar";
 import { ItemsPanel } from "./ui/ItemsPanel";
+import { HistoryPanel } from "./ui/HistoryPanel";
+import { ViewportControls } from "./ui/ViewportControls";
 import { ContextBar } from "./ui/ContextBar";
 import { SketchBar } from "./ui/SketchBar";
+import { SketchConstraintsPanel } from "./ui/SketchConstraintsPanel";
 import { StatusPill } from "./ui/StatusPill";
 import { useAppStore } from "./store/useAppStore";
 import { useResponsiveShell } from "./device/useResponsiveShell";
@@ -20,9 +23,12 @@ export function App(): JSX.Element {
   return (
     <div className="relative h-full w-full overflow-hidden bg-aa-bg">
       <Viewport />
-      <TopBar />
-      <ToolRail />
+      <TopMenuBar />
       <ItemsPanel />
+      <LeftToolbar />
+      <HistoryPanel />
+      <ViewportControls />
+      <SketchConstraintsPanel />
       <ContextBar />
       <SketchBar />
       <StatusPill layout={layout} />

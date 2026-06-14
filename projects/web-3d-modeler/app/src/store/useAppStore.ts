@@ -23,7 +23,36 @@ export interface FaceRef {
   faceId: number;
 }
 
+/** 통합 선택 항목 — 바디/면/모서리. (body 는 index = -1) */
+export type SelKind = "body" | "face" | "edge";
+export interface SelItem {
+  kind: SelKind;
+  shapeId: string;
+  index: number;
+}
+
+export function selectionBodyIds(sel: SelItem[]): string[] {
+  return [...new Set(sel.map((s) => s.shapeId))];
+}
+
+function sameSel(a: SelItem, b: SelItem): boolean {
+  return a.kind === b.kind && a.shapeId === b.shapeId && a.index === b.index;
+}
+
 export type PrimitiveKind = "box" | "cylinder" | "sphere";
+export type SketchTool = "rectangle" | "circle" | "line";
+
+const SNAP = 0.5; // 격자 스냅 간격
+const snap = (v: number): number => Math.round(v / SNAP) * SNAP;
+
+function circlePolygon(center: SketchPoint, radius: number, segments = 48): SketchPoint[] {
+  const pts: SketchPoint[] = [];
+  for (let i = 0; i < segments; i++) {
+    const a = (i / segments) * Math.PI * 2;
+    pts.push({ x: center.x + radius * Math.cos(a), z: center.z + radius * Math.sin(a) });
+  }
+  return pts;
+}
 
 export type Vec3 = [number, number, number];
 
@@ -33,14 +62,22 @@ interface AppState {
   /** 셰이프별 위치 오프셋 (이동 기즈모). 없으면 원점. */
   transforms: Record<string, Vec3>;
   hovered: FaceRef | null;
-  /** 불리언 대상으로 고른 셰이프들 (최대 2, 순서: 대상→도구) */
-  selectedShapeIds: string[];
+  /** 통합 선택: 면·모서리·바디 (탭으로 토글, 다중 선택) */
+  selection: SelItem[];
   /** 이동 기즈모 드래그 중 — 카메라 입력을 막는다 */
   gizmoDragging: boolean;
   /** 스케치 모드 활성 여부 */
   sketchActive: boolean;
-  /** 스케치 중인 지면(XZ) 점들 */
+  /** 현재 스케치 도구 */
+  sketchTool: SketchTool;
+  /** 사각형·원 드래그 초안 (시작점→현재점). 드래그 중 실시간 미리보기 */
+  sketchDraft: { start: SketchPoint; current: SketchPoint } | null;
+  /** 커서 위치 (선 도구 미리보기용) */
+  sketchHover: SketchPoint | null;
+  /** 확정된 프로파일 점들 (지면 XZ) */
   sketchPoints: SketchPoint[];
+  /** 내역(History) — 단계별 작업 로그 (우측 패널). 명세 Module 1.2 토대 */
+  history: { id: string; label: string }[];
   backend: KernelBackend;
   status: string;
   busy: boolean;
@@ -59,14 +96,27 @@ interface AppState {
   undoLast: () => Promise<void>;
   clear: () => Promise<void>;
 
+  setStatus: (msg: string) => void;
+  /** 디스플레이 모드 (뷰 메뉴) */
+  displayMode: "shaded" | "wireframe" | "xray";
+  setDisplayMode: (mode: "shaded" | "wireframe" | "xray") => void;
+  /** 사이드바 표시 (뷰 메뉴 토글) */
+  panels: { items: boolean; history: boolean };
+  togglePanel: (p: "items" | "history") => void;
   setHovered: (ref: FaceRef | null) => void;
-  toggleShapeSelection: (shapeId: string) => void;
+  /** 항목 선택 토글 (탭). additive=false 면 단일 선택으로 교체 */
+  selectEntity: (item: SelItem, additive?: boolean) => void;
   clearSelection: () => void;
   setTransform: (shapeId: string, pos: Vec3) => void;
   setGizmoDragging: (dragging: boolean) => void;
 
   beginSketch: () => void;
-  addSketchPoint: (p: SketchPoint) => void;
+  setSketchTool: (tool: SketchTool) => void;
+  /** 사각형·원: 드래그 시작 / 이동 / 종료. 선: 점 클릭 */
+  sketchDragStart: (p: SketchPoint) => void;
+  sketchDragMove: (p: SketchPoint) => void;
+  sketchDragEnd: () => void;
+  sketchClickPoint: (p: SketchPoint) => void;
   undoSketchPoint: () => void;
   cancelSketch: () => void;
   commitExtrude: (depth: number) => void;
@@ -86,10 +136,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   shapes: [],
   transforms: {},
   hovered: null,
-  selectedShapeIds: [],
+  selection: [],
   gizmoDragging: false,
   sketchActive: false,
+  sketchTool: "rectangle",
+  sketchDraft: null,
+  sketchHover: null,
   sketchPoints: [],
+  history: [],
+  displayMode: "shaded",
+  panels: { items: true, history: true },
   backend: "deterministic",
   status: "초기화 중…",
   busy: false,
@@ -133,8 +189,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       } else {
         mesh = await kernel.client.makeSphere({ radius: 2.5 }, shapeId);
       }
+      const kindLabel = kind === "box" ? "박스" : kind === "cylinder" ? "실린더" : "구";
       set((s) => ({
         shapes: [...s.shapes, mesh],
+        history: [...s.history, { id: shapeId, label: `${kindLabel} 추가` }],
         status: `${shapeId} 추가됨 · 면 ${mesh.faceRanges.length} · 모서리 ${mesh.edges.length}`,
       }));
     } catch (err) {
@@ -145,14 +203,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   booleanOp: async (op) => {
-    const sel = get().selectedShapeIds;
+    const bodies = selectionBodyIds(get().selection);
     if (get().busy) return;
-    if (sel.length < 2) {
-      set({ status: "불리언: 셰이프 2개를 선택하세요 (대상 → 도구 순서)" });
+    if (bodies.length < 2) {
+      set({ status: "불리언: 서로 다른 바디 2개를 선택하세요 (대상 → 도구)" });
       return;
     }
-    const idA = sel[0]!;
-    const idB = sel[1]!;
+    const idA = bodies[0]!;
+    const idB = bodies[1]!;
     const a = get().shapes.find((m) => m.shapeId === idA);
     const b = get().shapes.find((m) => m.shapeId === idB);
     if (!a || !b) {
@@ -176,7 +234,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         return {
           shapes: [...s.shapes.filter((m) => m.shapeId !== idA && m.shapeId !== idB), mesh],
           transforms,
-          selectedShapeIds: [],
+          selection: [],
+          history: [...s.history, { id: resultId, label: `${BOOL_LABEL[op]}` }],
           status: `${BOOL_LABEL[op]} 완료 → ${resultId}`,
         };
       });
@@ -194,7 +253,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       delete transforms[shapeId];
       return {
         shapes: s.shapes.filter((m) => m.shapeId !== shapeId),
-        selectedShapeIds: s.selectedShapeIds.filter((id) => id !== shapeId),
+        selection: s.selection.filter((it) => it.shapeId !== shapeId),
         hovered: s.hovered?.shapeId === shapeId ? null : s.hovered,
         transforms,
         status: `${shapeId} 삭제`,
@@ -215,22 +274,31 @@ export const useAppStore = create<AppState>((set, get) => ({
         await kernel.client.deleteShape(m.shapeId);
       }
     }
-    set({ shapes: [], transforms: {}, hovered: null, selectedShapeIds: [], status: "비움" });
+    set({ shapes: [], transforms: {}, hovered: null, selection: [], history: [], status: "비움" });
   },
 
+  setStatus: (msg) => set({ status: msg }),
+  setDisplayMode: (mode) => set({ displayMode: mode, status: `디스플레이: ${mode}` }),
+  togglePanel: (p) => set((s) => ({ panels: { ...s.panels, [p]: !s.panels[p] } })),
   setHovered: (ref) => set({ hovered: ref }),
 
-  toggleShapeSelection: (shapeId) =>
+  selectEntity: (item, additive = true) =>
     set((s) => {
-      const has = s.selectedShapeIds.includes(shapeId);
-      let next = has
-        ? s.selectedShapeIds.filter((id) => id !== shapeId)
-        : [...s.selectedShapeIds, shapeId];
-      if (next.length > 2) next = next.slice(next.length - 2);
-      return { selectedShapeIds: next, status: `셰이프 ${next.length}개 선택` };
+      const exists = s.selection.some((it) => sameSel(it, item));
+      let next: SelItem[];
+      if (!additive) {
+        next = exists ? [] : [item];
+      } else {
+        next = exists ? s.selection.filter((it) => !sameSel(it, item)) : [...s.selection, item];
+      }
+      const label = item.kind === "body" ? "바디" : item.kind === "face" ? "면" : "모서리";
+      return {
+        selection: next,
+        status: next.length ? `선택 ${next.length}개 (${label})` : "선택 해제",
+      };
     }),
 
-  clearSelection: () => set({ selectedShapeIds: [] }),
+  clearSelection: () => set({ selection: [] }),
 
   setTransform: (shapeId, pos) =>
     set((s) => ({ transforms: { ...s.transforms, [shapeId]: pos } })),
@@ -238,14 +306,75 @@ export const useAppStore = create<AppState>((set, get) => ({
   setGizmoDragging: (dragging) => set({ gizmoDragging: dragging }),
 
   beginSketch: () =>
-    set({ sketchActive: true, sketchPoints: [], selectedShapeIds: [], status: "스케치: 지면을 탭해 점을 찍으세요 (3개 이상)" }),
+    set((s) => ({
+      sketchActive: true,
+      sketchPoints: [],
+      sketchDraft: null,
+      sketchHover: null,
+      selection: [],
+      camera: viewPreset(s.camera, "top"), // 평면을 정면으로 — 2D 처럼
+      status: "스케치: 사각형을 드래그해 그리세요",
+    })),
 
-  addSketchPoint: (p) =>
-    set((s) => ({ sketchPoints: [...s.sketchPoints, p], status: `스케치 점 ${s.sketchPoints.length + 1}개` })),
+  setSketchTool: (tool) =>
+    set({
+      sketchTool: tool,
+      sketchDraft: null,
+      sketchPoints: [],
+      status:
+        tool === "rectangle"
+          ? "사각형 — 드래그해 그리기"
+          : tool === "circle"
+            ? "원 — 중심에서 바깥으로 드래그"
+            : "선 — 점을 순서대로 탭 (3개 이상)",
+    }),
 
-  undoSketchPoint: () => set((s) => ({ sketchPoints: s.sketchPoints.slice(0, -1) })),
+  // 사각형·원: 드래그
+  sketchDragStart: (raw) => {
+    if (get().sketchTool === "line") return;
+    const p: SketchPoint = { x: snap(raw.x), z: snap(raw.z) };
+    set({ sketchDraft: { start: p, current: p }, sketchPoints: [] });
+  },
 
-  cancelSketch: () => set({ sketchActive: false, sketchPoints: [], status: "스케치 취소" }),
+  sketchDragMove: (raw) => {
+    const p: SketchPoint = { x: snap(raw.x), z: snap(raw.z) };
+    set((s) => (s.sketchDraft ? { sketchDraft: { start: s.sketchDraft.start, current: p }, sketchHover: p } : { sketchHover: p }));
+  },
+
+  sketchDragEnd: () => {
+    const { sketchDraft, sketchTool } = get();
+    if (!sketchDraft) return;
+    const { start, current } = sketchDraft;
+    let pts: SketchPoint[];
+    if (sketchTool === "circle") {
+      const r = Math.hypot(current.x - start.x, current.z - start.z);
+      pts = r > 0.01 ? circlePolygon(start, r) : [];
+    } else {
+      pts =
+        Math.abs(current.x - start.x) > 0.01 && Math.abs(current.z - start.z) > 0.01
+          ? [
+              { x: start.x, z: start.z },
+              { x: current.x, z: start.z },
+              { x: current.x, z: current.z },
+              { x: start.x, z: current.z },
+            ]
+          : [];
+    }
+    set({ sketchDraft: null, sketchPoints: pts, status: pts.length ? "프로파일 완성 — 돌출하세요" : "너무 작아요 — 다시 드래그" });
+  },
+
+  // 선: 점 클릭 누적
+  sketchClickPoint: (raw) => {
+    if (get().sketchTool !== "line") return;
+    const p: SketchPoint = { x: snap(raw.x), z: snap(raw.z) };
+    set((s) => ({ sketchPoints: [...s.sketchPoints, p], status: `선 — 점 ${s.sketchPoints.length + 1}개` }));
+  },
+
+  undoSketchPoint: () =>
+    set((s) => ({ sketchPoints: s.sketchPoints.slice(0, -1), sketchDraft: null })),
+
+  cancelSketch: () =>
+    set({ sketchActive: false, sketchPoints: [], sketchDraft: null, sketchHover: null, status: "스케치 취소" }),
 
   commitExtrude: (depth) => {
     const pts = get().sketchPoints;
@@ -260,6 +389,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         shapes: [...s.shapes, mesh],
         sketchActive: false,
         sketchPoints: [],
+        sketchDraft: null,
+        sketchHover: null,
+        history: [...s.history, { id: shapeId, label: "돌출" }],
         status: `돌출 완료 → ${shapeId}`,
       }));
     } catch (err) {

@@ -13,7 +13,7 @@ export function StatusPill({ layout }: { layout: ScreenLayout }): JSX.Element {
         : "단일";
 
   return (
-    <div className="pointer-events-none absolute bottom-3 left-3 z-10">
+    <div className="pointer-events-none absolute bottom-3 left-48 z-10">
       <div className="pointer-events-auto rounded-lg border border-aa-border bg-aa-surface/80 px-3 py-1.5 text-xs text-aa-text-dim backdrop-blur">
         {status} · {deviceLabel}
       </div>
