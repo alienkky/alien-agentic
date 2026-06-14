@@ -123,6 +123,9 @@ interface TessellatedMesh {
 - [ ] vitest 커널 단위테스트 통과
 - [ ] playwright E2E 통과 (수직 슬라이스 실제 동작)
 - [ ] OCCT 객체 해제 누락 0건 (메모리 점검)
+- [ ] **디바이스 매트릭스 통과** — iPad Safari · Galaxy Tab Chrome · Z Fold 6(접힘+펼침)
+      에서 해당 페이즈 기능 동작 (실기 또는 시뮬레이터/반응형 모드)
+- [ ] **입력 매트릭스 통과** — 마우스 · 손가락 · 펜(Pencil/S Pen) 각각에서 조작 확인
 - [ ] qa-tester 3종 시나리오(정상·예외·악성) 통과
 - [ ] PR(draft) 생성 + 페이즈 완료 기준 충족
 - [ ] 교훈 1개 이상 `shared-memory/insights/` 기록
@@ -133,10 +136,13 @@ interface TessellatedMesh {
 
 | 순서 | 작업 | 담당 |
 |---|---|---|
-| 1 | `app/` Vite 스캐폴드 + 의존성 | automation-coder |
+| 1 | `app/` Vite 스캐폴드 + 의존성 + AA 디자인 토큰 | automation-coder |
 | 2 | 뷰포트(카메라·그리드·조명·기준평면) | automation-coder + ui-ux-designer |
-| 3 | OCCT WASM 워커 로딩 + makeBox PoC | automation-coder |
-| 4 | 테셀레이션 메타데이터 포맷 v0 확정 (§4) | (기영님 검토 포인트) |
-| 5 | "Add Box" 수직 슬라이스 완성 + 검증 게이트 | qa-tester |
+| 3 | **입력 추상화(Pointer Events) + 반응형 셸** | automation-coder |
+| 4 | OCCT WASM 워커 로딩 + makeBox PoC | automation-coder |
+| 5 | 테셀레이션 메타데이터 포맷 v0 확정 (§4) | (기영님 검토 포인트) |
+| 6 | **태블릿 WASM 메모리 실측** (iPad/Galaxy Tab) | automation-coder |
+| 7 | "Add Box" 수직 슬라이스 완성 + 디바이스/입력 게이트 | qa-tester |
 
 > 한 번에 너무 많이 욱여넣지 않는다 (ADHD 시작 마찰). 1번부터, 박스 하나 띄우는 것까지가 첫 목표.
+> 단, 이번엔 그 박스가 **세 디바이스에서 손가락으로 돌아가는 것**까지가 Phase 0 의 끝이다.

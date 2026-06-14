@@ -17,6 +17,9 @@
 - 진짜 CAD를 만든다. 단순 3D 뷰어가 아니라 B-rep 솔리드 모델러다.
 - 심장은 OpenCascade.js (OCCT 7.8 WASM). 렌더는 Three.js + react-three-fiber.
 - 철학: direct-first, history-light. 처음부터 풀 히스토리 파라메트릭을 노리지 않는다.
+- 이건 Alien Agentic 자체 IP 제품이다. AA 브랜드 토큰을 입힌다.
+- 본진은 데스크톱이 아니다: iPad(Apple Pencil) → Galaxy Tab(S Pen) → Galaxy Z Fold 6(폴더블).
+  펜·손가락·접고 펴는 화면에서 동작해야 한다.
 
 # 절대 원칙 (어기면 빌드가 무너진다)
 1. CAD 커널은 Web Worker 안에서만 산다. UI 스레드에서 OCCT를 절대 직접 호출하지 않는다.
@@ -28,6 +31,11 @@
 4. 문서의 진실은 "피처 트리(JSON)"다. B-rep 셰이프는 트리에서 재생성 가능한 파생물.
    저장은 트리만 한다. B-rep은 저장하지 않는다.
 5. TypeScript strict 모드. any 금지. 모든 커널 API는 타입드 래퍼로 감싼다.
+6. 입력은 Pointer Events 하나로 통일한다. 마우스/터치/펜을 pointerType 으로 분기하되 코드
+   경로는 하나. 픽킹 허용오차는 입력 종류에 따라 동적(터치 ~10mm, 펜/마우스 정밀).
+7. 레이아웃은 폴더블을 전제로 반응형. 접고 펼 때(resize) 캔버스·UI가 깨지지 않게,
+   Viewport Segments/Device Posture 는 있으면 쓰고 없으면 단일 화면으로 폴백한다.
+8. 태블릿 메모리 예산을 의식한다. 무거운 WASM(PlaneGCS 등)은 필요 시점에 lazy-load.
 
 # 코딩 규약
 - 풀 스크립트. "...", "// TODO", "여기에 구현" 같은 플레이스홀더 금지.
@@ -50,22 +58,30 @@
 ### Phase 0 — 토대
 
 ```
-Phase 0: 토대를 세운다. 목표는 "버튼 누르면 워커가 OCCT 박스를 만들어 화면에 띄운다".
+Phase 0: 토대를 세운다. 목표는 "iPad/Galaxy Tab/Fold 6 에서 버튼 누르면 워커가 OCCT
+박스를 만들어 화면에 띄우고, 손가락으로 궤도·핀치 줌이 된다".
 
-1. projects/web-3d-modeler/app/ 에 Vite + React 18 + TypeScript 스캐폴드.
+1. projects/web-3d-modeler/app/ 에 Vite + React 18 + TypeScript 스캐폴드 + AA 디자인 토큰.
    의존성: three, @react-three/fiber, @react-three/drei, zustand, comlink,
    opencascade.js, tailwindcss, vitest, @playwright/test.
-2. 뷰포트 컴포넌트: OrbitControls 카메라, 무한 그리드, 3점 조명(키/필/림),
-   기준 평면 XY/YZ/ZX 표시.
-3. src/kernel/worker.ts: OCCT WASM 을 워커에서 lazy-load. Comlink 로 expose.
+2. 뷰포트 컴포넌트: 카메라, 무한 그리드, 3점 조명(키/필/림), 기준 평면 XY/YZ/ZX 표시.
+3. src/input/ : Pointer Events 추상화 레이어. pointerType(mouse/touch/pen) 분기,
+   제스처 매핑(펜=정밀, 빈 곳 손가락 드래그=궤도, 두 손가락=팬, 핀치=줌).
+   픽킹 허용오차를 입력 종류별로 둘 훅 자리 마련(이번엔 카메라 조작까지).
+4. src/device/ : 반응형 셸. 폴더블 resize 대응, Viewport Segments/Device Posture 감지
+   (미지원 시 단일 화면 폴백). navigator.hardwareConcurrency 로 워커 풀 크기 결정.
+5. src/kernel/worker.ts: OCCT WASM 을 워커에서 lazy-load. Comlink 로 expose.
    첫 API: makeBox(w,h,d) → TopoDS_Shape → BRepMesh 테셀레이션 →
-   { positions, normals, indices, faceIds, edges } 직렬화 반환.
-4. src/kernel/bridge.ts: Comlink.wrap 로 워커를 메인에서 호출하는 타입드 래퍼.
-5. UI 버튼 "Add Box" → 워커 호출 → 받은 메시를 BufferGeometry 로 화면 표시.
-6. OCCT 객체 해제 패턴(.delete())을 worker.ts 에 try-finally 로 확립.
+   { positions, normals, indices, triFaceId, faceRanges, edges, shapeId } 직렬화 반환.
+6. src/kernel/bridge.ts: Comlink.wrap 로 워커를 메인에서 호출하는 타입드 래퍼.
+7. UI 버튼 "Add Box" → 워커 호출 → 받은 메시를 BufferGeometry 로 화면 표시.
+8. OCCT 객체 해제 패턴(.delete())을 worker.ts 에 try-finally 로 확립.
+9. 태블릿 WASM 메모리 실측: iPad Safari / Galaxy Tab Chrome 에서 OCCT 로딩 메모리 측정,
+   한계와 폴백 전략을 짧게 기록(shared-memory/insights/).
 
-완료 기준: 앱 실행 → "Add Box" → 박스가 뜬다. tsc·vitest·빌드 모두 통과.
-이 수직 슬라이스가 이후 모든 기능의 뼈대다 — 꼼꼼히.
+완료 기준: 앱 실행 → "Add Box" → 박스가 뜬다. iPad Safari·Galaxy Tab Chrome·Fold 6
+(실기 또는 시뮬레이터/반응형 모드)에서 손가락 궤도·핀치 줌 동작. tsc·vitest·빌드 모두 통과.
+이 수직 슬라이스가 이후 모든 기능의 뼈대다 — 입력·디바이스 토대까지 여기서 꼼꼼히.
 ```
 
 ### Phase 1 — 프리미티브 + 불리언 + 픽킹
