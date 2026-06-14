@@ -11,7 +11,9 @@ import {
   orbit as orbitCam,
   pan as panCam,
   zoom as zoomCam,
+  viewPreset,
   type CameraState,
+  type ViewPreset,
 } from "../viewport/cameraMath";
 
 export interface FaceRef {
@@ -35,11 +37,14 @@ interface AppState {
   pan: (dxPx: number, dyPx: number) => void;
   zoom: (factor: number) => void;
   resetCamera: () => void;
+  setView: (view: ViewPreset) => void;
 
   initKernel: () => Promise<void>;
   setBackend: (backend: KernelBackend) => Promise<void>;
   addPrimitive: (kind: PrimitiveKind) => Promise<void>;
   booleanOp: (op: BooleanOp) => Promise<void>;
+  removeShape: (shapeId: string) => Promise<void>;
+  undoLast: () => Promise<void>;
   clear: () => Promise<void>;
 
   setHovered: (ref: FaceRef | null) => void;
@@ -69,6 +74,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   pan: (dxPx, dyPx) => set((s) => ({ camera: panCam(s.camera, dxPx, dyPx) })),
   zoom: (factor) => set((s) => ({ camera: zoomCam(s.camera, factor) })),
   resetCamera: () => set({ camera: defaultCamera() }),
+  setView: (view) => set((s) => ({ camera: viewPreset(s.camera, view) })),
 
   initKernel: async () => {
     if (kernel || typeof Worker === "undefined") return;
@@ -141,6 +147,23 @@ export const useAppStore = create<AppState>((set, get) => ({
     } finally {
       set({ busy: false });
     }
+  },
+
+  removeShape: async (shapeId) => {
+    if (kernel) await kernel.client.deleteShape(shapeId);
+    set((s) => ({
+      shapes: s.shapes.filter((m) => m.shapeId !== shapeId),
+      selectedShapeIds: s.selectedShapeIds.filter((id) => id !== shapeId),
+      hovered: s.hovered?.shapeId === shapeId ? null : s.hovered,
+      status: `${shapeId} 삭제`,
+    }));
+  },
+
+  undoLast: async () => {
+    const last = get().shapes[get().shapes.length - 1];
+    if (!last) return;
+    await get().removeShape(last.shapeId);
+    set({ status: `실행취소 — ${last.shapeId} 제거` });
   },
 
   clear: async () => {
