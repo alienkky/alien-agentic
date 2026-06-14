@@ -76,6 +76,8 @@ interface AppState {
   sketchHover: SketchPoint | null;
   /** 확정된 프로파일 점들 (지면 XZ) */
   sketchPoints: SketchPoint[];
+  /** 내역(History) — 단계별 작업 로그 (우측 패널). 명세 Module 1.2 토대 */
+  history: { id: string; label: string }[];
   backend: KernelBackend;
   status: string;
   busy: boolean;
@@ -134,6 +136,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   sketchDraft: null,
   sketchHover: null,
   sketchPoints: [],
+  history: [],
   backend: "deterministic",
   status: "초기화 중…",
   busy: false,
@@ -177,8 +180,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       } else {
         mesh = await kernel.client.makeSphere({ radius: 2.5 }, shapeId);
       }
+      const kindLabel = kind === "box" ? "박스" : kind === "cylinder" ? "실린더" : "구";
       set((s) => ({
         shapes: [...s.shapes, mesh],
+        history: [...s.history, { id: shapeId, label: `${kindLabel} 추가` }],
         status: `${shapeId} 추가됨 · 면 ${mesh.faceRanges.length} · 모서리 ${mesh.edges.length}`,
       }));
     } catch (err) {
@@ -221,6 +226,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           shapes: [...s.shapes.filter((m) => m.shapeId !== idA && m.shapeId !== idB), mesh],
           transforms,
           selection: [],
+          history: [...s.history, { id: resultId, label: `${BOOL_LABEL[op]}` }],
           status: `${BOOL_LABEL[op]} 완료 → ${resultId}`,
         };
       });
@@ -259,7 +265,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         await kernel.client.deleteShape(m.shapeId);
       }
     }
-    set({ shapes: [], transforms: {}, hovered: null, selection: [], status: "비움" });
+    set({ shapes: [], transforms: {}, hovered: null, selection: [], history: [], status: "비움" });
   },
 
   setHovered: (ref) => set({ hovered: ref }),
@@ -373,6 +379,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         sketchPoints: [],
         sketchDraft: null,
         sketchHover: null,
+        history: [...s.history, { id: shapeId, label: "돌출" }],
         status: `돌출 완료 → ${shapeId}`,
       }));
     } catch (err) {

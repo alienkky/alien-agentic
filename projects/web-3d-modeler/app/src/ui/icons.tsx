@@ -104,6 +104,96 @@ export function ExtrudeIcon(): JSX.Element {
   );
 }
 
+export function SearchIcon(): JSX.Element {
+  return (
+    <svg {...base}>
+      <circle cx="11" cy="11" r="6" />
+      <path d="M20 20l-4-4" />
+    </svg>
+  );
+}
+
+export function InsertIcon(): JSX.Element {
+  return (
+    <svg {...base}>
+      <path d="M12 3 4 7v10l8 4 8-4V7z" />
+      <path d="M9 11h6M12 8v6" />
+    </svg>
+  );
+}
+
+export function ConstructIcon(): JSX.Element {
+  return (
+    <svg {...base}>
+      <path d="M3 17l9-5 9 5-9 5z" />
+      <path d="M12 3v9" />
+    </svg>
+  );
+}
+
+export function TransformIcon(): JSX.Element {
+  return (
+    <svg {...base}>
+      <path d="M12 3v18M3 12h18" />
+      <path d="M12 3l-2 2M12 3l2 2M12 21l-2-2M12 21l2-2M3 12l2-2M3 12l2 2M21 12l-2-2M21 12l-2 2" />
+    </svg>
+  );
+}
+
+export function ToolsIcon(): JSX.Element {
+  return (
+    <svg {...base}>
+      <path d="M14 7a3 3 0 1 1 3 3l-7 7-3 1 1-3z" />
+      <path d="M5 19l3-3" />
+    </svg>
+  );
+}
+
+export function LayersIcon(): JSX.Element {
+  return (
+    <svg {...base}>
+      <path d="M12 3l9 5-9 5-9-5z" />
+      <path d="M3 13l9 5 9-5" />
+    </svg>
+  );
+}
+
+export function SectionIcon(): JSX.Element {
+  return (
+    <svg {...base}>
+      <rect x="4" y="4" width="16" height="16" rx="1" />
+      <path d="M4 12h16M12 4v16" strokeDasharray="2 2" />
+    </svg>
+  );
+}
+
+export function MeasureIcon(): JSX.Element {
+  return (
+    <svg {...base}>
+      <path d="M3 17 17 3l4 4L7 21z" />
+      <path d="M7 13l2 2M10 10l2 2M13 7l2 2" />
+    </svg>
+  );
+}
+
+export function RedoIcon(): JSX.Element {
+  return (
+    <svg {...base}>
+      <path d="M15 7l5 5-5 5" />
+      <path d="M20 12H9a5 5 0 0 0 0 10" />
+    </svg>
+  );
+}
+
+export function CameraIcon(): JSX.Element {
+  return (
+    <svg {...base}>
+      <path d="M3 8h4l2-2h6l2 2h4v11H3z" />
+      <circle cx="12" cy="13" r="3.2" />
+    </svg>
+  );
+}
+
 export function EyeIcon(): JSX.Element {
   return (
     <svg {...base}>
