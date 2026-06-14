@@ -1,0 +1,17 @@
+{
+  "alwaysUpdateLinks": true,
+  "newFileLocation": "folder",
+  "newFileFolderPath": "_inbox",
+  "attachmentFolderPath": "_attachments",
+  "showLineNumber": true,
+  "foldHeading": true,
+  "foldIndent": true,
+  "useMarkdownLinks": false,
+  "promptDelete": false,
+  "defaultViewMode": "preview",
+  "livePreview": true,
+  "showFrontmatter": true,
+  "tabSize": 2,
+  "showInlineTitle": true,
+  "readableLineLength": true
+}

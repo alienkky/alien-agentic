@@ -69,3 +69,14 @@ automation/intranet/multica/
 # === Open Design 본진 (업스트림 추적, 우리 repo에 포함 X) ===
 # 커스터마이즈(브랜드 디자인시스템·스킬)는 alien-config/open-design/ 에만
 automation/intranet/open-design/
+
+# === Obsidian Vault (shared-memory/) — 설정·MOC·템플릿은 추적, 런타임은 제외 ===
+# .obsidian/ 의 우리 설정 JSON 은 추적하되, 창 레이아웃·캐시·플러그인 바이너리는 제외
+shared-memory/.obsidian/workspace.json
+shared-memory/.obsidian/workspace-mobile.json
+shared-memory/.obsidian/cache
+shared-memory/.obsidian/plugins/
+shared-memory/.obsidian/themes/
+shared-memory/.trash/
+shared-memory/_attachments/
+shared-memory/_inbox/

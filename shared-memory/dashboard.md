@@ -1,6 +1,7 @@
 ---
 last_updated: 2026-05-13T19:00
 updated_by: master-orchestrator
+aliases: ["🛸 대시보드"]
 ---
 
 # Alien Agentic — Today's Dashboard

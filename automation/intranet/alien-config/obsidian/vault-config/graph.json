@@ -1,0 +1,42 @@
+{
+  "collapse-filter": false,
+  "search": "",
+  "showTags": true,
+  "showAttachments": false,
+  "hideUnresolved": false,
+  "showOrphans": true,
+  "collapse-color-groups": false,
+  "colorGroups": [
+    {
+      "query": "path:agents",
+      "color": { "a": 1, "rgb": 14701138 }
+    },
+    {
+      "query": "path:daily-logs",
+      "color": { "a": 1, "rgb": 5419488 }
+    },
+    {
+      "query": "path:insights",
+      "color": { "a": 1, "rgb": 14893620 }
+    },
+    {
+      "query": "path:clients",
+      "color": { "a": 1, "rgb": 9794559 }
+    },
+    {
+      "query": "tag:#mistake",
+      "color": { "a": 1, "rgb": 13959168 }
+    }
+  ],
+  "collapse-display": false,
+  "showArrow": true,
+  "textFadeMultiplier": 0,
+  "nodeSizeMultiplier": 1.1,
+  "lineSizeMultiplier": 1,
+  "collapse-forces": false,
+  "centerStrength": 0.5,
+  "repelStrength": 12,
+  "linkStrength": 1,
+  "linkDistance": 250,
+  "scale": 1
+}
