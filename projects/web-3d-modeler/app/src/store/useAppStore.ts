@@ -24,6 +24,19 @@ export interface FaceRef {
 }
 
 export type PrimitiveKind = "box" | "cylinder" | "sphere";
+export type SketchTool = "rectangle" | "circle" | "line";
+
+const SNAP = 0.5; // 격자 스냅 간격
+const snap = (v: number): number => Math.round(v / SNAP) * SNAP;
+
+function circlePolygon(center: SketchPoint, radius: number, segments = 48): SketchPoint[] {
+  const pts: SketchPoint[] = [];
+  for (let i = 0; i < segments; i++) {
+    const a = (i / segments) * Math.PI * 2;
+    pts.push({ x: center.x + radius * Math.cos(a), z: center.z + radius * Math.sin(a) });
+  }
+  return pts;
+}
 
 export type Vec3 = [number, number, number];
 
@@ -39,7 +52,11 @@ interface AppState {
   gizmoDragging: boolean;
   /** 스케치 모드 활성 여부 */
   sketchActive: boolean;
-  /** 스케치 중인 지면(XZ) 점들 */
+  /** 현재 스케치 도구 */
+  sketchTool: SketchTool;
+  /** 사각형·원의 첫 탭(시작점). 두 번째 탭에서 프로파일 확정 */
+  sketchStart: SketchPoint | null;
+  /** 스케치 중인 지면(XZ) 점들 (확정된 프로파일) */
   sketchPoints: SketchPoint[];
   backend: KernelBackend;
   status: string;
@@ -66,7 +83,8 @@ interface AppState {
   setGizmoDragging: (dragging: boolean) => void;
 
   beginSketch: () => void;
-  addSketchPoint: (p: SketchPoint) => void;
+  setSketchTool: (tool: SketchTool) => void;
+  sketchTap: (p: SketchPoint) => void;
   undoSketchPoint: () => void;
   cancelSketch: () => void;
   commitExtrude: (depth: number) => void;
@@ -89,6 +107,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectedShapeIds: [],
   gizmoDragging: false,
   sketchActive: false,
+  sketchTool: "rectangle",
+  sketchStart: null,
   sketchPoints: [],
   backend: "deterministic",
   status: "초기화 중…",
@@ -238,14 +258,60 @@ export const useAppStore = create<AppState>((set, get) => ({
   setGizmoDragging: (dragging) => set({ gizmoDragging: dragging }),
 
   beginSketch: () =>
-    set({ sketchActive: true, sketchPoints: [], selectedShapeIds: [], status: "스케치: 지면을 탭해 점을 찍으세요 (3개 이상)" }),
+    set({
+      sketchActive: true,
+      sketchPoints: [],
+      sketchStart: null,
+      selectedShapeIds: [],
+      status: "스케치: 사각형 — 두 모서리를 탭하세요",
+    }),
 
-  addSketchPoint: (p) =>
-    set((s) => ({ sketchPoints: [...s.sketchPoints, p], status: `스케치 점 ${s.sketchPoints.length + 1}개` })),
+  setSketchTool: (tool) =>
+    set({
+      sketchTool: tool,
+      sketchStart: null,
+      sketchPoints: [],
+      status:
+        tool === "rectangle"
+          ? "사각형 — 두 모서리를 탭"
+          : tool === "circle"
+            ? "원 — 중심과 반지름을 탭"
+            : "선 — 점을 순서대로 탭 (3개 이상)",
+    }),
 
-  undoSketchPoint: () => set((s) => ({ sketchPoints: s.sketchPoints.slice(0, -1) })),
+  sketchTap: (raw) => {
+    const p: SketchPoint = { x: snap(raw.x), z: snap(raw.z) };
+    const { sketchTool, sketchStart } = get();
 
-  cancelSketch: () => set({ sketchActive: false, sketchPoints: [], status: "스케치 취소" }),
+    if (sketchTool === "line") {
+      set((s) => ({ sketchPoints: [...s.sketchPoints, p], status: `선 — 점 ${s.sketchPoints.length + 1}개` }));
+      return;
+    }
+
+    // rectangle / circle: 2-탭
+    if (!sketchStart) {
+      set({ sketchStart: p, status: sketchTool === "rectangle" ? "반대 모서리를 탭" : "반지름 지점을 탭" });
+      return;
+    }
+    let pts: SketchPoint[];
+    if (sketchTool === "rectangle") {
+      pts = [
+        { x: sketchStart.x, z: sketchStart.z },
+        { x: p.x, z: sketchStart.z },
+        { x: p.x, z: p.z },
+        { x: sketchStart.x, z: p.z },
+      ];
+    } else {
+      const r = Math.hypot(p.x - sketchStart.x, p.z - sketchStart.z);
+      pts = circlePolygon(sketchStart, r);
+    }
+    set({ sketchPoints: pts, sketchStart: null, status: "프로파일 완성 — 돌출하세요" });
+  },
+
+  undoSketchPoint: () =>
+    set((s) => ({ sketchPoints: s.sketchPoints.slice(0, -1), sketchStart: null })),
+
+  cancelSketch: () => set({ sketchActive: false, sketchPoints: [], sketchStart: null, status: "스케치 취소" }),
 
   commitExtrude: (depth) => {
     const pts = get().sketchPoints;
@@ -260,6 +326,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         shapes: [...s.shapes, mesh],
         sketchActive: false,
         sketchPoints: [],
+        sketchStart: null,
         status: `돌출 완료 → ${shapeId}`,
       }));
     } catch (err) {

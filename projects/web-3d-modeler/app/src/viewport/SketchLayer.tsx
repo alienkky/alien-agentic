@@ -8,7 +8,8 @@ import { useAppStore } from "../store/useAppStore";
 export function SketchLayer(): JSX.Element | null {
   const active = useAppStore((s) => s.sketchActive);
   const points = useAppStore((s) => s.sketchPoints);
-  const addSketchPoint = useAppStore((s) => s.addSketchPoint);
+  const start = useAppStore((s) => s.sketchStart);
+  const sketchTap = useAppStore((s) => s.sketchTap);
 
   if (!active) return null;
 
@@ -25,14 +26,22 @@ export function SketchLayer(): JSX.Element | null {
         position={[0, 0, 0]}
         onClick={(e) => {
           e.stopPropagation();
-          addSketchPoint({ x: e.point.x, z: e.point.z });
+          sketchTap({ x: e.point.x, z: e.point.z });
         }}
       >
         <planeGeometry args={[400, 400]} />
         <meshBasicMaterial color="#4fd1c5" transparent opacity={0.05} />
       </mesh>
 
-      {/* 점 마커 */}
+      {/* 사각형·원 시작점 마커 */}
+      {start && (
+        <mesh position={[start.x, 0.02, start.z]}>
+          <sphereGeometry args={[0.16, 16, 16]} />
+          <meshBasicMaterial color="#e6ebf2" />
+        </mesh>
+      )}
+
+      {/* 확정 프로파일 점 마커 */}
       {pts3.map((p, i) => (
         <mesh key={i} position={p}>
           <sphereGeometry args={[0.12, 16, 16]} />
