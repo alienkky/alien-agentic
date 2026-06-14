@@ -1,48 +1,79 @@
 /**
  * 스케치 모드 레이어 (Shapr3D 방식):
- *  - 평면을 정면(탑다운)으로 보고 그린다 (beginSketch 가 카메라를 top 으로).
- *  - 사각형/원: 드래그(누르고 끌어 놓기) — 실시간 러버밴드 미리보기 + 치수 표시.
- *  - 선: 점을 순서대로 탭, 커서까지 미리보기 선.
+ *  1) 기준면 미선택: 3개 평면(XY/YZ/XZ)을 보여주고 클릭 → 그 면을 정면으로 정렬.
+ *  2) 면 선택됨: 그 평면 위에서 드래그로 그리기(러버밴드 + 실시간 치수 + 파란 면).
  */
+import { useMemo } from "react";
 import * as THREE from "three";
 import { Line, Html } from "@react-three/drei";
 import { useAppStore } from "../store/useAppStore";
-import type { SketchPoint } from "../kernel/extrude";
+import {
+  SKETCH_PLANES, planeToWorld, worldToPlane,
+  type PlaneId, type SketchPlaneDef, type SketchPoint,
+} from "../kernel/sketchPlane";
 
-/** 닫힌 프로파일 → THREE.Shape (지면 매핑: x, -z). */
-function profileShape(pts: SketchPoint[]): THREE.Shape | null {
-  const first = pts[0];
-  if (pts.length < 3 || !first) return null;
-  const shape = new THREE.Shape();
-  shape.moveTo(first.x, -first.z);
-  for (let i = 1; i < pts.length; i++) {
-    const p = pts[i];
-    if (p) shape.lineTo(p.x, -p.z);
-  }
-  shape.closePath();
-  return shape;
+const PLANE_ROT: Record<PlaneId, [number, number, number]> = {
+  xz: [-Math.PI / 2, 0, 0],
+  xy: [0, 0, 0],
+  yz: [0, Math.PI / 2, 0],
+};
+const PLANE_COLOR: Record<PlaneId, string> = { xz: "#4fd1c5", xy: "#5b9cff", yz: "#e06fae" };
+
+function planeMatrix(plane: SketchPlaneDef): THREE.Matrix4 {
+  const m = new THREE.Matrix4().makeBasis(
+    new THREE.Vector3(...plane.u),
+    new THREE.Vector3(...plane.v),
+    new THREE.Vector3(...plane.normal),
+  );
+  m.setPosition(new THREE.Vector3(...plane.origin));
+  return m;
 }
 
 function rectPts(a: SketchPoint, b: SketchPoint): SketchPoint[] {
   return [
-    { x: a.x, z: a.z },
-    { x: b.x, z: a.z },
-    { x: b.x, z: b.z },
-    { x: a.x, z: b.z },
+    { u: a.u, v: a.v }, { u: b.u, v: a.v }, { u: b.u, v: b.v }, { u: a.u, v: b.v },
   ];
 }
-
 function circlePts(c: SketchPoint, r: number, seg = 48): SketchPoint[] {
   const out: SketchPoint[] = [];
   for (let i = 0; i < seg; i++) {
     const a = (i / seg) * Math.PI * 2;
-    out.push({ x: c.x + r * Math.cos(a), z: c.z + r * Math.sin(a) });
+    out.push({ u: c.u + r * Math.cos(a), v: c.v + r * Math.sin(a) });
   }
   return out;
 }
 
+/** 평면 선택 UI — 3개 클릭 가능한 사각형. */
+function PlanePicker(): JSX.Element {
+  const pickPlane = useAppStore((s) => s.pickPlane);
+  const ids: PlaneId[] = ["xz", "xy", "yz"];
+  return (
+    <group>
+      {ids.map((id) => (
+        <mesh
+          key={id}
+          rotation={PLANE_ROT[id]}
+          onClick={(e) => {
+            e.stopPropagation();
+            pickPlane(id);
+          }}
+        >
+          <planeGeometry args={[8, 8]} />
+          <meshBasicMaterial color={PLANE_COLOR[id]} transparent opacity={0.16} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
+      <Html position={[0, 0.2, 0]} center style={{ pointerEvents: "none" }}>
+        <div className="whitespace-nowrap rounded bg-aa-bg/90 px-2 py-1 text-xs text-aa-text">
+          기준면을 선택하세요
+        </div>
+      </Html>
+    </group>
+  );
+}
+
 export function SketchLayer(): JSX.Element | null {
   const active = useAppStore((s) => s.sketchActive);
+  const planeId = useAppStore((s) => s.sketchPlane);
   const tool = useAppStore((s) => s.sketchTool);
   const draft = useAppStore((s) => s.sketchDraft);
   const hover = useAppStore((s) => s.sketchHover);
@@ -52,98 +83,97 @@ export function SketchLayer(): JSX.Element | null {
   const dragEnd = useAppStore((s) => s.sketchDragEnd);
   const clickPoint = useAppStore((s) => s.sketchClickPoint);
 
-  if (!active) return null;
+  const plane = planeId ? SKETCH_PLANES[planeId] : null;
 
-  // 미리보기 프로파일 + 치수
-  let preview: SketchPoint[] = [];
-  let close = false;
-  let dim: { label: string; at: [number, number, number] } | null = null;
-
-  if (draft) {
-    const { start, current } = draft;
-    if (tool === "circle") {
-      const r = Math.hypot(current.x - start.x, current.z - start.z);
-      preview = circlePts(start, r);
-      close = true;
-      dim = { label: `R ${r.toFixed(1)}`, at: [start.x, 0.1, start.z] };
+  // 미리보기 프로파일(u,v) + 치수
+  const { preview, close, dim } = useMemo(() => {
+    let preview: SketchPoint[] = [];
+    let close = false;
+    let dim: { label: string; uv: SketchPoint } | null = null;
+    if (draft) {
+      const { start, current } = draft;
+      if (tool === "circle") {
+        const r = Math.hypot(current.u - start.u, current.v - start.v);
+        preview = circlePts(start, r); close = true;
+        dim = { label: `R ${r.toFixed(1)}`, uv: start };
+      } else {
+        preview = rectPts(start, current); close = true;
+        dim = {
+          label: `${Math.abs(current.u - start.u).toFixed(1)} × ${Math.abs(current.v - start.v).toFixed(1)}`,
+          uv: { u: (start.u + current.u) / 2, v: (start.v + current.v) / 2 },
+        };
+      }
+    } else if (tool === "line") {
+      preview = hover ? [...points, hover] : points; close = false;
     } else {
-      preview = rectPts(start, current);
-      close = true;
-      dim = {
-        label: `${Math.abs(current.x - start.x).toFixed(1)} × ${Math.abs(current.z - start.z).toFixed(1)}`,
-        at: [(start.x + current.x) / 2, 0.1, (start.z + current.z) / 2],
-      };
+      preview = points; close = points.length >= 3;
     }
-  } else if (tool === "line") {
-    preview = hover ? [...points, hover] : points;
-    close = false;
-  } else {
-    preview = points;
-    close = points.length >= 3;
-  }
+    return { preview, close, dim };
+  }, [draft, hover, points, tool]);
 
-  const loop: [number, number, number][] = preview.map((p) => [p.x, 0.02, p.z]);
+  const fillGeo = useMemo(() => {
+    if (!plane) return null;
+    const fillPts = draft ? preview : points;
+    const first = fillPts[0];
+    if (fillPts.length < 3 || !first) return null;
+    const shape = new THREE.Shape();
+    shape.moveTo(first.u, first.v);
+    for (let i = 1; i < fillPts.length; i++) {
+      const p = fillPts[i];
+      if (p) shape.lineTo(p.u, p.v);
+    }
+    shape.closePath();
+    const geo = new THREE.ShapeGeometry(shape);
+    geo.applyMatrix4(planeMatrix(plane));
+    return geo;
+  }, [plane, preview, points, draft]);
+
+  if (!active) return null;
+  if (!plane) return <PlanePicker />;
+
+  const toWorld = (p: SketchPoint): [number, number, number] => planeToWorld(plane, p.u, p.v);
+  const loop = preview.map(toWorld);
   const linePts = close && loop.length >= 3 ? [...loop, loop[0]!] : loop;
-
-  // 닫힌 면 → 파란색 채움 (돌출 가능 신호, Shapr3D 시그니처).
-  // 사각형/원은 항상 닫힘. 선은 점 3개 이상이면 자동 폐합.
-  const fillPts = draft ? preview : points;
-  const fillShape = profileShape(fillPts);
+  const onPlane = (e: { point: THREE.Vector3 }) => worldToPlane(plane, e.point.x, e.point.y, e.point.z);
 
   return (
     <group>
-      {/* 레이캐스트용 지면 평면 */}
+      {/* 선택 평면 위 레이캐스트용 큰 면 */}
       <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, 0, 0]}
+        rotation={PLANE_ROT[plane.id]}
         onPointerDown={(e) => {
           e.stopPropagation();
-          if (tool === "line") clickPoint({ x: e.point.x, z: e.point.z });
-          else dragStart({ x: e.point.x, z: e.point.z });
+          if (tool === "line") clickPoint(onPlane(e));
+          else dragStart(onPlane(e));
         }}
-        onPointerMove={(e) => {
-          e.stopPropagation();
-          dragMove({ x: e.point.x, z: e.point.z });
-        }}
-        onPointerUp={(e) => {
-          e.stopPropagation();
-          dragEnd();
-        }}
+        onPointerMove={(e) => { e.stopPropagation(); dragMove(onPlane(e)); }}
+        onPointerUp={(e) => { e.stopPropagation(); dragEnd(); }}
       >
         <planeGeometry args={[400, 400]} />
-        <meshBasicMaterial color="#4fd1c5" transparent opacity={0.04} />
+        <meshBasicMaterial color={PLANE_COLOR[plane.id]} transparent opacity={0.05} side={THREE.DoubleSide} />
       </mesh>
 
-      {/* 닫힌 면 파란색 채움 — 돌출 가능 신호 */}
-      {fillShape && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.015, 0]}>
-          <shapeGeometry args={[fillShape]} />
-          <meshBasicMaterial
-            color="#5b9cff"
-            transparent
-            opacity={0.28}
-            side={THREE.DoubleSide}
-            depthWrite={false}
-          />
+      {fillGeo && (
+        <mesh geometry={fillGeo}>
+          <meshBasicMaterial color="#5b9cff" transparent opacity={0.28} side={THREE.DoubleSide} depthWrite={false} />
         </mesh>
       )}
 
-      {/* 확정 점 마커 (선 도구) */}
-      {tool === "line" &&
-        !draft &&
-        points.map((p, i) => (
-          <mesh key={i} position={[p.x, 0.02, p.z]}>
-            <sphereGeometry args={[0.12, 16, 16]} />
-            <meshBasicMaterial color="#4fd1c5" />
-          </mesh>
-        ))}
+      {tool === "line" && !draft &&
+        points.map((p, i) => {
+          const w = toWorld(p);
+          return (
+            <mesh key={i} position={w}>
+              <sphereGeometry args={[0.12, 16, 16]} />
+              <meshBasicMaterial color="#4fd1c5" />
+            </mesh>
+          );
+        })}
 
-      {/* 프로파일 / 러버밴드 선 */}
       {linePts.length >= 2 && <Line points={linePts} color="#4fd1c5" lineWidth={2} />}
 
-      {/* 실시간 치수 */}
       {dim && (
-        <Html position={dim.at} center style={{ pointerEvents: "none" }}>
+        <Html position={toWorld(dim.uv)} center style={{ pointerEvents: "none" }}>
           <div className="whitespace-nowrap rounded bg-aa-bg/90 px-1.5 py-0.5 text-xs font-semibold text-aa-accent">
             {dim.label}
           </div>

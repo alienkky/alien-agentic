@@ -7,7 +7,8 @@ import { createKernelClient, type KernelHandle } from "../kernel/bridge";
 import type { KernelBackend } from "../kernel/worker";
 import type { TessellatedMesh, BooleanOp } from "../kernel/types";
 import { meshBoolean } from "../kernel/meshBoolean";
-import { extrudeProfile, type SketchPoint } from "../kernel/extrude";
+import { extrudeProfile } from "../kernel/extrude";
+import { SKETCH_PLANES, type PlaneId, type SketchPoint } from "../kernel/sketchPlane";
 import {
   defaultCamera,
   orbit as orbitCam,
@@ -49,10 +50,12 @@ function circlePolygon(center: SketchPoint, radius: number, segments = 48): Sket
   const pts: SketchPoint[] = [];
   for (let i = 0; i < segments; i++) {
     const a = (i / segments) * Math.PI * 2;
-    pts.push({ x: center.x + radius * Math.cos(a), z: center.z + radius * Math.sin(a) });
+    pts.push({ u: center.u + radius * Math.cos(a), v: center.v + radius * Math.sin(a) });
   }
   return pts;
 }
+
+const PLANE_VIEW: Record<PlaneId, "top" | "front" | "right"> = { xz: "top", xy: "front", yz: "right" };
 
 export type Vec3 = [number, number, number];
 
@@ -68,13 +71,15 @@ interface AppState {
   gizmoDragging: boolean;
   /** 스케치 모드 활성 여부 */
   sketchActive: boolean;
+  /** 선택된 기준면. null 이면 "활성 평면 없음" (면을 골라야 그릴 수 있음) */
+  sketchPlane: PlaneId | null;
   /** 현재 스케치 도구 */
   sketchTool: SketchTool;
-  /** 사각형·원 드래그 초안 (시작점→현재점). 드래그 중 실시간 미리보기 */
+  /** 사각형·원 드래그 초안 (평면 (u,v)). 드래그 중 실시간 미리보기 */
   sketchDraft: { start: SketchPoint; current: SketchPoint } | null;
-  /** 커서 위치 (선 도구 미리보기용) */
+  /** 커서 위치 (선 도구 미리보기용, (u,v)) */
   sketchHover: SketchPoint | null;
-  /** 확정된 프로파일 점들 (지면 XZ) */
+  /** 확정된 프로파일 점들 (평면 (u,v)) */
   sketchPoints: SketchPoint[];
   /** 내역(History) — 단계별 작업 로그 (우측 패널). 명세 Module 1.2 토대 */
   history: { id: string; label: string }[];
@@ -111,6 +116,7 @@ interface AppState {
   setGizmoDragging: (dragging: boolean) => void;
 
   beginSketch: () => void;
+  pickPlane: (id: PlaneId) => void;
   setSketchTool: (tool: SketchTool) => void;
   /** 사각형·원: 드래그 시작 / 이동 / 종료. 선: 점 클릭 */
   sketchDragStart: (p: SketchPoint) => void;
@@ -139,6 +145,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   selection: [],
   gizmoDragging: false,
   sketchActive: false,
+  sketchPlane: null,
   sketchTool: "rectangle",
   sketchDraft: null,
   sketchHover: null,
@@ -306,14 +313,23 @@ export const useAppStore = create<AppState>((set, get) => ({
   setGizmoDragging: (dragging) => set({ gizmoDragging: dragging }),
 
   beginSketch: () =>
-    set((s) => ({
+    set({
       sketchActive: true,
+      sketchPlane: null,
       sketchPoints: [],
       sketchDraft: null,
       sketchHover: null,
       selection: [],
-      camera: viewPreset(s.camera, "top"), // 평면을 정면으로 — 2D 처럼
-      status: "스케치: 사각형을 드래그해 그리세요",
+      status: "스케치: 기준면(XY/YZ/XZ)을 선택하세요",
+    }),
+
+  pickPlane: (id) =>
+    set((s) => ({
+      sketchPlane: id,
+      sketchPoints: [],
+      sketchDraft: null,
+      camera: viewPreset(s.camera, PLANE_VIEW[id]), // 그 면을 정면으로
+      status: `${SKETCH_PLANES[id].label} 위에서 그리세요`,
     })),
 
   setSketchTool: (tool) =>
@@ -329,15 +345,15 @@ export const useAppStore = create<AppState>((set, get) => ({
             : "선 — 점을 순서대로 탭 (3개 이상)",
     }),
 
-  // 사각형·원: 드래그
+  // 사각형·원: 드래그 (좌표는 평면 (u,v))
   sketchDragStart: (raw) => {
-    if (get().sketchTool === "line") return;
-    const p: SketchPoint = { x: snap(raw.x), z: snap(raw.z) };
+    if (get().sketchTool === "line" || !get().sketchPlane) return;
+    const p: SketchPoint = { u: snap(raw.u), v: snap(raw.v) };
     set({ sketchDraft: { start: p, current: p }, sketchPoints: [] });
   },
 
   sketchDragMove: (raw) => {
-    const p: SketchPoint = { x: snap(raw.x), z: snap(raw.z) };
+    const p: SketchPoint = { u: snap(raw.u), v: snap(raw.v) };
     set((s) => (s.sketchDraft ? { sketchDraft: { start: s.sketchDraft.start, current: p }, sketchHover: p } : { sketchHover: p }));
   },
 
@@ -347,16 +363,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     const { start, current } = sketchDraft;
     let pts: SketchPoint[];
     if (sketchTool === "circle") {
-      const r = Math.hypot(current.x - start.x, current.z - start.z);
+      const r = Math.hypot(current.u - start.u, current.v - start.v);
       pts = r > 0.01 ? circlePolygon(start, r) : [];
     } else {
       pts =
-        Math.abs(current.x - start.x) > 0.01 && Math.abs(current.z - start.z) > 0.01
+        Math.abs(current.u - start.u) > 0.01 && Math.abs(current.v - start.v) > 0.01
           ? [
-              { x: start.x, z: start.z },
-              { x: current.x, z: start.z },
-              { x: current.x, z: current.z },
-              { x: start.x, z: current.z },
+              { u: start.u, v: start.v },
+              { u: current.u, v: start.v },
+              { u: current.u, v: current.v },
+              { u: start.u, v: current.v },
             ]
           : [];
     }
@@ -365,8 +381,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // 선: 점 클릭 누적
   sketchClickPoint: (raw) => {
-    if (get().sketchTool !== "line") return;
-    const p: SketchPoint = { x: snap(raw.x), z: snap(raw.z) };
+    if (get().sketchTool !== "line" || !get().sketchPlane) return;
+    const p: SketchPoint = { u: snap(raw.u), v: snap(raw.v) };
     set((s) => ({ sketchPoints: [...s.sketchPoints, p], status: `선 — 점 ${s.sketchPoints.length + 1}개` }));
   },
 
@@ -374,20 +390,21 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({ sketchPoints: s.sketchPoints.slice(0, -1), sketchDraft: null })),
 
   cancelSketch: () =>
-    set({ sketchActive: false, sketchPoints: [], sketchDraft: null, sketchHover: null, status: "스케치 취소" }),
+    set({ sketchActive: false, sketchPlane: null, sketchPoints: [], sketchDraft: null, sketchHover: null, status: "스케치 취소" }),
 
   commitExtrude: (depth) => {
-    const pts = get().sketchPoints;
-    if (pts.length < 3) {
+    const { sketchPoints: pts, sketchPlane } = get();
+    if (pts.length < 3 || !sketchPlane) {
       set({ status: "돌출: 점이 3개 이상이어야 합니다" });
       return;
     }
     try {
       const shapeId = `extrude-${++counter}`;
-      const mesh = extrudeProfile(pts, depth, shapeId);
+      const mesh = extrudeProfile(pts, SKETCH_PLANES[sketchPlane], depth, shapeId);
       set((s) => ({
         shapes: [...s.shapes, mesh],
         sketchActive: false,
+        sketchPlane: null,
         sketchPoints: [],
         sketchDraft: null,
         sketchHover: null,
