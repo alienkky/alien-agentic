@@ -1,12 +1,12 @@
 ---
-last_updated: 2026-05-13T19:00
+last_updated: 2026-06-14T03:40
 updated_by: master-orchestrator
 ---
 
 # Alien Agentic — Today's Dashboard
 
 ## 🛸 오늘의 한 줄
-회사 헌법을 코드로 박고, 27명 외계 동료 정의 완성 + 그룹웨어 폴더 구조 + CLI 골격(Phase 1)을 만들었다.
+자체 IP 첫 제품 **Nebula**(웹 기반 3D 모델러, Shapr3D-like) 착수 — 설계 v2(자체IP·iPad/갤탭/폴드6 멀티디바이스) + 전체 검토 + AA 시스템 작업 등록. PR #13.
 
 ## 📊 진행 중 클라이언트
 
@@ -35,9 +35,14 @@ updated_by: master-orchestrator
 ## 🚩 위험 깃발
 - (없음)
 
+## 🛠 진행 중 자체 프로젝트
+| id | 프로젝트 | 단계 | 다음 |
+|---|---|---|---|
+| [T-20260614-001](tasks/T-20260614-001.md) | Nebula (웹 3D 모델러, 자체 IP) | 설계 v2 완료 · PR #13 | Phase 0 착수 ([T-20260614-002](tasks/T-20260614-002.md)) |
+
 ## 📅 이번 주 우선순위
-1. (대기 — 월요일에 확정)
-2. (대기)
+1. Nebula 설계 v2 검토·머지 (PR #13) → Phase 0 착수
+2. (대기 — 월요일에 확정)
 3. (대기)
 
 ## 🔗 빠른 링크
