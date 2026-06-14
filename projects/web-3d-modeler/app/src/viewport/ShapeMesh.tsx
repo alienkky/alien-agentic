@@ -51,6 +51,7 @@ export function ShapeMesh({ mesh }: { mesh: TessellatedMesh }): JSX.Element {
   const selection = useAppStore((s) => s.selection);
   const sketchActive = useAppStore((s) => s.sketchActive);
   const displayMode = useAppStore((s) => s.displayMode);
+  const showEdges = useAppStore((s) => s.showEdges);
 
   const geometry = useMemo(() => buildGeometry(mesh), [mesh]);
   const edges = useMemo(
@@ -117,8 +118,8 @@ export function ShapeMesh({ mesh }: { mesh: TessellatedMesh }): JSX.Element {
         />
       </mesh>
 
-      {/* 모서리 — 개별 선택 가능 */}
-      {edges.map((e) => (
+      {/* 모서리 — 개별 선택 가능 (에지 표시 토글) */}
+      {showEdges && edges.map((e) => (
         <Line
           key={e.edgeId}
           points={e.pts}

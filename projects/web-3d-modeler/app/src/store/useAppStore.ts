@@ -108,6 +108,11 @@ interface AppState {
   /** 사이드바 표시 (뷰 메뉴 토글) */
   panels: { items: boolean; history: boolean };
   togglePanel: (p: "items" | "history") => void;
+  /** 에지(모서리) 표시 (우클릭 메뉴 토글) */
+  showEdges: boolean;
+  toggleEdges: () => void;
+  /** 모든 바디 선택 */
+  selectAll: () => void;
   setHovered: (ref: FaceRef | null) => void;
   /** 항목 선택 토글 (탭). additive=false 면 단일 선택으로 교체 */
   selectEntity: (item: SelItem, additive?: boolean) => void;
@@ -153,6 +158,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   history: [],
   displayMode: "shaded",
   panels: { items: true, history: true },
+  showEdges: true,
   backend: "deterministic",
   status: "초기화 중…",
   busy: false,
@@ -287,6 +293,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   setStatus: (msg) => set({ status: msg }),
   setDisplayMode: (mode) => set({ displayMode: mode, status: `디스플레이: ${mode}` }),
   togglePanel: (p) => set((s) => ({ panels: { ...s.panels, [p]: !s.panels[p] } })),
+  toggleEdges: () => set((s) => ({ showEdges: !s.showEdges, status: `에지 표시: ${!s.showEdges ? "켜짐" : "꺼짐"}` })),
+  selectAll: () =>
+    set((s) => ({
+      selection: s.shapes.map((m) => ({ kind: "body" as const, shapeId: m.shapeId, index: -1 })),
+      status: `모두 선택 (${s.shapes.length})`,
+    })),
   setHovered: (ref) => set({ hovered: ref }),
 
   selectEntity: (item, additive = true) =>
