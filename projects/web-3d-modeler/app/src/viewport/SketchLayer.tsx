@@ -4,9 +4,24 @@
  *  - 사각형/원: 드래그(누르고 끌어 놓기) — 실시간 러버밴드 미리보기 + 치수 표시.
  *  - 선: 점을 순서대로 탭, 커서까지 미리보기 선.
  */
+import * as THREE from "three";
 import { Line, Html } from "@react-three/drei";
 import { useAppStore } from "../store/useAppStore";
 import type { SketchPoint } from "../kernel/extrude";
+
+/** 닫힌 프로파일 → THREE.Shape (지면 매핑: x, -z). */
+function profileShape(pts: SketchPoint[]): THREE.Shape | null {
+  const first = pts[0];
+  if (pts.length < 3 || !first) return null;
+  const shape = new THREE.Shape();
+  shape.moveTo(first.x, -first.z);
+  for (let i = 1; i < pts.length; i++) {
+    const p = pts[i];
+    if (p) shape.lineTo(p.x, -p.z);
+  }
+  shape.closePath();
+  return shape;
+}
 
 function rectPts(a: SketchPoint, b: SketchPoint): SketchPoint[] {
   return [
@@ -70,6 +85,11 @@ export function SketchLayer(): JSX.Element | null {
   const loop: [number, number, number][] = preview.map((p) => [p.x, 0.02, p.z]);
   const linePts = close && loop.length >= 3 ? [...loop, loop[0]!] : loop;
 
+  // 닫힌 면 → 파란색 채움 (돌출 가능 신호, Shapr3D 시그니처).
+  // 사각형/원은 항상 닫힘. 선은 점 3개 이상이면 자동 폐합.
+  const fillPts = draft ? preview : points;
+  const fillShape = profileShape(fillPts);
+
   return (
     <group>
       {/* 레이캐스트용 지면 평면 */}
@@ -93,6 +113,20 @@ export function SketchLayer(): JSX.Element | null {
         <planeGeometry args={[400, 400]} />
         <meshBasicMaterial color="#4fd1c5" transparent opacity={0.04} />
       </mesh>
+
+      {/* 닫힌 면 파란색 채움 — 돌출 가능 신호 */}
+      {fillShape && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.015, 0]}>
+          <shapeGeometry args={[fillShape]} />
+          <meshBasicMaterial
+            color="#5b9cff"
+            transparent
+            opacity={0.28}
+            side={THREE.DoubleSide}
+            depthWrite={false}
+          />
+        </mesh>
+      )}
 
       {/* 확정 점 마커 (선 도구) */}
       {tool === "line" &&
