@@ -53,20 +53,26 @@ AppSettings                SharedPreferences (엔진 선택·키·TTS·듣기 �
 
 ## 빌드 방법
 
-### 방법 A — Android Studio (권장)
+### 방법 0 — PC 없이 GitHub가 빌드 (가장 쉬움)
+저장소 루트의 `.github/workflows/android-apk.yml` 가 푸시마다 디버그 APK를 만듭니다.
+1. GitHub → 저장소 → **Actions** 탭 → 최신 **Build Voice Translator APK** 실행 클릭
+2. 하단 **Artifacts → `app-debug-apk`** 다운로드 (폰 브라우저로 바로 가능)
+3. 폰에서 APK 탭 → "이 출처 허용" → 설치
+> Actions 가 꺼져 있으면 저장소 Settings → Actions 에서 활성화. 수동 실행은 Actions 탭의 **Run workflow** 버튼.
+
+### 방법 A — Android Studio
 1. Android Studio 에서 `projects/android-voice-translator` 폴더를 **Open**.
-2. Gradle 동기화가 끝나면(Gradle 래퍼 jar 가 자동 생성됨) 실기기를 USB 로 연결.
+2. Gradle 동기화 후 실기기를 USB 로 연결(개발자 옵션 → USB 디버깅).
 3. **Run ▶** → 폰에 설치.
 
-> 이 저장소에는 바이너리(`gradle-wrapper.jar`)를 커밋하지 않았습니다. Android Studio 가 첫 동기화 때 만들어 줍니다. 커맨드라인을 쓰려면 한 번만 `gradle wrapper` 를 실행해 래퍼를 생성하세요.
-
 ### 방법 B — 커맨드라인
+Gradle 래퍼(`gradlew` + `gradle-wrapper.jar`)가 저장소에 포함돼 있어 바로 실행됩니다.
 ```bash
 cd projects/android-voice-translator
-gradle wrapper            # 최초 1회: gradlew + wrapper jar 생성
-./gradlew assembleDebug   # APK 빌드 → app/build/outputs/apk/debug/app-debug.apk
-./gradlew installDebug    # 연결된 기기에 바로 설치
+./gradlew assembleDebug    # APK → app/build/outputs/apk/debug/app-debug.apk
+./gradlew installDebug     # 연결된 기기에 바로 설치
 ```
+> 로컬 빌드는 Android SDK 가 필요합니다(Android Studio 설치 시 함께 깔림). SDK 위치는 `local.properties` 의 `sdk.dir` 또는 `ANDROID_HOME` 환경변수로 인식됩니다.
 
 ## 처음 실행할 때
 1. 앱 실행 → 마이크 권한 허용.
