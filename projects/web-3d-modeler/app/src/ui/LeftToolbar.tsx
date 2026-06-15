@@ -110,6 +110,8 @@ export function LeftToolbar(): JSX.Element {
   const openRevolve = useAppStore((s) => s.openRevolve);
   const openPattern = useAppStore((s) => s.openPattern);
   const openTransform = useAppStore((s) => s.openTransform);
+  const toggleMeasure = useAppStore((s) => s.toggleMeasure);
+  const measureActive = useAppStore((s) => s.measureActive);
   const addMesh = useAppStore((s) => s.addMesh);
   const setStatus = useAppStore((s) => s.setStatus);
 
@@ -137,7 +139,7 @@ export function LeftToolbar(): JSX.Element {
         <div className="flex flex-col gap-0.5 border-t border-aa-border pt-1.5">
           {sketchActive && <Row icon={<ConstructIcon />} label="구성" sub="끄기" onClick={() => setStatus("구성 — 준비 중")} />}
           <Row icon={<SectionIcon />} label="단면 뷰" sub="끄기" />
-          <Row icon={<MeasureIcon />} label="측정" />
+          <Row icon={<MeasureIcon />} label="측정" sub={measureActive ? "두 점 클릭" : undefined} active={measureActive} onClick={() => toggleMeasure()} />
         </div>
       </div>
 

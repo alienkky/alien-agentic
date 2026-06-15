@@ -243,8 +243,8 @@ interface AppState {
   setExtrudeDragHeight: (h: number) => void;
   commitExtrudeDrag: () => void;
   cancelExtrudeDrag: () => void;
-  /** 선택된 스케치를 회전체로 (도구→회전) */
-  revolveSketchAs: (angleDeg: number, axis: RevolveAxis) => void;
+  /** 선택된 스케치를 회전체로 (도구→회전). 모드: 새 바디/빼기/합치기 */
+  revolveSketchAs: (angleDeg: number, axis: RevolveAxis, mode: ExtrudeMode) => void;
   /** 회전 다이얼로그 열기/닫기 */
   openRevolve: () => void;
   closeRevolve: () => void;
@@ -264,6 +264,13 @@ interface AppState {
   mirrorBody: (axis: Axis3) => void;
   openTransform: (mode: "rotate" | "scale" | "mirror") => void;
   closeTransform: () => void;
+
+  /** 측정 도구 — 두 점을 클릭하면 거리 표시 */
+  measureActive: boolean;
+  measurePoints: Vec3[];
+  toggleMeasure: () => void;
+  addMeasurePoint: (p: Vec3) => void;
+  clearMeasure: () => void;
 }
 
 let kernel: KernelHandle | null = null;
@@ -274,6 +281,42 @@ const BOOL_LABEL: Record<BooleanOp, string> = {
   cut: "빼기",
   common: "교집합",
 };
+
+/**
+ * 돌출·회전 공통 — 만들어진 공구 솔리드(tools)를 기존 바디에 cut/fuse 한다.
+ * 공구와 AABB 가 겹치는 바디에만 불리언을 건다. 합치기에서 어디와도 안 겹친 공구는 새 바디로.
+ * 반환: 갱신된 shapes·transforms·가공된 곳 수(affected).
+ */
+function combineTools(
+  shapes: TessellatedMesh[],
+  transformsIn: Record<string, Vec3>,
+  tools: TessellatedMesh[],
+  mode: "cut" | "fuse",
+): { shapes: TessellatedMesh[]; transforms: Record<string, Vec3>; affected: number } {
+  const op: BooleanOp = mode === "cut" ? "cut" : "fuse";
+  const toolBoxes = tools.map((t) => ({ t, box: meshAabb(t) }));
+  const consumed = new Set<TessellatedMesh>();
+  const transforms = { ...transformsIn };
+  const nextShapes: TessellatedMesh[] = [];
+  let affected = 0;
+  for (const body of shapes) {
+    let acc = body;
+    let baked = false; // 첫 불리언 후엔 오프셋이 좌표에 구워짐
+    const off = (): Vec3 => (baked ? [0, 0, 0] : transformsIn[body.shapeId] ?? [0, 0, 0]);
+    for (const { t, box } of toolBoxes) {
+      if (mode === "fuse" && consumed.has(t)) continue;
+      if (!aabbOverlap(meshAabb(acc, off()), box)) continue;
+      acc = meshBoolean(acc, t, op, `${mode}-${++counter}`, off(), [0, 0, 0]);
+      baked = true;
+      affected++;
+      if (mode === "fuse") consumed.add(t);
+    }
+    if (baked) delete transforms[body.shapeId];
+    nextShapes.push(acc);
+  }
+  if (mode === "fuse") for (const { t } of toolBoxes) if (!consumed.has(t)) nextShapes.push(t);
+  return { shapes: nextShapes, transforms, affected };
+}
 
 export const useAppStore = create<AppState>((set, get) => ({
   camera: defaultCamera(),
@@ -298,6 +341,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   extrudeDrag: null,
   patternOpen: false,
   transformMode: null,
+  measureActive: false,
+  measurePoints: [],
   displayMode: "shaded",
   panels: { items: true, history: true },
   showEdges: true,
@@ -718,31 +763,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         return;
       }
 
-      const op: BooleanOp = mode === "cut" ? "cut" : "fuse";
-      const toolBoxes = tools.map((t) => ({ t, box: meshAabb(t) }));
-      const consumed = new Set<TessellatedMesh>();
-      const transforms = { ...st.transforms };
-      const nextShapes: TessellatedMesh[] = [];
-      let affected = 0;
-
-      for (const body of st.shapes) {
-        let acc = body;
-        let baked = false; // 첫 불리언 후엔 오프셋이 좌표에 구워짐
-        const off = (): Vec3 => (baked ? [0, 0, 0] : st.transforms[body.shapeId] ?? [0, 0, 0]);
-        for (const { t, box } of toolBoxes) {
-          if (mode === "fuse" && consumed.has(t)) continue;
-          if (!aabbOverlap(meshAabb(acc, off()), box)) continue;
-          acc = meshBoolean(acc, t, op, `${mode}-${++counter}`, off(), [0, 0, 0]);
-          baked = true;
-          affected++;
-          if (mode === "fuse") consumed.add(t);
-        }
-        if (baked) delete transforms[body.shapeId];
-        nextShapes.push(acc);
-      }
-      // 합치기: 어떤 바디와도 안 겹친 돌출체는 새 바디로 남긴다
-      if (mode === "fuse") for (const { t } of toolBoxes) if (!consumed.has(t)) nextShapes.push(t);
-
+      const { shapes: nextShapes, transforms, affected } = combineTools(st.shapes, st.transforms, tools, mode);
       if (affected === 0) {
         set({ extrudeOpen: false, status: `돌출(${mode === "cut" ? "빼기" : "합치기"}): 겹치는 바디가 없습니다` });
         return;
@@ -792,8 +813,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   cancelExtrudeDrag: () => set({ extrudeDrag: null, gizmoDragging: false, status: "돌출 취소" }),
 
-  // 도구 → 회전: 선택된 스케치의 닫힌 프로파일을 축 둘레로 회전
-  revolveSketchAs: (angleDeg, axis) => {
+  // 도구 → 회전: 선택된 스케치의 닫힌 프로파일을 축 둘레로 회전 (새/빼기/합치기)
+  revolveSketchAs: (angleDeg, axis, mode) => {
     const st = get();
     const sel = st.selection.find((it) => it.kind === "sketch");
     const sketch = sel ? st.sketches.find((sk) => sk.id === sel.shapeId) : undefined;
@@ -808,13 +829,29 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     try {
       const plane = sketch.plane;
-      const made = closed.map((p) => revolveProfile(p, plane, angleDeg, axis, `revolve-${++counter}`));
+      const tools = closed.map((p) => revolveProfile(p, plane, angleDeg, axis, `revolve-${++counter}`));
+      if (mode === "new") {
+        set((s) => ({
+          shapes: [...s.shapes, ...tools],
+          selection: [],
+          revolveOpen: false,
+          history: [...s.history, ...tools.map((m) => ({ id: m.shapeId, label: "회전(새 바디)" }))],
+          status: `회전 — 새 바디 ${tools.length}개 (${angleDeg}°, ${axis === "v" ? "세로축" : "가로축"})`,
+        }));
+        return;
+      }
+      const { shapes: nextShapes, transforms, affected } = combineTools(st.shapes, st.transforms, tools, mode);
+      if (affected === 0) {
+        set({ revolveOpen: false, status: `회전(${mode === "cut" ? "빼기" : "합치기"}): 겹치는 바디가 없습니다` });
+        return;
+      }
       set((s) => ({
-        shapes: [...s.shapes, ...made],
+        shapes: nextShapes,
+        transforms,
         selection: [],
         revolveOpen: false,
-        history: [...s.history, ...made.map((m) => ({ id: m.shapeId, label: "회전" }))],
-        status: `회전 완료 — ${made.length}개 (${angleDeg}°, ${axis === "v" ? "세로축" : "가로축"})`,
+        history: [...s.history, { id: `${mode}-${counter}`, label: mode === "cut" ? "회전(빼기)" : "회전(합치기)" }],
+        status: mode === "cut" ? `회전 빼기 — ${affected}곳 가공` : `회전 합치기 — ${affected}곳 결합`,
       }));
     } catch (err) {
       set({ status: `오류: ${err instanceof Error ? err.message : String(err)}` });
@@ -979,4 +1016,24 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ transformMode: mode });
   },
   closeTransform: () => set({ transformMode: null }),
+
+  toggleMeasure: () =>
+    set((s) => ({
+      measureActive: !s.measureActive,
+      measurePoints: [],
+      selection: s.measureActive ? s.selection : [],
+      status: s.measureActive ? "측정 종료" : "측정: 모델 위 두 점을 클릭하세요",
+    })),
+  addMeasurePoint: (p) =>
+    set((s) => {
+      const pts = s.measurePoints.length >= 2 ? [p] : [...s.measurePoints, p];
+      if (pts.length === 2) {
+        const a = pts[0]!;
+        const b = pts[1]!;
+        const d = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+        return { measurePoints: pts, status: `거리 ${d.toFixed(2)} mm` };
+      }
+      return { measurePoints: pts, status: "측정: 두 번째 점을 클릭하세요" };
+    }),
+  clearMeasure: () => set({ measurePoints: [], measureActive: false }),
 }));

@@ -261,6 +261,47 @@ describe("useAppStore — Shapr3D식 돌출(빼기/합치기/새 바디)", () =>
   });
 });
 
+describe("useAppStore — 회전 모드(새/빼기/합치기)", () => {
+  beforeEach(() => {
+    void useAppStore.getState().clear();
+    useAppStore.getState().cancelSketch();
+  });
+
+  it("회전 새 바디: 스케치를 회전시켜 바디 추가", () => {
+    const st = useAppStore.getState();
+    makeRectSketch();
+    st.revolveSketchAs(360, "v", "new");
+    expect(useAppStore.getState().shapes.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("회전 빼기: 겹치는 바디 없으면 바디 수 유지", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(2, 2, 2, "far"), "박스");
+    st.setTransform("far", [100, 0, 0]);
+    makeRectSketch();
+    st.revolveSketchAs(360, "v", "cut");
+    expect(useAppStore.getState().shapes).toHaveLength(1);
+  });
+});
+
+describe("useAppStore — 측정", () => {
+  beforeEach(() => {
+    useAppStore.getState().clearMeasure();
+  });
+
+  it("두 점 클릭 → 거리 계산, 세 번째 클릭은 새 측정 시작", () => {
+    const st = useAppStore.getState();
+    st.toggleMeasure();
+    expect(useAppStore.getState().measureActive).toBe(true);
+    st.addMeasurePoint([0, 0, 0]);
+    st.addMeasurePoint([3, 4, 0]);
+    expect(useAppStore.getState().measurePoints).toHaveLength(2);
+    expect(useAppStore.getState().status).toContain("5.00"); // 3-4-5
+    st.addMeasurePoint([1, 1, 1]); // 새 측정
+    expect(useAppStore.getState().measurePoints).toHaveLength(1);
+  });
+});
+
 describe("useAppStore — 패턴(선형·원형)", () => {
   beforeEach(() => {
     void useAppStore.getState().clear();
