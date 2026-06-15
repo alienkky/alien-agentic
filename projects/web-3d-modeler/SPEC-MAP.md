@@ -19,11 +19,11 @@
 ## Part 2 — Solid Generation & Boolean
 | Module | 기능 | 상태 | 우리 구현 |
 |---|---|---|---|
-| 4.1 ExtrudeOperation | 돌출(+taperAngle) | 🟡 | 돌출 O, taper/방향 미구현 |
-| 4.2 RevolveOperation | 회전체 | ⬜ | 다음 우선순위 |
+| 4.1 ExtrudeOperation | 돌출(+taperAngle) | ✅ | 높이입력 + 새바디/빼기/합치기(AABB 겹침). taper/드래그 미구현 |
+| 4.2 RevolveOperation | 회전체 | ✅ | 각도+축(세로/가로) Lathe 회전. cut/fuse·축지정선택 다음 |
 | 4.3 LoftOperation | 로프트 | ⬜ | |
 | 5.1 BooleanSolver | union/subtract/intersect | ✅ | 메시CSG / OCCT |
-| 5.2 AutoContextManager | 돌출 충돌 → 자동 cut/add | ⬜ | **돌출 컷 — 다음 우선** |
+| 5.2 AutoContextManager | 돌출 충돌 → 자동 cut/add | 🟡 | 돌출 빼기/합치기(AABB 겹침 자동). 면 위 스케치 연동은 다음 |
 | 6.1 ExtrudeCutFilter | 컷 대상 필터(제외 바디) | ⬜ | |
 
 ## Part 3 — Constraint & Timeline & PBR
@@ -42,6 +42,7 @@
 | 11.2 ToleranceManager | 조립 공극 오프셋 | ⬜ |
 | 12 CadAutomationAPI | 스크립트 API | 🟡 | `buildMouse` 데모(스케치→돌출→불리언 코드 파이프라인) |
 | STL Export | 바이너리 STL 내보내기 | ✅ | `meshesToStl` + 파일메뉴(이동 오프셋 반영). STEP 미구현 |
+| STL Import | STL 불러오기 | ✅ | `parseStl`(바이너리/ASCII) + 파일메뉴 |
 
 ## UI 셸 (Shapr3D 레이아웃 — 기영님 스크린샷 참고)
 | 요소 | 상태 | 비고 |
