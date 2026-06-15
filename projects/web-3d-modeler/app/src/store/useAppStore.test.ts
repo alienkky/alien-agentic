@@ -59,63 +59,64 @@ describe("useAppStore — 스케치 도구", () => {
     st.sketchDragStart({ u: 0, v: 0 });
     st.sketchDragMove({ u: 4, v: 2 });
     st.sketchDragEnd();
-    expect(useAppStore.getState().sketchPoints).toHaveLength(0);
+    expect(useAppStore.getState().sketchStrokes).toHaveLength(0);
   });
 
-  it("사각형: 평면 선택 후 드래그 → 4점 프로파일 (격자 스냅)", () => {
+  it("사각형: 드래그 → 획으로 누적 (4점, 격자 스냅)", () => {
     const st = useAppStore.getState();
     st.beginSketch();
     st.pickPlane("xz");
     st.setSketchTool("rectangle");
-    st.sketchDragStart({ u: 0.1, v: 0.1 }); // → (0,0)
-    st.sketchDragMove({ u: 3.9, v: 2.1 }); // → (4,2)
+    st.sketchDragStart({ u: 0.1, v: 0.1 });
+    st.sketchDragMove({ u: 3.9, v: 2.1 });
     st.sketchDragEnd();
-    const pts = useAppStore.getState().sketchPoints;
-    expect(pts).toHaveLength(4);
-    expect(pts).toContainEqual({ u: 0, v: 0 });
-    expect(pts).toContainEqual({ u: 4, v: 2 });
-    expect(useAppStore.getState().sketchDraft).toBeNull();
+    const strokes = useAppStore.getState().sketchStrokes;
+    expect(strokes).toHaveLength(1);
+    expect(strokes[0]).toHaveLength(4);
+    expect(strokes[0]).toContainEqual({ u: 0, v: 0 });
+    expect(strokes[0]).toContainEqual({ u: 4, v: 2 });
   });
 
-  it("원: 평면 선택 후 중심에서 드래그 → 48점", () => {
+  it("여러 도형을 그려도 기존 획이 사라지지 않는다", () => {
     const st = useAppStore.getState();
     st.beginSketch();
-    st.pickPlane("xy");
-    st.setSketchTool("circle");
-    st.sketchDragStart({ u: 0, v: 0 });
-    st.sketchDragMove({ u: 3, v: 0 });
-    st.sketchDragEnd();
-    expect(useAppStore.getState().sketchPoints).toHaveLength(48);
+    st.pickPlane("xz");
+    st.setSketchTool("rectangle");
+    st.sketchDragStart({ u: 0, v: 0 }); st.sketchDragMove({ u: 2, v: 2 }); st.sketchDragEnd();
+    st.setSketchTool("circle"); // 도구 전환해도 기존 획 유지
+    st.sketchDragStart({ u: 5, v: 5 }); st.sketchDragMove({ u: 7, v: 5 }); st.sketchDragEnd();
+    expect(useAppStore.getState().sketchStrokes).toHaveLength(2);
   });
 
-  it("선: 끝점 다시 클릭 → 그리기 종료(선택 모드), 점 추가 안 됨", () => {
+  it("선: 끝점 다시 클릭 → 현재 획 확정(누적), 새 클릭은 새 획 시작", () => {
     const st = useAppStore.getState();
     st.beginSketch();
     st.pickPlane("xz");
     st.setSketchTool("line");
-    expect(useAppStore.getState().sketchLineDrawing).toBe(true);
     st.sketchClickPoint({ u: 0, v: 0 });
     st.sketchClickPoint({ u: 5, v: 0 });
-    st.sketchClickPoint({ u: 5, v: 0 }); // 끝점 다시 클릭 → 종료
+    st.sketchClickPoint({ u: 5, v: 0 }); // 끝점 다시 → 확정
+    expect(useAppStore.getState().sketchStrokes).toHaveLength(1);
     expect(useAppStore.getState().sketchLineDrawing).toBe(false);
-    expect(useAppStore.getState().sketchPoints).toHaveLength(2);
-    // 종료 후엔 점이 더 안 늘어난다
-    st.sketchClickPoint({ u: 9, v: 9 });
-    expect(useAppStore.getState().sketchPoints).toHaveLength(2);
+    st.sketchClickPoint({ u: 9, v: 9 }); // 새 획 시작
+    expect(useAppStore.getState().sketchLineDrawing).toBe(true);
+    expect(useAppStore.getState().sketchPoints).toHaveLength(1);
+    expect(useAppStore.getState().sketchStrokes).toHaveLength(1); // 기존 획 유지
   });
 
-  it("선분 길이 설정: 방향 유지하며 정확한 길이로 (이후 점 동반 이동)", () => {
+  it("선분 길이 설정: 확정 획의 선분을 정확한 길이로", () => {
     const st = useAppStore.getState();
     st.beginSketch();
     st.pickPlane("xz");
     st.setSketchTool("line");
     st.sketchClickPoint({ u: 0, v: 0 });
-    st.sketchClickPoint({ u: 5, v: 0 }); // 길이 5
+    st.sketchClickPoint({ u: 5, v: 0 });
     st.sketchClickPoint({ u: 5, v: 3 });
-    st.setSegmentLength(0, 10); // 0→1 구간을 10으로
-    const pts = useAppStore.getState().sketchPoints;
-    expect(pts[1]).toEqual({ u: 10, v: 0 });
-    expect(pts[2]).toEqual({ u: 10, v: 3 }); // 뒤 점도 +5 이동
+    st.finishLine(); // 획 확정 → strokes[0]
+    st.setSegmentLength(0, 0, 10); // 획0의 0→1 선분을 10으로
+    const stroke = useAppStore.getState().sketchStrokes[0]!;
+    expect(stroke[1]).toEqual({ u: 10, v: 0 });
+    expect(stroke[2]).toEqual({ u: 10, v: 3 });
   });
 
   it("스케칭 종료 → 스케치 항목 저장, 도구 돌출 → 바디 생성", () => {
@@ -131,22 +132,11 @@ describe("useAppStore — 스케치 도구", () => {
     const after = useAppStore.getState();
     expect(after.sketchActive).toBe(false);
     expect(after.sketches).toHaveLength(1);
-    expect(after.shapes).toHaveLength(0); // 돌출 전 — 바디 없음
-    // 스케치 선택 후 돌출
+    expect(after.sketches[0]!.profiles).toHaveLength(1);
+    expect(after.shapes).toHaveLength(0);
     const sk = after.sketches[0]!;
     st.selectEntity({ kind: "sketch", shapeId: sk.id, index: -1 });
     st.extrudeSketch(5);
     expect(useAppStore.getState().shapes).toHaveLength(1);
-  });
-
-  it("선: 클릭마다 점 누적", () => {
-    const st = useAppStore.getState();
-    st.beginSketch();
-    st.pickPlane("yz");
-    st.setSketchTool("line");
-    st.sketchClickPoint({ u: 0, v: 0 });
-    st.sketchClickPoint({ u: 2, v: 0 });
-    st.sketchClickPoint({ u: 2, v: 2 });
-    expect(useAppStore.getState().sketchPoints).toHaveLength(3);
   });
 });
