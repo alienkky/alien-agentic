@@ -125,6 +125,16 @@ interface AppState {
   /** 에지(모서리) 표시 (우클릭 메뉴 토글) */
   showEdges: boolean;
   toggleEdges: () => void;
+  /** 그리드 · 월드 축 표시 */
+  showGrid: boolean;
+  showAxes: boolean;
+  toggleGrid: () => void;
+  toggleAxes: () => void;
+  /** 숨겨진 바디 id 목록 + 가시성 제어 */
+  hidden: string[];
+  hideSelectedBodies: () => void;
+  showAllBodies: () => void;
+  invertBodyVisibility: () => void;
   /** 스냅 설정 (우상단 팝업). grid=격자 스냅 실제 적용, 나머지는 가이드 표시 */
   snap: {
     grid: boolean;
@@ -202,6 +212,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   displayMode: "shaded",
   panels: { items: true, history: true },
   showEdges: true,
+  showGrid: true,
+  showAxes: true,
+  hidden: [],
   snap: { grid: true, sketchLine: true, sketchPoint: true, guide3d: true, farEdge: true, guidePoint: true, snapHint: true },
   unit: "mm",
   sketchPrefs: { auto: true, showConstraints: false, showDims: true, anchor: "first" },
@@ -333,13 +346,23 @@ export const useAppStore = create<AppState>((set, get) => ({
         await kernel.client.deleteShape(m.shapeId);
       }
     }
-    set({ shapes: [], sketches: [], transforms: {}, hovered: null, selection: [], history: [], status: "비움" });
+    set({ shapes: [], sketches: [], transforms: {}, hovered: null, selection: [], history: [], hidden: [], status: "비움" });
   },
 
   setStatus: (msg) => set({ status: msg }),
   setDisplayMode: (mode) => set({ displayMode: mode, status: `디스플레이: ${mode}` }),
   togglePanel: (p) => set((s) => ({ panels: { ...s.panels, [p]: !s.panels[p] } })),
   toggleEdges: () => set((s) => ({ showEdges: !s.showEdges, status: `에지 표시: ${!s.showEdges ? "켜짐" : "꺼짐"}` })),
+  toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
+  toggleAxes: () => set((s) => ({ showAxes: !s.showAxes })),
+  hideSelectedBodies: () =>
+    set((s) => {
+      const ids = selectionBodyIds(s.selection);
+      return { hidden: [...new Set([...s.hidden, ...ids])], selection: [], status: `${ids.length}개 바디 숨김` };
+    }),
+  showAllBodies: () => set({ hidden: [], status: "모든 바디 표시" }),
+  invertBodyVisibility: () =>
+    set((s) => ({ hidden: s.shapes.filter((m) => !s.hidden.includes(m.shapeId)).map((m) => m.shapeId), status: "바디 표시 반전" })),
   toggleSnap: (key) => set((s) => ({ snap: { ...s.snap, [key]: !s.snap[key] } })),
   setUnit: (u) => set({ unit: u, status: `단위: ${u}` }),
   setSketchPref: (patch) => set((s) => ({ sketchPrefs: { ...s.sketchPrefs, ...patch } })),
