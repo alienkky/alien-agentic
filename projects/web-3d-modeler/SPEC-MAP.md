@@ -10,7 +10,7 @@
 | 1.1 GeometryKernel | B-Rep(Vertex/Edge/Face/SolidBody) | 🟡 | OCCT(B-rep) + FAST(메시). 메시가 기본 |
 | 1.2 HistoryTreeManager | 피처트리·롤백(rebuildTree) | ⬜ | **미구현 — 큰 백본** |
 | 2.1 InputController | 터치=카메라 / 펜=형상 분리 | ✅ | Pointer Events 분기 |
-| 2.2 CameraManager | 뷰큐브 alignToAxis(보간) | 🟡 | 표준뷰 즉시전환(보간 0.3s 추가 예정) |
+| 2.2 CameraManager | 뷰큐브 alignToAxis(보간) | 🟡 | 표준뷰 즉시전환 + **면 법선 자동 정렬**(alignToNormal). 보간 0.3s 예정 |
 | 2.2 GridSystem | 어댑티브 그리드 + snapToGrid | 🟡 | 격자 스냅 0.5(고정) → 어댑티브 예정 |
 | 3.1 SketchPlane | 3 표준평면 + 면 위 스케치 | ✅ | XY/YZ/XZ + **면 클릭→그 면 평면**(planeFromFace). 3점 커스텀평면은 다음 |
 | 3.2 CurveEntity | Line/Arc | 🟡 | Line/Rect/Circle/타원/다각형 (Arc·스플라인 미구현) |
@@ -29,6 +29,7 @@
 ## Part 3 — Constraint & Timeline & PBR
 | Module | 기능 | 상태 |
 |---|---|---|
+| 4.x Fillet/Chamfer | 모깎기/모따기 | 🟡 | **둥근 박스 프리미티브**(RoundedBox). 임의-모서리 fillet 은 B-rep(OCCT) 트랙 — 메시론 미보장 |
 | 7 ConstraintManager | 구속(Coincident/Tangent/Distance) + DOF 색상 | ⬜ (PlaneGCS) |
 | 8 Timeline/Breakpoint | 피처 재배치·브레이크포인트 타임워프 | ⬜ (1.2 의존) |
 | 9 PBR_RenderManager | 면별 재질(roughness/metallic/opacity) | ⬜ |
