@@ -115,6 +115,17 @@ interface AppState {
   /** 에지(모서리) 표시 (우클릭 메뉴 토글) */
   showEdges: boolean;
   toggleEdges: () => void;
+  /** 스냅 설정 (우상단 팝업). grid=격자 스냅 실제 적용, 나머지는 가이드 표시 */
+  snap: {
+    grid: boolean;
+    sketchLine: boolean;
+    sketchPoint: boolean;
+    guide3d: boolean;
+    farEdge: boolean;
+    guidePoint: boolean;
+    snapHint: boolean;
+  };
+  toggleSnap: (key: "grid" | "sketchLine" | "sketchPoint" | "guide3d" | "farEdge" | "guidePoint" | "snapHint") => void;
   /** 모든 바디 선택 */
   selectAll: () => void;
   setHovered: (ref: FaceRef | null) => void;
@@ -171,6 +182,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   displayMode: "shaded",
   panels: { items: true, history: true },
   showEdges: true,
+  snap: { grid: true, sketchLine: true, sketchPoint: true, guide3d: true, farEdge: true, guidePoint: true, snapHint: true },
   backend: "deterministic",
   status: "초기화 중…",
   busy: false,
@@ -306,6 +318,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setDisplayMode: (mode) => set({ displayMode: mode, status: `디스플레이: ${mode}` }),
   togglePanel: (p) => set((s) => ({ panels: { ...s.panels, [p]: !s.panels[p] } })),
   toggleEdges: () => set((s) => ({ showEdges: !s.showEdges, status: `에지 표시: ${!s.showEdges ? "켜짐" : "꺼짐"}` })),
+  toggleSnap: (key) => set((s) => ({ snap: { ...s.snap, [key]: !s.snap[key] } })),
   selectAll: () =>
     set((s) => ({
       selection: s.shapes.map((m) => ({ kind: "body" as const, shapeId: m.shapeId, index: -1 })),
@@ -375,12 +388,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   // 사각형·원: 드래그 (좌표는 평면 (u,v))
   sketchDragStart: (raw) => {
     if (get().sketchTool === "line" || !get().sketchPlane) return;
-    const p: SketchPoint = { u: snap(raw.u), v: snap(raw.v) };
+    const g = get().snap.grid;
+    const p: SketchPoint = g ? { u: snap(raw.u), v: snap(raw.v) } : raw;
     set({ sketchDraft: { start: p, current: p }, sketchPoints: [] });
   },
 
   sketchDragMove: (raw) => {
-    const p: SketchPoint = { u: snap(raw.u), v: snap(raw.v) };
+    const g = get().snap.grid;
+    const p: SketchPoint = g ? { u: snap(raw.u), v: snap(raw.v) } : raw;
     set((s) => (s.sketchDraft ? { sketchDraft: { start: s.sketchDraft.start, current: p }, sketchHover: p } : { sketchHover: p }));
   },
 
@@ -415,7 +430,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ sketchSelectedSeg: null });
       return;
     }
-    const p: SketchPoint = { u: snap(raw.u), v: snap(raw.v) };
+    const p: SketchPoint = s.snap.grid ? { u: snap(raw.u), v: snap(raw.v) } : raw;
     const last = s.sketchPoints[s.sketchPoints.length - 1];
     if (last && Math.hypot(p.u - last.u, p.v - last.v) < 0.4) {
       // 끝점 다시 클릭 → 그리기 종료, 선택 모드로
