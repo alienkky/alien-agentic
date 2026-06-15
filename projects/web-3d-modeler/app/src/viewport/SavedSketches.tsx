@@ -14,30 +14,32 @@ function SketchItem({ sketch }: { sketch: SketchEntity }): JSX.Element {
     s.selection.some((it) => it.kind === "sketch" && it.shapeId === sketch.id),
   );
 
-  const loop = useMemo<[number, number, number][]>(() => {
-    const w = sketch.profile.map((p) => planeToWorld(plane, p.u, p.v));
-    return w.length >= 2 ? [...w, w[0]!] : w;
-  }, [sketch, plane]);
-
-  const fill = useMemo(() => {
-    const first = sketch.profile[0];
-    if (sketch.profile.length < 3 || !first) return null;
-    const shape = new THREE.Shape();
-    shape.moveTo(first.u, first.v);
-    for (let i = 1; i < sketch.profile.length; i++) {
-      const p = sketch.profile[i];
-      if (p) shape.lineTo(p.u, p.v);
-    }
-    shape.closePath();
-    const geo = new THREE.ShapeGeometry(shape);
-    const m = new THREE.Matrix4().makeBasis(
-      new THREE.Vector3(...plane.u),
-      new THREE.Vector3(...plane.v),
-      new THREE.Vector3(...plane.normal),
-    );
-    m.setPosition(new THREE.Vector3(...plane.origin));
-    geo.applyMatrix4(m);
-    return geo;
+  const items = useMemo(() => {
+    return sketch.profiles.map((profile) => {
+      const w = profile.map((p) => planeToWorld(plane, p.u, p.v));
+      const loop: [number, number, number][] = w.length >= 3 ? [...w, w[0]!] : w;
+      let fill: THREE.ShapeGeometry | null = null;
+      const first = profile[0];
+      if (profile.length >= 3 && first) {
+        const shape = new THREE.Shape();
+        shape.moveTo(first.u, first.v);
+        for (let i = 1; i < profile.length; i++) {
+          const p = profile[i];
+          if (p) shape.lineTo(p.u, p.v);
+        }
+        shape.closePath();
+        const geo = new THREE.ShapeGeometry(shape);
+        const m = new THREE.Matrix4().makeBasis(
+          new THREE.Vector3(...plane.u),
+          new THREE.Vector3(...plane.v),
+          new THREE.Vector3(...plane.normal),
+        );
+        m.setPosition(new THREE.Vector3(...plane.origin));
+        geo.applyMatrix4(m);
+        fill = geo;
+      }
+      return { loop, fill };
+    });
   }, [sketch, plane]);
 
   return (
@@ -47,18 +49,16 @@ function SketchItem({ sketch }: { sketch: SketchEntity }): JSX.Element {
         selectEntity({ kind: "sketch", shapeId: sketch.id, index: -1 });
       }}
     >
-      {fill && (
-        <mesh geometry={fill}>
-          <meshBasicMaterial
-            color={selected ? "#5b9cff" : "#3a6ea5"}
-            transparent
-            opacity={selected ? 0.4 : 0.18}
-            side={THREE.DoubleSide}
-            depthWrite={false}
-          />
-        </mesh>
-      )}
-      {loop.length >= 2 && <Line points={loop} color={selected ? "#5b9cff" : "#4fd1c5"} lineWidth={selected ? 3 : 2} />}
+      {items.map((it, idx) => (
+        <group key={idx}>
+          {it.fill && (
+            <mesh geometry={it.fill}>
+              <meshBasicMaterial color={selected ? "#5b9cff" : "#3a6ea5"} transparent opacity={selected ? 0.4 : 0.18} side={THREE.DoubleSide} depthWrite={false} />
+            </mesh>
+          )}
+          {it.loop.length >= 2 && <Line points={it.loop} color={selected ? "#5b9cff" : "#4fd1c5"} lineWidth={selected ? 3 : 2} />}
+        </group>
+      ))}
     </group>
   );
 }
