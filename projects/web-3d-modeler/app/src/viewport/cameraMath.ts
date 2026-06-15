@@ -56,6 +56,39 @@ export function pan(state: CameraState, dxPx: number, dyPx: number): CameraState
   return { ...state, target: [tx, ty, tz] };
 }
 
+export type ViewPreset = "iso" | "front" | "back" | "top" | "bottom" | "right" | "left";
+
+/** 표준 뷰로 카메라 방향을 맞춘다 (radius·target 유지). Shapr3D 네비큐브 대응. */
+export function viewPreset(state: CameraState, view: ViewPreset): CameraState {
+  const angles: Record<ViewPreset, { azimuth: number; polar: number }> = {
+    iso: { azimuth: Math.PI / 4, polar: Math.PI / 3 },
+    front: { azimuth: 0, polar: Math.PI / 2 },
+    back: { azimuth: Math.PI, polar: Math.PI / 2 },
+    top: { azimuth: 0, polar: POLAR_EPS },
+    bottom: { azimuth: 0, polar: Math.PI - POLAR_EPS },
+    right: { azimuth: Math.PI / 2, polar: Math.PI / 2 },
+    left: { azimuth: -Math.PI / 2, polar: Math.PI / 2 },
+  };
+  const a = angles[view];
+  return { ...state, azimuth: a.azimuth, polar: a.polar };
+}
+
+/**
+ * 카메라를 면 법선 정면으로 정렬 — 그 면을 정면으로 바라보게(타깃=면 중심).
+ * 면 위 스케치 진입 시 사용. 법선이 수직(위/아래)이면 방위각은 유지.
+ */
+export function alignToNormal(
+  state: CameraState,
+  normal: [number, number, number],
+  target: [number, number, number],
+): CameraState {
+  const N = normalize(normal);
+  const polar = clamp(Math.acos(clamp(N[1], -1, 1)), POLAR_EPS, Math.PI - POLAR_EPS);
+  const sinP = Math.sin(polar);
+  const azimuth = sinP < 1e-4 ? state.azimuth : Math.atan2(N[0], N[2]);
+  return { ...state, azimuth, polar, target };
+}
+
 export function toCartesian(state: CameraState): [number, number, number] {
   const { polar, azimuth, radius, target } = state;
   const sinP = Math.sin(polar);

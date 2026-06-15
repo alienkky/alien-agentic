@@ -1,13 +1,13 @@
 {
-  "name": "nebula-modeler",
+  "name": "alien-space",
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Nebula — 브라우저에서 도는 파라메트릭 솔리드 CAD 모델러 (Alien Agentic 자체 IP)",
+  "description": "ALIEN SPACE — 브라우저에서 도는 파라메트릭 솔리드 CAD 모델러 (Alien Agentic 자체 IP)",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview",
+    "preview": "vite preview --host",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -21,10 +21,12 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "three": "^0.169.0",
+    "three-bvh-csg": "^0.0.17",
     "zustand": "^5.0.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.2",
+    "@types/node": "^20.19.43",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@types/three": "^0.169.0",

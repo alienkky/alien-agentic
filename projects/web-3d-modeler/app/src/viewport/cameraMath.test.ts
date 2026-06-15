@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { defaultCamera, orbit, zoom, pan, toCartesian, type CameraState } from "./cameraMath";
+import { defaultCamera, orbit, zoom, pan, toCartesian, viewPreset, type CameraState } from "./cameraMath";
 
 describe("cameraMath", () => {
   it("toCartesian: 기본 카메라는 타깃에서 radius 만큼 떨어져 있다", () => {
@@ -38,5 +38,14 @@ describe("cameraMath", () => {
       moved.target[1] !== c.target[1] ||
       moved.target[2] !== c.target[2];
     expect(shifted).toBe(true);
+  });
+
+  it("viewPreset 은 radius·target 을 보존하고 각도만 바꾼다", () => {
+    const c: CameraState = { ...defaultCamera(), radius: 20, target: [1, 2, 3] };
+    const top = viewPreset(c, "top");
+    expect(top.radius).toBe(20);
+    expect(top.target).toEqual([1, 2, 3]);
+    // top view: 거의 수직 위에서 내려다봄 → 카메라 Y 가 타깃보다 위
+    expect(toCartesian(top)[1]).toBeGreaterThan(c.target[1]);
   });
 });

@@ -40,10 +40,31 @@ export interface MakeBoxParams {
   depth: number;
 }
 
+export interface MakeCylinderParams {
+  radius: number;
+  height: number;
+}
+
+export interface MakeSphereParams {
+  radius: number;
+}
+
+/** 불리언 연산: 합(fuse)·차(cut)·교(common). */
+export type BooleanOp = "fuse" | "cut" | "common";
+
 /** 워커가 expose 하는 커널 API (Comlink 경유). */
 export interface KernelAPI {
   /** WASM 로딩 완료까지 대기. true 면 준비됨. */
   ready(): Promise<boolean>;
   /** 박스 생성 → 테셀레이션. shapeId 는 호출 측에서 부여. */
   makeBox(params: MakeBoxParams, shapeId: string): Promise<TessellatedMesh>;
+  makeCylinder(params: MakeCylinderParams, shapeId: string): Promise<TessellatedMesh>;
+  makeSphere(params: MakeSphereParams, shapeId: string): Promise<TessellatedMesh>;
+  /**
+   * 불리언: idA(대상)에 idB(도구)를 op 적용 → resultId 로 새 셰이프.
+   * 입력 셰이프는 소비된다(삭제). OCCT 백엔드 전용 — 결정론적 백엔드는 거부한다.
+   */
+  boolean(op: BooleanOp, idA: string, idB: string, resultId: string): Promise<TessellatedMesh>;
+  /** 셰이프 폐기 (커널 측 메모리 해제). */
+  deleteShape(shapeId: string): Promise<void>;
 }

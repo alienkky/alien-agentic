@@ -1,12 +1,12 @@
 ---
-last_updated: 2026-06-14T03:40
+last_updated: 2026-06-15T12:10
 updated_by: master-orchestrator
 ---
 
 # Alien Agentic — Today's Dashboard
 
 ## 🛸 오늘의 한 줄
-자체 IP 첫 제품 **Nebula**(웹 기반 3D 모델러, Shapr3D-like) 착수 — 설계 v2(자체IP·iPad/갤탭/폴드6 멀티디바이스) + 전체 검토 + AA 시스템 작업 등록. PR #13.
+**ALIEN SPACE** 1차 배치 — 스케치 타원·다각형 + STL 내보내기 + 마우스 데모(스케치→돌출→돔→슬롯, 실제 커널만으로). tsc 0 · vitest 54/54 · build OK. PR #14 갱신. (교훈: 손수 짠 UV구는 CSG에서 빈 결과 → 매니폴드 THREE 지오메트리 사용)
 
 ## 📊 진행 중 클라이언트
 
@@ -38,10 +38,10 @@ updated_by: master-orchestrator
 ## 🛠 진행 중 자체 프로젝트
 | id | 프로젝트 | 단계 | 다음 |
 |---|---|---|---|
-| [T-20260614-001](tasks/T-20260614-001.md) | Nebula (웹 3D 모델러, 자체 IP) | 설계 v2 완료 · PR #13 | Phase 0 착수 ([T-20260614-002](tasks/T-20260614-002.md)) |
+| [T-20260614-001](tasks/T-20260614-001.md) | ALIEN SPACE (웹 3D 모델러, 자체 IP) | Phase 0·1 완료 · Phase 2(스케치→돌출) 슬라이스1 | 스케치 손맛·평면선택·돌출옵션 ([T-20260614-004](tasks/T-20260614-004.md)) |
 
 ## 📅 이번 주 우선순위
-1. Nebula 설계 v2 검토·머지 (PR #13) → Phase 0 착수
+1. ALIEN SPACE Phase 1 OCCT 불리언 디바이스 검증 → Phase 2(스케치) 착수
 2. (대기 — 월요일에 확정)
 3. (대기)
 

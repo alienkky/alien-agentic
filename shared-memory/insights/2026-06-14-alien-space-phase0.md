@@ -1,11 +1,11 @@
 ---
 date: 2026-06-14
-project: Nebula (웹 3D 모델러, 자체 IP)
+project: ALIEN SPACE (웹 3D 모델러, 자체 IP)
 phase: Phase 0
 author: master-orchestrator
 ---
 
-# Nebula Phase 0 — 토대 착수 교훈
+# ALIEN SPACE Phase 0 — 토대 착수 교훈
 
 ## 한 일
 `projects/web-3d-modeler/app/` 에 Phase 0 수직 슬라이스를 풀 스크립트로 구현:
