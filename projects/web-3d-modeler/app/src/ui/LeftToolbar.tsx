@@ -105,6 +105,7 @@ export function LeftToolbar(): JSX.Element {
   const beginSketch = useAppStore((s) => s.beginSketch);
   const booleanOp = useAppStore((s) => s.booleanOp);
   const openExtrude = useAppStore((s) => s.openExtrude);
+  const openRevolve = useAppStore((s) => s.openRevolve);
   const addMesh = useAppStore((s) => s.addMesh);
   const setStatus = useAppStore((s) => s.setStatus);
 
@@ -182,7 +183,7 @@ export function LeftToolbar(): JSX.Element {
               <FlyoutItem icon={<SubtractIcon />} label="빼기" shortcut="⌃B" onClick={() => { void booleanOp("cut"); setOpen(null); }} />
               <FlyoutItem icon={<IntersectIcon />} label="교차" shortcut="⌃I" onClick={() => { void booleanOp("common"); setOpen(null); }} />
               <FlyoutItem icon={<SectionIcon />} label="바디 분할" onClick={() => soon("바디 분할")} />
-              <FlyoutItem icon={<CylinderIcon />} label="회전" shortcut="V" onClick={() => soon("회전(Revolve)")} />
+              <FlyoutItem icon={<CylinderIcon />} label="회전" shortcut="V" onClick={() => { openRevolve(); setOpen(null); }} />
               <FlyoutItem icon={<SplineIcon />} label="스윕" shortcut="W" onClick={() => soon("스윕")} />
               <FlyoutItem icon={<RectIcon />} label="면 교체" onClick={() => soon("면 교체")} />
               <FlyoutItem icon={<OffsetIcon />} label="모서리 오프셋" shortcut="O" onClick={() => soon("모서리 오프셋")} />

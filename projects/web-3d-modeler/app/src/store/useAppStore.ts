@@ -8,6 +8,7 @@ import type { KernelBackend } from "../kernel/worker";
 import type { TessellatedMesh, BooleanOp } from "../kernel/types";
 import { meshBoolean } from "../kernel/meshBoolean";
 import { extrudeProfile } from "../kernel/extrude";
+import { revolveProfile, type RevolveAxis } from "../kernel/revolve";
 import { meshAabb, aabbOverlap } from "../kernel/aabb";
 import { parseStl } from "../kernel/stlImport";
 import { SKETCH_PLANES, type PlaneId, type SketchPoint } from "../kernel/sketchPlane";
@@ -132,6 +133,8 @@ interface AppState {
   history: { id: string; label: string }[];
   /** 돌출 다이얼로그 열림 여부 (Shapr3D식 높이·모드 입력) */
   extrudeOpen: boolean;
+  /** 회전 다이얼로그 열림 여부 (각도·축 입력) */
+  revolveOpen: boolean;
   backend: KernelBackend;
   status: string;
   busy: boolean;
@@ -223,6 +226,11 @@ interface AppState {
   /** 돌출 다이얼로그 열기/닫기 */
   openExtrude: () => void;
   closeExtrude: () => void;
+  /** 선택된 스케치를 회전체로 (도구→회전) */
+  revolveSketchAs: (angleDeg: number, axis: RevolveAxis) => void;
+  /** 회전 다이얼로그 열기/닫기 */
+  openRevolve: () => void;
+  closeRevolve: () => void;
   /** STL 파일 불러오기 → 바디로 추가 */
   importStl: (buffer: ArrayBuffer, name: string) => void;
 }
@@ -255,6 +263,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   sketchLineDrawing: false,
   history: [],
   extrudeOpen: false,
+  revolveOpen: false,
   displayMode: "shaded",
   panels: { items: true, history: true },
   showEdges: true,
@@ -704,6 +713,45 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ extrudeOpen: true, status: "돌출 — 높이와 방식을 정하세요" });
   },
   closeExtrude: () => set({ extrudeOpen: false }),
+
+  // 도구 → 회전: 선택된 스케치의 닫힌 프로파일을 축 둘레로 회전
+  revolveSketchAs: (angleDeg, axis) => {
+    const st = get();
+    const sel = st.selection.find((it) => it.kind === "sketch");
+    const sketch = sel ? st.sketches.find((sk) => sk.id === sel.shapeId) : undefined;
+    if (!sketch) {
+      set({ status: "회전: 먼저 스케치를 선택하세요 (항목 패널에서 스케치 클릭)" });
+      return;
+    }
+    const closed = sketch.profiles.filter((p) => p.length >= 3);
+    if (closed.length === 0) {
+      set({ status: "회전: 닫힌 프로파일이 없습니다 (점 3개 이상)" });
+      return;
+    }
+    try {
+      const plane = SKETCH_PLANES[sketch.plane];
+      const made = closed.map((p) => revolveProfile(p, plane, angleDeg, axis, `revolve-${++counter}`));
+      set((s) => ({
+        shapes: [...s.shapes, ...made],
+        selection: [],
+        revolveOpen: false,
+        history: [...s.history, ...made.map((m) => ({ id: m.shapeId, label: "회전" }))],
+        status: `회전 완료 — ${made.length}개 (${angleDeg}°, ${axis === "v" ? "세로축" : "가로축"})`,
+      }));
+    } catch (err) {
+      set({ status: `오류: ${err instanceof Error ? err.message : String(err)}` });
+    }
+  },
+
+  openRevolve: () => {
+    const sel = get().selection.find((it) => it.kind === "sketch");
+    if (!sel) {
+      set({ status: "회전: 먼저 스케치를 선택하세요 (항목 패널에서 스케치 클릭)" });
+      return;
+    }
+    set({ revolveOpen: true, status: "회전 — 각도와 축을 정하세요" });
+  },
+  closeRevolve: () => set({ revolveOpen: false }),
 
   importStl: (buffer, name) => {
     try {

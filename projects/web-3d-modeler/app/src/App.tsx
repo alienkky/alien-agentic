@@ -10,6 +10,7 @@ import { SketchConstraintsPanel } from "./ui/SketchConstraintsPanel";
 import { SketchContextMenu } from "./ui/SketchContextMenu";
 import { NormalContextMenu } from "./ui/NormalContextMenu";
 import { ExtrudeDialog } from "./ui/ExtrudeDialog";
+import { RevolveDialog } from "./ui/RevolveDialog";
 import { StatusPill } from "./ui/StatusPill";
 import { useAppStore } from "./store/useAppStore";
 import { useResponsiveShell } from "./device/useResponsiveShell";
@@ -35,6 +36,7 @@ export function App(): JSX.Element {
       <SketchContextMenu />
       <NormalContextMenu />
       <ExtrudeDialog />
+      <RevolveDialog />
       <StatusPill layout={layout} />
     </div>
   );
