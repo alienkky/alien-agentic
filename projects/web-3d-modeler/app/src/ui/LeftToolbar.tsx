@@ -104,7 +104,7 @@ export function LeftToolbar(): JSX.Element {
   const addPrimitive = useAppStore((s) => s.addPrimitive);
   const beginSketch = useAppStore((s) => s.beginSketch);
   const booleanOp = useAppStore((s) => s.booleanOp);
-  const extrudeSketch = useAppStore((s) => s.extrudeSketch);
+  const openExtrude = useAppStore((s) => s.openExtrude);
   const addMesh = useAppStore((s) => s.addMesh);
   const setStatus = useAppStore((s) => s.setStatus);
 
@@ -175,7 +175,7 @@ export function LeftToolbar(): JSX.Element {
             <>
               <FlyoutItem icon={<OffsetIcon />} label="면 오프셋" onClick={() => soon("면 오프셋")} />
               <FlyoutItem icon={<ToolsIcon />} label="모따기/모깎기" shortcut="F" onClick={() => soon("필렛/모따기")} />
-              <FlyoutItem icon={<ExtrudeIcon />} label="돌출" shortcut="E" onClick={() => { extrudeSketch(4); setOpen(null); }} />
+              <FlyoutItem icon={<ExtrudeIcon />} label="돌출" shortcut="E" onClick={() => { openExtrude(); setOpen(null); }} />
               <FlyoutItem icon={<BoxIcon />} label="셸" shortcut="H" onClick={() => soon("셸")} />
               <FlyoutItem icon={<SphereIcon />} label="로프트" onClick={() => soon("로프트")} />
               <FlyoutItem icon={<UnionIcon />} label="결합" shortcut="⌃U" onClick={() => { void booleanOp("fuse"); setOpen(null); }} />

@@ -8,6 +8,8 @@ import type { KernelBackend } from "../kernel/worker";
 import type { TessellatedMesh, BooleanOp } from "../kernel/types";
 import { meshBoolean } from "../kernel/meshBoolean";
 import { extrudeProfile } from "../kernel/extrude";
+import { meshAabb, aabbOverlap } from "../kernel/aabb";
+import { parseStl } from "../kernel/stlImport";
 import { SKETCH_PLANES, type PlaneId, type SketchPoint } from "../kernel/sketchPlane";
 import {
   defaultCamera,
@@ -42,6 +44,8 @@ function sameSel(a: SelItem, b: SelItem): boolean {
 
 export type PrimitiveKind = "box" | "cylinder" | "sphere";
 export type SketchTool = "rectangle" | "circle" | "line" | "ellipse" | "polygon";
+/** 돌출 방식 (Shapr3D식): 새 바디 / 겹친 바디에서 빼기 / 겹친 바디에 합치기. */
+export type ExtrudeMode = "new" | "cut" | "fuse";
 
 /** 저장된 스케치 (독립 항목). 여러 프로파일(획)을 가질 수 있다. 도구→돌출 입력. */
 export interface SketchEntity {
@@ -126,6 +130,8 @@ interface AppState {
   sketchLineDrawing: boolean;
   /** 내역(History) — 단계별 작업 로그 (우측 패널). 명세 Module 1.2 토대 */
   history: { id: string; label: string }[];
+  /** 돌출 다이얼로그 열림 여부 (Shapr3D식 높이·모드 입력) */
+  extrudeOpen: boolean;
   backend: KernelBackend;
   status: string;
   busy: boolean;
@@ -210,8 +216,15 @@ interface AppState {
   cancelSketch: () => void;
   /** 스케치 종료 → 유효 프로파일이면 항목으로 저장 */
   finishSketch: () => void;
-  /** 선택된 스케치를 돌출 (도구→돌출) */
+  /** 선택된 스케치를 돌출 (도구→돌출, 기본 새 바디) */
   extrudeSketch: (depth: number) => void;
+  /** Shapr3D식 돌출: 높이 + 모드(새 바디/빼기/합치기). 빼기·합치기는 겹친 바디에 적용 */
+  extrudeSketchAs: (depth: number, mode: ExtrudeMode) => void;
+  /** 돌출 다이얼로그 열기/닫기 */
+  openExtrude: () => void;
+  closeExtrude: () => void;
+  /** STL 파일 불러오기 → 바디로 추가 */
+  importStl: (buffer: ArrayBuffer, name: string) => void;
 }
 
 let kernel: KernelHandle | null = null;
@@ -241,6 +254,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   sketchSelectedSeg: null,
   sketchLineDrawing: false,
   history: [],
+  extrudeOpen: false,
   displayMode: "shaded",
   panels: { items: true, history: true },
   showEdges: true,
@@ -606,12 +620,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  // 도구 → 돌출: 선택된 스케치의 닫힌 프로파일을 각각 입체화
-  extrudeSketch: (depth) => {
-    const sel = get().selection.find((it) => it.kind === "sketch");
-    const sketch = sel ? get().sketches.find((sk) => sk.id === sel.shapeId) : undefined;
+  // 도구 → 돌출: 선택된 스케치의 닫힌 프로파일을 입체화 (기본: 새 바디)
+  extrudeSketch: (depth) => get().extrudeSketchAs(depth, "new"),
+
+  // Shapr3D식 돌출 — 높이 + 모드(새 바디/빼기/합치기).
+  //  cut/fuse 는 돌출체와 AABB 가 겹치는 기존 바디에만 불리언을 건다.
+  extrudeSketchAs: (depth, mode) => {
+    const st = get();
+    const sel = st.selection.find((it) => it.kind === "sketch");
+    const sketch = sel ? st.sketches.find((sk) => sk.id === sel.shapeId) : undefined;
     if (!sketch) {
-      set({ status: "돌출: 먼저 스케치를 선택하세요 (스케치 항목 클릭)" });
+      set({ status: "돌출: 먼저 스케치를 선택하세요 (항목 패널에서 스케치 클릭)" });
       return;
     }
     const closed = sketch.profiles.filter((p) => p.length >= 3);
@@ -620,19 +639,83 @@ export const useAppStore = create<AppState>((set, get) => ({
       return;
     }
     try {
-      const made: TessellatedMesh[] = [];
-      for (const profile of closed) {
-        const shapeId = `extrude-${++counter}`;
-        made.push(extrudeProfile(profile, SKETCH_PLANES[sketch.plane], depth, shapeId));
+      const plane = SKETCH_PLANES[sketch.plane];
+      const tools = closed.map((p) => extrudeProfile(p, plane, depth, `extrude-${++counter}`));
+
+      if (mode === "new") {
+        set((s) => ({
+          shapes: [...s.shapes, ...tools],
+          selection: [],
+          extrudeOpen: false,
+          history: [...s.history, ...tools.map((m) => ({ id: m.shapeId, label: "돌출(새 바디)" }))],
+          status: `돌출 — 새 바디 ${tools.length}개 (높이 ${depth})`,
+        }));
+        return;
+      }
+
+      const op: BooleanOp = mode === "cut" ? "cut" : "fuse";
+      const toolBoxes = tools.map((t) => ({ t, box: meshAabb(t) }));
+      const consumed = new Set<TessellatedMesh>();
+      const transforms = { ...st.transforms };
+      const nextShapes: TessellatedMesh[] = [];
+      let affected = 0;
+
+      for (const body of st.shapes) {
+        let acc = body;
+        let baked = false; // 첫 불리언 후엔 오프셋이 좌표에 구워짐
+        const off = (): Vec3 => (baked ? [0, 0, 0] : st.transforms[body.shapeId] ?? [0, 0, 0]);
+        for (const { t, box } of toolBoxes) {
+          if (mode === "fuse" && consumed.has(t)) continue;
+          if (!aabbOverlap(meshAabb(acc, off()), box)) continue;
+          acc = meshBoolean(acc, t, op, `${mode}-${++counter}`, off(), [0, 0, 0]);
+          baked = true;
+          affected++;
+          if (mode === "fuse") consumed.add(t);
+        }
+        if (baked) delete transforms[body.shapeId];
+        nextShapes.push(acc);
+      }
+      // 합치기: 어떤 바디와도 안 겹친 돌출체는 새 바디로 남긴다
+      if (mode === "fuse") for (const { t } of toolBoxes) if (!consumed.has(t)) nextShapes.push(t);
+
+      if (affected === 0) {
+        set({ extrudeOpen: false, status: `돌출(${mode === "cut" ? "빼기" : "합치기"}): 겹치는 바디가 없습니다` });
+        return;
       }
       set((s) => ({
-        shapes: [...s.shapes, ...made],
+        shapes: nextShapes,
+        transforms,
         selection: [],
-        history: [...s.history, ...made.map((m) => ({ id: m.shapeId, label: "돌출" }))],
-        status: `돌출 완료 — ${made.length}개 (높이 ${depth})`,
+        extrudeOpen: false,
+        history: [...s.history, { id: `${mode}-${counter}`, label: mode === "cut" ? "돌출(빼기)" : "돌출(합치기)" }],
+        status: mode === "cut" ? `돌출 빼기 — ${affected}곳 가공` : `돌출 합치기 — ${affected}곳 결합`,
       }));
     } catch (err) {
       set({ status: `오류: ${err instanceof Error ? err.message : String(err)}` });
+    }
+  },
+
+  openExtrude: () => {
+    const sel = get().selection.find((it) => it.kind === "sketch");
+    if (!sel) {
+      set({ status: "돌출: 먼저 스케치를 선택하세요 (항목 패널에서 스케치 클릭)" });
+      return;
+    }
+    set({ extrudeOpen: true, status: "돌출 — 높이와 방식을 정하세요" });
+  },
+  closeExtrude: () => set({ extrudeOpen: false }),
+
+  importStl: (buffer, name) => {
+    try {
+      const id = `import-${++counter}`;
+      const mesh = parseStl(buffer, id);
+      set((s) => ({
+        shapes: [...s.shapes, mesh],
+        history: [...s.history, { id, label: `가져오기: ${name}` }],
+        status: `${name} 불러옴 · 삼각형 ${mesh.indices.length / 3}`,
+      }));
+    } catch (err) {
+      set({ status: `불러오기 오류: ${err instanceof Error ? err.message : String(err)}` });
     }
   },
 }));

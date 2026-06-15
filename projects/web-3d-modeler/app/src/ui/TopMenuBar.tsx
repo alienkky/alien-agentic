@@ -1,5 +1,5 @@
 /** 상단 메뉴바 (Shapr3D): 파일·편집·항목·뷰·도움말 드롭다운 + 실행취소/공유. */
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useAppStore } from "../store/useAppStore";
 import { downloadStl } from "../kernel/stlExport";
 import { UndoIcon, RedoIcon } from "./icons";
@@ -64,14 +64,26 @@ function MenuButton({ id, label, open, setOpen, children }: {
 
 export function TopMenuBar(): JSX.Element {
   const [open, setOpen] = useState<MenuId | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
   const s = useAppStore();
   const close = () => setOpen(null);
   const soon = (n: string) => s.setStatus(`${n} — 준비 중`);
 
+  const onImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (reader.result instanceof ArrayBuffer) s.importStl(reader.result, file.name);
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value = ""; // 같은 파일 다시 선택 가능하게
+  };
+
   const fileItems: MenuItem[] = [
     { label: "새 프로젝트", shortcut: "Ctrl+N", onClick: () => void s.clear() },
     { label: "새 도면", onClick: () => soon("새 도면") },
-    { label: "파일 가져오기...", shortcut: "Ctrl+Shift+I", divider: true, onClick: () => soon("가져오기") },
+    { label: "STL 불러오기...", shortcut: "Ctrl+Shift+I", divider: true, onClick: () => fileInput.current?.click() },
     { label: "프로젝트 가져오기...", shortcut: "Ctrl+Shift+P", onClick: () => soon("가져오기") },
     { label: "재질 가져오기...", disabled: true },
     { label: "프로젝트 닫기", shortcut: "Ctrl+W", divider: true, onClick: () => void s.clear() },
@@ -126,6 +138,7 @@ export function TopMenuBar(): JSX.Element {
 
   return (
     <>
+      <input ref={fileInput} type="file" accept=".stl" className="hidden" onChange={onImportFile} />
       {open && <div className="fixed inset-0 z-30" onClick={close} />}
       <div className="pointer-events-auto absolute left-0 right-0 top-0 z-40 flex h-12 items-center justify-between border-b border-aa-border bg-aa-surface/95 px-2 backdrop-blur">
         <div className="flex items-center gap-1">

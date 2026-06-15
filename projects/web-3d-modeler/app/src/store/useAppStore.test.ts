@@ -1,5 +1,19 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { useAppStore, selectionBodyIds, type SelItem } from "./useAppStore";
+import { tessellateBox } from "../kernel/occt/boxMesh";
+
+function makeRectSketch(): void {
+  const st = useAppStore.getState();
+  st.beginSketch();
+  st.pickPlane("xz");
+  st.setSketchTool("rectangle");
+  st.sketchDragStart({ u: -1, v: -1 });
+  st.sketchDragMove({ u: 1, v: 1 });
+  st.sketchDragEnd();
+  st.finishSketch();
+  const sk = useAppStore.getState().sketches.at(-1)!;
+  st.selectEntity({ kind: "sketch", shapeId: sk.id, index: -1 });
+}
 
 const face = (shapeId: string, index: number): SelItem => ({ kind: "face", shapeId, index });
 const body = (shapeId: string): SelItem => ({ kind: "body", shapeId, index: -1 });
@@ -163,6 +177,49 @@ describe("useAppStore — 스케치 도구", () => {
     const sk = after.sketches[0]!;
     st.selectEntity({ kind: "sketch", shapeId: sk.id, index: -1 });
     st.extrudeSketch(5);
+    expect(useAppStore.getState().shapes).toHaveLength(1);
+  });
+});
+
+describe("useAppStore — Shapr3D식 돌출(빼기/합치기/새 바디)", () => {
+  beforeEach(() => {
+    void useAppStore.getState().clear();
+    useAppStore.getState().cancelSketch();
+  });
+
+  it("새 바디: 돌출체가 별도 바디로 추가", () => {
+    const st = useAppStore.getState();
+    makeRectSketch();
+    st.extrudeSketchAs(5, "new");
+    expect(useAppStore.getState().shapes).toHaveLength(1);
+  });
+
+  it("빼기: 겹친 바디에서 깎고, 바디 수는 유지(도구 소비)", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(8, 8, 8, "box-1"), "박스"); // y -4..4, 중앙에 스케치 돌출이 관통
+    makeRectSketch();
+    const before = useAppStore.getState().shapes[0]!.indices.length;
+    st.extrudeSketchAs(10, "cut");
+    const after = useAppStore.getState();
+    expect(after.shapes).toHaveLength(1); // 박스만 (돌출 도구는 빼기로 소비)
+    expect(after.shapes[0]!.indices.length).not.toBe(before); // 가공됨
+  });
+
+  it("빼기: 겹치는 바디 없으면 변화 없음", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(2, 2, 2, "box-far"), "박스");
+    // 멀리 떨어뜨려 겹치지 않게
+    st.setTransform("box-far", [100, 0, 0]);
+    makeRectSketch();
+    st.extrudeSketchAs(5, "cut");
+    expect(useAppStore.getState().shapes).toHaveLength(1);
+  });
+
+  it("합치기: 겹친 바디에 흡수되어 바디 수 유지", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(8, 8, 8, "box-1"), "박스");
+    makeRectSketch();
+    st.extrudeSketchAs(10, "fuse");
     expect(useAppStore.getState().shapes).toHaveLength(1);
   });
 });
