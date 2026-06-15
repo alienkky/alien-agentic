@@ -19,7 +19,7 @@
 ## Part 2 — Solid Generation & Boolean
 | Module | 기능 | 상태 | 우리 구현 |
 |---|---|---|---|
-| 4.1 ExtrudeOperation | 돌출(+taperAngle) | ✅ | 높이입력 + 새바디/빼기/합치기(AABB 겹침). taper/드래그 미구현 |
+| 4.1 ExtrudeOperation | 돌출(+taperAngle) | ✅ | 높이입력 + 새바디/빼기/합치기(AABB 겹침) + **드래그 핸들 실시간 높이**. taper 미구현 |
 | 4.2 RevolveOperation | 회전체 | ✅ | 각도+축(세로/가로) Lathe 회전. cut/fuse·축지정선택 다음 |
 | 4.3 LoftOperation | 로프트 | ⬜ | |
 | 5.1 BooleanSolver | union/subtract/intersect | ✅ | 메시CSG / OCCT |
