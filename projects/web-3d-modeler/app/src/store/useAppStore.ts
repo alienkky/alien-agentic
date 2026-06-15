@@ -136,6 +136,8 @@ interface AppState {
   extrudeOpen: boolean;
   /** 회전 다이얼로그 열림 여부 (각도·축 입력) */
   revolveOpen: boolean;
+  /** 돌출 드래그 세션 (스케치 핸들을 끌어 실시간 높이). null 이면 비활성 */
+  extrudeDrag: { sketchId: string; height: number } | null;
   backend: KernelBackend;
   status: string;
   busy: boolean;
@@ -227,6 +229,11 @@ interface AppState {
   /** 돌출 다이얼로그 열기/닫기 */
   openExtrude: () => void;
   closeExtrude: () => void;
+  /** 돌출 드래그: 시작 / 높이 갱신 / 확정 / 취소 */
+  startExtrudeDrag: () => void;
+  setExtrudeDragHeight: (h: number) => void;
+  commitExtrudeDrag: () => void;
+  cancelExtrudeDrag: () => void;
   /** 선택된 스케치를 회전체로 (도구→회전) */
   revolveSketchAs: (angleDeg: number, axis: RevolveAxis) => void;
   /** 회전 다이얼로그 열기/닫기 */
@@ -265,6 +272,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   history: [],
   extrudeOpen: false,
   revolveOpen: false,
+  extrudeDrag: null,
   displayMode: "shaded",
   panels: { items: true, history: true },
   showEdges: true,
@@ -734,6 +742,27 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ extrudeOpen: true, status: "돌출 — 높이와 방식을 정하세요" });
   },
   closeExtrude: () => set({ extrudeOpen: false }),
+
+  startExtrudeDrag: () => {
+    const sel = get().selection.find((it) => it.kind === "sketch");
+    if (!sel) {
+      set({ status: "돌출: 스케치를 선택하세요" });
+      return;
+    }
+    set({ extrudeDrag: { sketchId: sel.shapeId, height: 1 }, gizmoDragging: true, status: "드래그해서 돌출 높이를 정하세요" });
+  },
+  setExtrudeDragHeight: (h) =>
+    set((s) => {
+      if (!s.extrudeDrag) return {};
+      const height = Math.max(0.1, h);
+      return { extrudeDrag: { ...s.extrudeDrag, height }, status: `돌출 높이 ${height.toFixed(1)} mm` };
+    }),
+  commitExtrudeDrag: () => {
+    const d = get().extrudeDrag;
+    set({ extrudeDrag: null, gizmoDragging: false });
+    if (d) get().extrudeSketchAs(d.height, "new");
+  },
+  cancelExtrudeDrag: () => set({ extrudeDrag: null, gizmoDragging: false, status: "돌출 취소" }),
 
   // 도구 → 회전: 선택된 스케치의 닫힌 프로파일을 축 둘레로 회전
   revolveSketchAs: (angleDeg, axis) => {
