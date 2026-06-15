@@ -1,9 +1,10 @@
 /** 씬 구성 — 조명, 그리드, 기준 축, 셰이프들(+ 1개 선택 시 이동 기즈모). */
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import * as THREE from "three";
 import { Grid, TransformControls } from "@react-three/drei";
 import { useAppStore, selectionBodyIds, type Vec3 } from "../store/useAppStore";
 import type { TessellatedMesh } from "../kernel/types";
+import { adaptiveCellSize } from "./cameraMath";
 import { CameraRig } from "./CameraRig";
 import { ShapeMesh } from "./ShapeMesh";
 import { SketchLayer } from "./SketchLayer";
@@ -48,6 +49,10 @@ export function Scene(): JSX.Element {
   const showGrid = useAppStore((s) => s.showGrid);
   const showAxes = useAppStore((s) => s.showAxes);
   const hidden = useAppStore((s) => s.hidden);
+  const radius = useAppStore((s) => s.camera.radius);
+
+  // 확대할수록 격자가 잘아지는 어댑티브 그리드
+  const cell = useMemo(() => adaptiveCellSize(radius), [radius]);
 
   // 선택이 정확히 한 바디에 속할 때만 이동 기즈모를 보인다.
   const bodyIds = selectionBodyIds(selection);
@@ -62,7 +67,16 @@ export function Scene(): JSX.Element {
       <directionalLight position={[-6, 4, -8]} intensity={0.5} />
 
       {showGrid && (
-        <Grid args={[40, 40]} cellSize={1} cellColor="#2a3344" sectionSize={5} sectionColor="#3a4a63" fadeDistance={60} infiniteGrid />
+        <Grid
+          args={[40, 40]}
+          cellSize={cell}
+          cellColor="#2a3344"
+          sectionSize={cell * 10}
+          sectionColor="#3a4a63"
+          fadeDistance={radius * 6}
+          fadeStrength={1.5}
+          infiniteGrid
+        />
       )}
       {showAxes && <axesHelper args={[3]} />}
 
