@@ -119,6 +119,32 @@ describe("useAppStore — 스케치 도구", () => {
     expect(stroke[2]).toEqual({ u: 10, v: 3 });
   });
 
+  it("타원: 드래그 → 닫힌 획 (가로·세로 반경)", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("ellipse");
+    st.sketchDragStart({ u: 0, v: 0 });
+    st.sketchDragMove({ u: 4, v: 2 });
+    st.sketchDragEnd();
+    const strokes = useAppStore.getState().sketchStrokes;
+    expect(strokes).toHaveLength(1);
+    expect(strokes[0]!.length).toBeGreaterThan(8); // 폴리곤화
+  });
+
+  it("다각형: 드래그 → 6각형(6점)", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("polygon");
+    st.sketchDragStart({ u: 0, v: 0 });
+    st.sketchDragMove({ u: 3, v: 0 });
+    st.sketchDragEnd();
+    const strokes = useAppStore.getState().sketchStrokes;
+    expect(strokes).toHaveLength(1);
+    expect(strokes[0]).toHaveLength(6);
+  });
+
   it("스케칭 종료 → 스케치 항목 저장, 도구 돌출 → 바디 생성", () => {
     const st = useAppStore.getState();
     st.clear();

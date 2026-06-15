@@ -3,6 +3,7 @@
  */
 import { useState, type ReactNode } from "react";
 import { useAppStore, type SketchTool } from "../store/useAppStore";
+import { buildMouse } from "../demo/mouse";
 import {
   BoxIcon, CylinderIcon, SphereIcon, SketchIcon, SearchIcon, InsertIcon,
   ConstructIcon, TransformIcon, ToolsIcon, LayersIcon, SectionIcon, MeasureIcon,
@@ -83,8 +84,8 @@ function SketchPalette(): JSX.Element {
       <Row icon={<SplineIcon />} label="스플라인" sub="맞춤 점" shortcut="I" onClick={() => soon("스플라인")} />
       <Row icon={<RectIcon />} label="사각형" sub="대각선" shortcut="R" active={tool === "rectangle"} onClick={() => pick("rectangle")} />
       <Row icon={<Circle2DIcon />} label="원" shortcut="C" active={tool === "circle"} onClick={() => pick("circle")} />
-      <Row icon={<EllipseIcon />} label="타원" onClick={() => soon("타원")} />
-      <Row icon={<PolygonIcon />} label="다각형" sub="오각형" shortcut="G" onClick={() => soon("다각형")} />
+      <Row icon={<EllipseIcon />} label="타원" active={tool === "ellipse"} onClick={() => pick("ellipse")} />
+      <Row icon={<PolygonIcon />} label="다각형" sub="육각형" shortcut="G" active={tool === "polygon"} onClick={() => pick("polygon")} />
       <Row icon={<OffsetIcon />} label="모서리 오프셋" sub="체인" shortcut="O" onClick={() => soon("모서리 오프셋")} />
       <Row icon={<TransformIcon />} label="이동/회전" shortcut="M" onClick={() => soon("이동/회전")} />
       <Row icon={<MirrorIcon />} label="미러" onClick={() => soon("미러")} />
@@ -104,6 +105,7 @@ export function LeftToolbar(): JSX.Element {
   const beginSketch = useAppStore((s) => s.beginSketch);
   const booleanOp = useAppStore((s) => s.booleanOp);
   const extrudeSketch = useAppStore((s) => s.extrudeSketch);
+  const addMesh = useAppStore((s) => s.addMesh);
   const setStatus = useAppStore((s) => s.setStatus);
 
   const toggle = (c: Category) => setOpen((cur) => (cur === c ? null : c));
@@ -147,6 +149,9 @@ export function LeftToolbar(): JSX.Element {
               <FlyoutItem icon={<BoxIcon />} label="박스" onClick={() => { void addPrimitive("box"); setOpen(null); }} />
               <FlyoutItem icon={<CylinderIcon />} label="실린더" onClick={() => { void addPrimitive("cylinder"); setOpen(null); }} />
               <FlyoutItem icon={<SphereIcon />} label="구" onClick={() => { void addPrimitive("sphere"); setOpen(null); }} />
+              <div className="my-1 h-px bg-aa-border" />
+              <div className="px-3 py-1 text-[10px] text-aa-text-dim">데모 (파이프라인 검증)</div>
+              <FlyoutItem icon={<SphereIcon />} label="컴퓨터 마우스" onClick={() => { const { mouse } = buildMouse(); addMesh(mouse, "데모: 마우스"); setOpen(null); }} />
             </>
           )}
           {open === "construct" && (

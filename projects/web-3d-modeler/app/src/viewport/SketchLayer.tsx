@@ -33,6 +33,17 @@ function circlePts(c: SketchPoint, r: number, seg = 48): SketchPoint[] {
   for (let i = 0; i < seg; i++) { const a = (i / seg) * Math.PI * 2; out.push({ u: c.u + r * Math.cos(a), v: c.v + r * Math.sin(a) }); }
   return out;
 }
+function ellipsePts(c: SketchPoint, ru: number, rv: number, seg = 48): SketchPoint[] {
+  const out: SketchPoint[] = [];
+  for (let i = 0; i < seg; i++) { const a = (i / seg) * Math.PI * 2; out.push({ u: c.u + ru * Math.cos(a), v: c.v + rv * Math.sin(a) }); }
+  return out;
+}
+function polygonPts(c: SketchPoint, r: number, sides: number): SketchPoint[] {
+  const out: SketchPoint[] = [];
+  for (let i = 0; i < sides; i++) { const a = (i / sides) * Math.PI * 2 + Math.PI / 2; out.push({ u: c.u + r * Math.cos(a), v: c.v + r * Math.sin(a) }); }
+  return out;
+}
+const POLY_SIDES = 6;
 const segLen = (a: SketchPoint, b: SketchPoint) => Math.hypot(b.u - a.u, b.v - a.v);
 const midUV = (a: SketchPoint, b: SketchPoint): SketchPoint => ({ u: (a.u + b.u) / 2, v: (a.v + b.v) / 2 });
 
@@ -142,6 +153,15 @@ export function SketchLayer(): JSX.Element | null {
     if (tool === "circle") {
       const r = Math.hypot(current.u - start.u, current.v - start.v);
       return { pts: circlePts(start, r), dim: `⌀ ${(r * 2).toFixed(2)} mm`, dimAt: midUV(start, current) };
+    }
+    if (tool === "ellipse") {
+      const ru = Math.abs(current.u - start.u);
+      const rv = Math.abs(current.v - start.v);
+      return { pts: ellipsePts(start, ru, rv), dim: `${(ru * 2).toFixed(2)} × ${(rv * 2).toFixed(2)} mm`, dimAt: midUV(start, current) };
+    }
+    if (tool === "polygon") {
+      const r = Math.hypot(current.u - start.u, current.v - start.v);
+      return { pts: polygonPts(start, r, POLY_SIDES), dim: `${POLY_SIDES}각 ⌀ ${(r * 2).toFixed(2)} mm`, dimAt: midUV(start, current) };
     }
     return {
       pts: rectPts(start, current),

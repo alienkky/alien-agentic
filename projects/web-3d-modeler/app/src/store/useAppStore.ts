@@ -41,7 +41,7 @@ function sameSel(a: SelItem, b: SelItem): boolean {
 }
 
 export type PrimitiveKind = "box" | "cylinder" | "sphere";
-export type SketchTool = "rectangle" | "circle" | "line";
+export type SketchTool = "rectangle" | "circle" | "line" | "ellipse" | "polygon";
 
 /** 저장된 스케치 (독립 항목). 여러 프로파일(획)을 가질 수 있다. 도구→돌출 입력. */
 export interface SketchEntity {
@@ -61,6 +61,29 @@ function circlePolygon(center: SketchPoint, radius: number, segments = 48): Sket
   }
   return pts;
 }
+
+/** 타원: 중심에서 반장축(ru)·반단축(rv) 으로 폴리곤화. */
+export function ellipsePolygon(center: SketchPoint, ru: number, rv: number, segments = 48): SketchPoint[] {
+  const pts: SketchPoint[] = [];
+  for (let i = 0; i < segments; i++) {
+    const a = (i / segments) * Math.PI * 2;
+    pts.push({ u: center.u + ru * Math.cos(a), v: center.v + rv * Math.sin(a) });
+  }
+  return pts;
+}
+
+/** 정다각형: 중심에서 반지름 radius, 꼭짓점 sides 개. 위쪽(+v)을 첫 꼭짓점으로. */
+export function regularPolygon(center: SketchPoint, radius: number, sides = 6): SketchPoint[] {
+  const pts: SketchPoint[] = [];
+  for (let i = 0; i < sides; i++) {
+    const a = (i / sides) * Math.PI * 2 + Math.PI / 2;
+    pts.push({ u: center.u + radius * Math.cos(a), v: center.v + radius * Math.sin(a) });
+  }
+  return pts;
+}
+
+/** 기본 정다각형 변의 수 (육각형). 향후 도구 옵션으로 조정. */
+export const POLYGON_SIDES = 6;
 
 const PLANE_VIEW: Record<PlaneId, "top" | "front" | "right"> = { xz: "top", xy: "front", yz: "right" };
 
@@ -116,6 +139,8 @@ interface AppState {
   initKernel: () => Promise<void>;
   setBackend: (backend: KernelBackend) => Promise<void>;
   addPrimitive: (kind: PrimitiveKind) => Promise<void>;
+  /** 외부에서 만든 메시(데모·가져오기)를 바디로 추가. */
+  addMesh: (mesh: TessellatedMesh, label: string) => void;
   booleanOp: (op: BooleanOp) => Promise<void>;
   removeShape: (shapeId: string) => Promise<void>;
   undoLast: () => Promise<void>;
@@ -281,6 +306,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  addMesh: (mesh, label) =>
+    set((s) => ({
+      shapes: [...s.shapes, mesh],
+      history: [...s.history, { id: mesh.shapeId, label }],
+      status: `${label} 추가됨 · 면 ${mesh.faceRanges.length} · 삼각형 ${mesh.indices.length / 3}`,
+    })),
+
   booleanOp: async (op) => {
     const bodies = selectionBodyIds(get().selection);
     if (get().busy) return;
@@ -442,7 +474,11 @@ export const useAppStore = create<AppState>((set, get) => ({
           ? "사각형 — 드래그해 그리기"
           : tool === "circle"
             ? "원 — 중심에서 바깥으로 드래그"
-            : "선 — 점을 순서대로 탭 (3개 이상)",
+            : tool === "ellipse"
+              ? "타원 — 중심에서 가로·세로로 드래그"
+              : tool === "polygon"
+                ? `다각형 — 중심에서 바깥으로 드래그 (${POLYGON_SIDES}각형)`
+                : "선 — 점을 순서대로 탭 (3개 이상)",
     })),
 
   // 사각형·원: 드래그 (좌표는 평면 (u,v))
@@ -468,6 +504,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (sketchTool === "circle") {
       const r = Math.hypot(current.u - start.u, current.v - start.v);
       pts = r > 0.01 ? circlePolygon(start, r) : [];
+    } else if (sketchTool === "ellipse") {
+      const ru = Math.abs(current.u - start.u);
+      const rv = Math.abs(current.v - start.v);
+      pts = ru > 0.01 && rv > 0.01 ? ellipsePolygon(start, ru, rv) : [];
+    } else if (sketchTool === "polygon") {
+      const r = Math.hypot(current.u - start.u, current.v - start.v);
+      pts = r > 0.01 ? regularPolygon(start, r, POLYGON_SIDES) : [];
     } else {
       pts =
         Math.abs(current.u - start.u) > 0.01 && Math.abs(current.v - start.v) > 0.01

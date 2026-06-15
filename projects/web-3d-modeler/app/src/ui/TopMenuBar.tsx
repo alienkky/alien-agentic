@@ -1,6 +1,7 @@
 /** 상단 메뉴바 (Shapr3D): 파일·편집·항목·뷰·도움말 드롭다운 + 실행취소/공유. */
 import { useState, type ReactNode } from "react";
 import { useAppStore } from "../store/useAppStore";
+import { downloadStl } from "../kernel/stlExport";
 import { UndoIcon, RedoIcon } from "./icons";
 
 type MenuId = "file" | "edit" | "items" | "view" | "help";
@@ -75,7 +76,16 @@ export function TopMenuBar(): JSX.Element {
     { label: "재질 가져오기...", disabled: true },
     { label: "프로젝트 닫기", shortcut: "Ctrl+W", divider: true, onClick: () => void s.clear() },
     { label: "프로젝트 이름 변경...", onClick: () => soon("이름 변경") },
-    { label: "내보내기 (STL/STEP)", divider: true, onClick: () => soon("내보내기") },
+    {
+      label: "STL 내보내기",
+      divider: true,
+      disabled: s.shapes.length === 0,
+      onClick: () => {
+        downloadStl(s.shapes, s.transforms, "alien-space");
+        s.setStatus(`STL 내보내기 — 바디 ${s.shapes.length}개`);
+      },
+    },
+    { label: "STEP 내보내기", disabled: true },
     { label: "설정", shortcut: "Ctrl+,", divider: true, onClick: () => soon("설정") },
   ];
 
