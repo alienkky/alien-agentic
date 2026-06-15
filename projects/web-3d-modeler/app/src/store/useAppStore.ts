@@ -13,6 +13,7 @@ import { translateMesh, rotateMeshAxis, scaleMesh, mirrorMesh, centroidOf } from
 import { meshAabb, aabbOverlap } from "../kernel/aabb";
 import { parseStl } from "../kernel/stlImport";
 import { SKETCH_PLANES, planeFromFace, type PlaneId, type SketchPoint, type SketchPlaneDef } from "../kernel/sketchPlane";
+import { trimAt } from "../kernel/sketchTrim";
 import {
   defaultCamera,
   orbit as orbitCam,
@@ -46,7 +47,7 @@ function sameSel(a: SelItem, b: SelItem): boolean {
 }
 
 export type PrimitiveKind = "box" | "cylinder" | "sphere";
-export type SketchTool = "rectangle" | "circle" | "line" | "ellipse" | "polygon";
+export type SketchTool = "rectangle" | "circle" | "line" | "ellipse" | "polygon" | "trim";
 /** 돌출 방식 (Shapr3D식): 새 바디 / 겹친 바디에서 빼기 / 겹친 바디에 합치기. */
 export type ExtrudeMode = "new" | "cut" | "fuse";
 /** 패턴 축 (선형 방향 / 원형 회전축) */
@@ -221,6 +222,8 @@ interface AppState {
   sketchDragMove: (p: SketchPoint) => void;
   sketchDragEnd: () => void;
   sketchClickPoint: (p: SketchPoint) => void;
+  /** 자르기: 클릭 지점 근처 선분을 교차점 기준으로 잘라낸다 */
+  trimSketchAt: (uv: SketchPoint) => void;
   /** 선분 치수 편집 선택 / 길이 설정 / 해제 */
   selectSketchSegment: (s: number, i: number) => void;
   setSegmentLength: (s: number, i: number, len: number) => void;
@@ -602,12 +605,15 @@ export const useAppStore = create<AppState>((set, get) => ({
               ? "타원 — 중심에서 가로·세로로 드래그"
               : tool === "polygon"
                 ? `다각형 — 중심에서 바깥으로 드래그 (${POLYGON_SIDES}각형)`
-                : "선 — 점을 순서대로 탭 (3개 이상)",
+                : tool === "trim"
+                  ? "자르기 — 지울 선 구간을 클릭"
+                  : "선 — 점을 순서대로 탭 (3개 이상)",
     })),
 
   // 사각형·원: 드래그 (좌표는 평면 (u,v))
   sketchDragStart: (raw) => {
-    if (get().sketchTool === "line" || !get().sketchPlane) return;
+    const t = get().sketchTool;
+    if (t === "line" || t === "trim" || !get().sketchPlane) return;
     const g = get().snap.grid;
     const p: SketchPoint = g ? { u: snap(raw.u), v: snap(raw.v) } : raw;
     set({ sketchDraft: { start: p, current: p }, sketchPoints: [] });
@@ -671,6 +677,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     set({ sketchPoints: [...s.sketchPoints, p], status: `선 — 점 ${s.sketchPoints.length + 1}개` });
   },
+
+  trimSketchAt: (uv) =>
+    set((s) => {
+      const res = trimAt(s.sketchStrokes, uv);
+      if (!res) return { status: "자르기: 잘릴 선 위를 클릭하세요" };
+      return { sketchStrokes: res, sketchSelectedSeg: null, status: "선 잘림" };
+    }),
 
   selectSketchSegment: (st, i) => set({ sketchSelectedSeg: { s: st, i } }),
   clearSketchSegment: () => set({ sketchSelectedSeg: null }),

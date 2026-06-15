@@ -94,7 +94,7 @@ function SketchPalette(): JSX.Element {
       <Row icon={<PatternIcon />} label="패턴" sub="선형" onClick={() => soon("패턴")} />
       <Row icon={<ProjectIcon />} label="투상" shortcut="P" onClick={() => soon("투상")} />
       <Row icon={<TextIcon />} label="텍스트" onClick={() => soon("텍스트")} />
-      <Row icon={<TrimIcon />} label="자르기" shortcut="T" onClick={() => soon("자르기")} />
+      <Row icon={<TrimIcon />} label="자르기" shortcut="T" active={tool === "trim"} onClick={() => pick("trim")} />
       <Row icon={<TrashIcon />} label="삭제" onClick={() => soon("삭제")} />
     </div>
   );

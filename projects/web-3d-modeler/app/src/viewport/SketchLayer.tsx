@@ -178,6 +178,7 @@ export function SketchLayer(): JSX.Element | null {
   const dragMove = useAppStore((s) => s.sketchDragMove);
   const dragEnd = useAppStore((s) => s.sketchDragEnd);
   const clickPoint = useAppStore((s) => s.sketchClickPoint);
+  const trimAtPoint = useAppStore((s) => s.trimSketchAt);
   const radius = useAppStore((s) => s.camera.radius);
   const cell = useMemo(() => adaptiveCellSize(radius), [radius]);
 
@@ -220,7 +221,7 @@ export function SketchLayer(): JSX.Element | null {
       <group matrixAutoUpdate={false} matrix={planeMatrix(plane)}>
         <SketchGrid cell={cell} />
         <mesh
-          onPointerDown={(e) => { e.stopPropagation(); if (tool === "line") clickPoint(onPlane(e)); else dragStart(onPlane(e)); }}
+          onPointerDown={(e) => { e.stopPropagation(); if (tool === "trim") trimAtPoint(onPlane(e)); else if (tool === "line") clickPoint(onPlane(e)); else dragStart(onPlane(e)); }}
           onPointerMove={(e) => { e.stopPropagation(); dragMove(onPlane(e)); }}
           onPointerUp={(e) => { e.stopPropagation(); dragEnd(); }}
         >
