@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Voice Translator</string>
+
+    <string name="start">● 듣기 시작</string>
+    <string name="stop">■ 멈춤</string>
+
+    <string name="listening_japanese">🎙 日本語</string>
+    <string name="listening_english">🎙 English</string>
+
+    <string name="status_preparing">번역 모델 준비 중…</string>
+    <string name="status_ready">준비됨 — 버튼을 눌러 말하세요</string>
+    <string name="status_listening">듣는 중…</string>
+
+    <string name="hint_source">여기에 인식된 음성이 표시됩니다</string>
+    <string name="hint_translated">번역 결과</string>
+
+    <string name="error_no_mic_permission">마이크 권한이 필요합니다</string>
+    <string name="error_no_recognizer">이 기기에서 음성 인식을 사용할 수 없습니다</string>
+    <string name="error_model_download">모델 다운로드 실패: %1$s</string>
+    <string name="error_translate">번역 오류: %1$s</string>
+</resources>
