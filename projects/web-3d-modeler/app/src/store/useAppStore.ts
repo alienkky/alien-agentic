@@ -24,8 +24,8 @@ export interface FaceRef {
   faceId: number;
 }
 
-/** 통합 선택 항목 — 바디/면/모서리. (body 는 index = -1) */
-export type SelKind = "body" | "face" | "edge";
+/** 통합 선택 항목 — 바디/면/모서리/스케치. (body·sketch 는 index = -1) */
+export type SelKind = "body" | "face" | "edge" | "sketch";
 export interface SelItem {
   kind: SelKind;
   shapeId: string;
@@ -33,7 +33,7 @@ export interface SelItem {
 }
 
 export function selectionBodyIds(sel: SelItem[]): string[] {
-  return [...new Set(sel.map((s) => s.shapeId))];
+  return [...new Set(sel.filter((s) => s.kind !== "sketch").map((s) => s.shapeId))];
 }
 
 function sameSel(a: SelItem, b: SelItem): boolean {
@@ -42,6 +42,14 @@ function sameSel(a: SelItem, b: SelItem): boolean {
 
 export type PrimitiveKind = "box" | "cylinder" | "sphere";
 export type SketchTool = "rectangle" | "circle" | "line";
+
+/** 저장된 스케치 (독립 항목). 도구→돌출 의 입력이 된다. */
+export interface SketchEntity {
+  id: string;
+  plane: PlaneId;
+  profile: SketchPoint[];
+  tool: SketchTool;
+}
 
 const SNAP = 0.5; // 격자 스냅 간격
 const snap = (v: number): number => Math.round(v / SNAP) * SNAP;
@@ -62,6 +70,8 @@ export type Vec3 = [number, number, number];
 interface AppState {
   camera: CameraState;
   shapes: TessellatedMesh[];
+  /** 저장된 스케치 항목들 (독립) */
+  sketches: SketchEntity[];
   /** 셰이프별 위치 오프셋 (이동 기즈모). 없으면 원점. */
   transforms: Record<string, Vec3>;
   hovered: FaceRef | null;
@@ -151,7 +161,10 @@ interface AppState {
   finishLine: () => void;
   undoSketchPoint: () => void;
   cancelSketch: () => void;
-  commitExtrude: (depth: number) => void;
+  /** 스케치 종료 → 유효 프로파일이면 항목으로 저장 */
+  finishSketch: () => void;
+  /** 선택된 스케치를 돌출 (도구→돌출) */
+  extrudeSketch: (depth: number) => void;
 }
 
 let kernel: KernelHandle | null = null;
@@ -166,6 +179,7 @@ const BOOL_LABEL: Record<BooleanOp, string> = {
 export const useAppStore = create<AppState>((set, get) => ({
   camera: defaultCamera(),
   shapes: [],
+  sketches: [],
   transforms: {},
   hovered: null,
   selection: [],
@@ -311,7 +325,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         await kernel.client.deleteShape(m.shapeId);
       }
     }
-    set({ shapes: [], transforms: {}, hovered: null, selection: [], history: [], status: "비움" });
+    set({ shapes: [], sketches: [], transforms: {}, hovered: null, selection: [], history: [], status: "비움" });
   },
 
   setStatus: (msg) => set({ status: msg }),
@@ -418,7 +432,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             ]
           : [];
     }
-    set({ sketchDraft: null, sketchPoints: pts, status: pts.length ? "프로파일 완성 — 돌출하세요" : "너무 작아요 — 다시 드래그" });
+    set({ sketchDraft: null, sketchPoints: pts, status: pts.length ? "프로파일 완성 — 스케칭 종료(저장) 후 도구→돌출" : "너무 작아요 — 다시 드래그" });
   },
 
   // 선: 점 클릭 누적 (마지막 점 다시 클릭 → 종료)
@@ -469,25 +483,48 @@ export const useAppStore = create<AppState>((set, get) => ({
   cancelSketch: () =>
     set({ sketchActive: false, sketchPlane: null, sketchPoints: [], sketchDraft: null, sketchHover: null, sketchSelectedSeg: null, sketchLineDrawing: false, status: "스케치 취소" }),
 
-  commitExtrude: (depth) => {
-    const { sketchPoints: pts, sketchPlane } = get();
-    if (pts.length < 3 || !sketchPlane) {
-      set({ status: "돌출: 점이 3개 이상이어야 합니다" });
+  // 스케칭 종료 → 유효 프로파일이면 독립 스케치 항목으로 저장 (돌출은 도구에서)
+  finishSketch: () => {
+    const { sketchActive, sketchPlane, sketchPoints, sketchTool } = get();
+    if (!sketchActive) return;
+    const base: Partial<AppState> = {
+      sketchActive: false,
+      sketchPlane: null,
+      sketchPoints: [],
+      sketchDraft: null,
+      sketchHover: null,
+      sketchSelectedSeg: null,
+      sketchLineDrawing: false,
+    };
+    if (sketchPlane && sketchPoints.length >= 3) {
+      const id = `sketch-${++counter}`;
+      set((s) => ({
+        ...base,
+        sketches: [...s.sketches, { id, plane: sketchPlane, profile: sketchPoints, tool: sketchTool }],
+        history: [...s.history, { id, label: "스케치" }],
+        status: `${id} 저장됨 — 선택 후 도구→돌출`,
+      }));
+    } else {
+      set({ ...base, status: "스케치 종료 (저장할 프로파일 없음)" });
+    }
+  },
+
+  // 도구 → 돌출: 선택된 스케치를 입체화
+  extrudeSketch: (depth) => {
+    const sel = get().selection.find((it) => it.kind === "sketch");
+    const sketch = sel ? get().sketches.find((sk) => sk.id === sel.shapeId) : undefined;
+    if (!sketch) {
+      set({ status: "돌출: 먼저 스케치를 선택하세요 (스케치 항목 클릭)" });
       return;
     }
     try {
       const shapeId = `extrude-${++counter}`;
-      const mesh = extrudeProfile(pts, SKETCH_PLANES[sketchPlane], depth, shapeId);
+      const mesh = extrudeProfile(sketch.profile, SKETCH_PLANES[sketch.plane], depth, shapeId);
       set((s) => ({
         shapes: [...s.shapes, mesh],
-        sketchActive: false,
-        sketchPlane: null,
-        sketchPoints: [],
-        sketchDraft: null,
-        sketchHover: null,
-        sketchLineDrawing: false,
+        selection: [],
         history: [...s.history, { id: shapeId, label: "돌출" }],
-        status: `돌출 완료 → ${shapeId}`,
+        status: `돌출 완료 → ${shapeId} (높이 ${depth})`,
       }));
     } catch (err) {
       set({ status: `오류: ${err instanceof Error ? err.message : String(err)}` });

@@ -7,6 +7,7 @@ import type { TessellatedMesh } from "../kernel/types";
 import { CameraRig } from "./CameraRig";
 import { ShapeMesh } from "./ShapeMesh";
 import { SketchLayer } from "./SketchLayer";
+import { SavedSketches } from "./SavedSketches";
 
 const ORIGIN: Vec3 = [0, 0, 0];
 
@@ -70,6 +71,7 @@ export function Scene(): JSX.Element {
         <MovableShape key={mesh.shapeId} mesh={mesh} gizmo={mesh.shapeId === gizmoId} />
       ))}
 
+      <SavedSketches />
       <SketchLayer />
     </>
   );

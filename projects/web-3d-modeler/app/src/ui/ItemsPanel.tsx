@@ -7,6 +7,7 @@ import { useAppStore, selectionBodyIds } from "../store/useAppStore";
 
 export function ItemsPanel(): JSX.Element | null {
   const shapes = useAppStore((s) => s.shapes);
+  const sketches = useAppStore((s) => s.sketches);
   const selection = useAppStore((s) => s.selection);
   const selectEntity = useAppStore((s) => s.selectEntity);
   const removeShape = useAppStore((s) => s.removeShape);
@@ -15,6 +16,7 @@ export function ItemsPanel(): JSX.Element | null {
 
   if (!show) return null;
   const bodyIds = selectionBodyIds(selection);
+  const selSketchId = selection.find((it) => it.kind === "sketch")?.shapeId;
 
   return (
     <div className="pointer-events-auto absolute left-0 top-12 bottom-0 z-20 flex w-44 flex-col border-r border-aa-border bg-aa-surface/95 backdrop-blur">
@@ -26,7 +28,21 @@ export function ItemsPanel(): JSX.Element | null {
       </div>
 
       <div className="flex-1 overflow-y-auto p-1.5">
-        {shapes.length === 0 ? (
+        {sketches.map((sk) => (
+          <button
+            key={sk.id}
+            type="button"
+            onClick={() => selectEntity({ kind: "sketch", shapeId: sk.id, index: -1 })}
+            className={[
+              "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left",
+              selSketchId === sk.id ? "bg-aa-accent/15" : "aa-hoverable",
+            ].join(" ")}
+          >
+            <span className={["h-2 w-2 rounded-full", selSketchId === sk.id ? "bg-aa-accent" : "bg-blue-400"].join(" ")} />
+            <span className="truncate text-xs text-aa-text">{sk.id}</span>
+          </button>
+        ))}
+        {shapes.length === 0 && sketches.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center px-3 text-center">
             <p className="text-sm font-medium text-aa-text">작업공간이 비어 있습니다</p>
             <p className="mt-1 text-xs leading-relaxed text-aa-text-dim">

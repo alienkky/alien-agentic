@@ -6,7 +6,6 @@ import { ItemsPanel } from "./ui/ItemsPanel";
 import { HistoryPanel } from "./ui/HistoryPanel";
 import { ViewportControls } from "./ui/ViewportControls";
 import { ContextBar } from "./ui/ContextBar";
-import { SketchBar } from "./ui/SketchBar";
 import { SketchConstraintsPanel } from "./ui/SketchConstraintsPanel";
 import { SketchContextMenu } from "./ui/SketchContextMenu";
 import { StatusPill } from "./ui/StatusPill";
@@ -31,7 +30,6 @@ export function App(): JSX.Element {
       <ViewportControls />
       <SketchConstraintsPanel />
       <ContextBar />
-      <SketchBar />
       <SketchContextMenu />
       <StatusPill layout={layout} />
     </div>

@@ -16,7 +16,7 @@ export function SketchContextMenu(): JSX.Element | null {
   const showEdges = useAppStore((s) => s.showEdges);
   const [pos, setPos] = useState<Pos | null>(null);
 
-  const cancelSketch = useAppStore((s) => s.cancelSketch);
+  const finishSketch = useAppStore((s) => s.finishSketch);
   const selectAll = useAppStore((s) => s.selectAll);
   const toggleEdges = useAppStore((s) => s.toggleEdges);
   const setStatus = useAppStore((s) => s.setStatus);
@@ -31,9 +31,9 @@ export function SketchContextMenu(): JSX.Element | null {
       const st = useAppStore.getState();
       if (!st.sketchActive) return;
       if (e.key === "Escape") {
-        // 선 그리는 중이면 선만 종료(선택 모드로), 아니면 스케치 종료
+        // 선 그리는 중이면 선만 종료(선택 모드로), 아니면 스케치 저장 종료
         if (st.sketchLineDrawing) st.finishLine();
-        else st.cancelSketch();
+        else st.finishSketch();
         setPos(null);
       }
     };
@@ -53,7 +53,7 @@ export function SketchContextMenu(): JSX.Element | null {
   };
 
   const items = [
-    { label: "스케칭 종료", shortcut: "Esc", onClick: run(cancelSketch) },
+    { label: "스케칭 종료", shortcut: "Esc", onClick: run(finishSketch) },
     { label: "모두 선택", shortcut: "Ctrl+A", onClick: run(selectAll) },
     { label: "에지 표시", checked: showEdges, onClick: run(toggleEdges), divider: true },
     { label: "숨긴 모서리 표시", onClick: run(() => setStatus("숨긴 모서리 — 준비 중")) },

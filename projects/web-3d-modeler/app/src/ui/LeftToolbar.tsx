@@ -67,8 +67,9 @@ function TopGroup(): JSX.Element {
 function SketchPalette(): JSX.Element {
   const tool = useAppStore((s) => s.sketchTool);
   const setSketchTool = useAppStore((s) => s.setSketchTool);
-  const cancelSketch = useAppStore((s) => s.cancelSketch);
+  const finishSketch = useAppStore((s) => s.finishSketch);
   const setStatus = useAppStore((s) => s.setStatus);
+  const planeId = useAppStore((s) => s.sketchPlane);
 
   const pick = (t: SketchTool) => setSketchTool(t);
   const soon = (name: string) => setStatus(`${name} — 준비 중`);
@@ -76,7 +77,7 @@ function SketchPalette(): JSX.Element {
   return (
     <div className="flex max-h-[calc(100vh-9rem)] flex-col gap-0.5 overflow-y-auto border-t border-aa-border pt-1.5">
       <Row icon={<SearchIcon />} label="검색" shortcut="⌃F" onClick={() => soon("검색")} />
-      <Row icon={<CloseIcon />} label="스케칭 종료" sub="활성 평면: 지면(XZ)" onClick={cancelSketch} />
+      <Row icon={<CloseIcon />} label="스케칭 종료" sub={planeId ? "프로파일 저장" : "활성 평면 없음"} onClick={finishSketch} />
       <Row icon={<LineIcon />} label="선" shortcut="L" active={tool === "line"} onClick={() => pick("line")} />
       <Row icon={<ArcIcon />} label="호" shortcut="A" onClick={() => soon("호")} />
       <Row icon={<SplineIcon />} label="스플라인" sub="맞춤 점" shortcut="I" onClick={() => soon("스플라인")} />
@@ -101,12 +102,11 @@ export function LeftToolbar(): JSX.Element {
   const sketchActive = useAppStore((s) => s.sketchActive);
   const addPrimitive = useAppStore((s) => s.addPrimitive);
   const beginSketch = useAppStore((s) => s.beginSketch);
-  const setSketchTool = useAppStore((s) => s.setSketchTool);
   const booleanOp = useAppStore((s) => s.booleanOp);
+  const extrudeSketch = useAppStore((s) => s.extrudeSketch);
   const setStatus = useAppStore((s) => s.setStatus);
 
   const toggle = (c: Category) => setOpen((cur) => (cur === c ? null : c));
-  const startSketch = (tool: SketchTool) => { beginSketch(); setSketchTool(tool); setOpen(null); };
   const soon = (n: string) => { setStatus(`${n} — 준비 중`); setOpen(null); };
 
   return (
@@ -119,7 +119,7 @@ export function LeftToolbar(): JSX.Element {
         ) : (
           <div className="flex flex-col gap-0.5 border-t border-aa-border pt-1.5">
             <Row icon={<SearchIcon />} label="검색" shortcut="⌃F" onClick={() => toggle("search")} active={open === "search"} />
-            <Row icon={<SketchIcon />} label="스케치" onClick={() => toggle("sketch")} active={open === "sketch"} />
+            <Row icon={<SketchIcon />} label="스케치" onClick={() => { setOpen(null); beginSketch(); }} active={sketchActive} />
             <Row icon={<InsertIcon />} label="삽입" onClick={() => toggle("insert")} active={open === "insert"} />
             <Row icon={<ConstructIcon />} label="구성" onClick={() => toggle("construct")} active={open === "construct"} />
             <Row icon={<TransformIcon />} label="변형" onClick={() => toggle("transform")} active={open === "transform"} />
@@ -149,13 +149,6 @@ export function LeftToolbar(): JSX.Element {
               <FlyoutItem icon={<SphereIcon />} label="구" onClick={() => { void addPrimitive("sphere"); setOpen(null); }} />
             </>
           )}
-          {open === "sketch" && (
-            <>
-              <FlyoutItem icon={<RectIcon />} label="사각형" shortcut="R" onClick={() => startSketch("rectangle")} />
-              <FlyoutItem icon={<Circle2DIcon />} label="원" shortcut="C" onClick={() => startSketch("circle")} />
-              <FlyoutItem icon={<LineIcon />} label="선" shortcut="L" onClick={() => startSketch("line")} />
-            </>
-          )}
           {open === "construct" && (
             <>
               <FlyoutItem icon={<ConstructIcon />} label="평면" onClick={() => soon("구성 평면")} />
@@ -177,7 +170,7 @@ export function LeftToolbar(): JSX.Element {
             <>
               <FlyoutItem icon={<OffsetIcon />} label="면 오프셋" onClick={() => soon("면 오프셋")} />
               <FlyoutItem icon={<ToolsIcon />} label="모따기/모깎기" shortcut="F" onClick={() => soon("필렛/모따기")} />
-              <FlyoutItem icon={<ExtrudeIcon />} label="돌출" shortcut="E" onClick={() => { setStatus("돌출: 스케치로 프로파일을 그린 뒤 돌출하세요"); setOpen(null); }} />
+              <FlyoutItem icon={<ExtrudeIcon />} label="돌출" shortcut="E" onClick={() => { extrudeSketch(4); setOpen(null); }} />
               <FlyoutItem icon={<BoxIcon />} label="셸" shortcut="H" onClick={() => soon("셸")} />
               <FlyoutItem icon={<SphereIcon />} label="로프트" onClick={() => soon("로프트")} />
               <FlyoutItem icon={<UnionIcon />} label="결합" shortcut="⌃U" onClick={() => { void booleanOp("fuse"); setOpen(null); }} />

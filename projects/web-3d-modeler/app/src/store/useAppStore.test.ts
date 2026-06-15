@@ -118,6 +118,27 @@ describe("useAppStore — 스케치 도구", () => {
     expect(pts[2]).toEqual({ u: 10, v: 3 }); // 뒤 점도 +5 이동
   });
 
+  it("스케칭 종료 → 스케치 항목 저장, 도구 돌출 → 바디 생성", () => {
+    const st = useAppStore.getState();
+    st.clear();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("rectangle");
+    st.sketchDragStart({ u: 0, v: 0 });
+    st.sketchDragMove({ u: 4, v: 3 });
+    st.sketchDragEnd();
+    st.finishSketch();
+    const after = useAppStore.getState();
+    expect(after.sketchActive).toBe(false);
+    expect(after.sketches).toHaveLength(1);
+    expect(after.shapes).toHaveLength(0); // 돌출 전 — 바디 없음
+    // 스케치 선택 후 돌출
+    const sk = after.sketches[0]!;
+    st.selectEntity({ kind: "sketch", shapeId: sk.id, index: -1 });
+    st.extrudeSketch(5);
+    expect(useAppStore.getState().shapes).toHaveLength(1);
+  });
+
   it("선: 클릭마다 점 누적", () => {
     const st = useAppStore.getState();
     st.beginSketch();
