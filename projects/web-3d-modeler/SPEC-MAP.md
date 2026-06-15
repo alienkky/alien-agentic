@@ -12,7 +12,7 @@
 | 2.1 InputController | 터치=카메라 / 펜=형상 분리 | ✅ | Pointer Events 분기 |
 | 2.2 CameraManager | 뷰큐브 alignToAxis(보간) | 🟡 | 표준뷰 즉시전환(보간 0.3s 추가 예정) |
 | 2.2 GridSystem | 어댑티브 그리드 + snapToGrid | 🟡 | 격자 스냅 0.5(고정) → 어댑티브 예정 |
-| 3.1 SketchPlane | 3 표준평면 선택 + 평면 위 스케치 | ✅ | XY/YZ/XZ 선택→정렬→그 평면(u,v) 스케치·돌출 (3점 커스텀평면/면 위는 다음) |
+| 3.1 SketchPlane | 3 표준평면 + 면 위 스케치 | ✅ | XY/YZ/XZ + **면 클릭→그 면 평면**(planeFromFace). 3점 커스텀평면은 다음 |
 | 3.2 CurveEntity | Line/Arc | 🟡 | Line/Rect/Circle/타원/다각형 (Arc·스플라인 미구현) |
 | **3.3 ProfileDetector** | **닫힌 루프 → 파란 면** | 🟡→✅ | **← 이번 구현 (블루 필)** |
 
