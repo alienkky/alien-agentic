@@ -82,6 +82,7 @@ function SegmentDimInput({ value, onCommit, onCancel }: { value: number; onCommi
 }
 
 const DIM_LABEL = "whitespace-nowrap rounded bg-aa-bg/90 px-1.5 py-0.5 text-xs font-semibold text-aa-accent";
+const DIM_ACTIVE = "whitespace-nowrap rounded bg-blue-600 px-1.5 py-0.5 text-xs font-semibold text-white ring-1 ring-blue-300";
 
 /** 평면 선택 UI — 3개 클릭 가능한 사각형. */
 function PlanePicker(): JSX.Element {
@@ -125,6 +126,7 @@ export function SketchLayer(): JSX.Element | null {
   const selectedSeg = useAppStore((s) => s.sketchSelectedSeg);
   const selectSegment = useAppStore((s) => s.selectSketchSegment);
   const setSegmentLength = useAppStore((s) => s.setSegmentLength);
+  const lineDrawing = useAppStore((s) => s.sketchLineDrawing);
 
   const plane = planeId ? SKETCH_PLANES[planeId] : null;
 
@@ -138,11 +140,11 @@ export function SketchLayer(): JSX.Element | null {
       if (tool === "circle") {
         const r = Math.hypot(current.u - start.u, current.v - start.v);
         preview = circlePts(start, r); close = true;
-        dim = { label: `R ${r.toFixed(1)}`, uv: start };
+        dim = { label: `⌀ ${(r * 2).toFixed(4)} mm`, uv: midUV(start, current) };
       } else {
         preview = rectPts(start, current); close = true;
         dim = {
-          label: `${Math.abs(current.u - start.u).toFixed(1)} × ${Math.abs(current.v - start.v).toFixed(1)}`,
+          label: `${Math.abs(current.u - start.u).toFixed(2)} × ${Math.abs(current.v - start.v).toFixed(2)} mm`,
           uv: { u: (start.u + current.u) / 2, v: (start.v + current.v) / 2 },
         };
       }
@@ -242,12 +244,12 @@ export function SketchLayer(): JSX.Element | null {
             );
           })}
 
-          {/* 러버밴드: 마지막 점 → 커서, 실시간 길이 */}
-          {hover && points.length > 0 && (
+          {/* 러버밴드: 그리는 중에만, 마지막 점 → 커서 + 실시간 길이(파란 박스) */}
+          {lineDrawing && hover && points.length > 0 && (
             <group>
               <Line points={[toWorld(points[points.length - 1]!), toWorld(hover)]} color="#8b97a8" lineWidth={1.5} />
               <Html position={toWorld(midUV(points[points.length - 1]!, hover))} center style={{ pointerEvents: "none" }}>
-                <div className={DIM_LABEL}>{segLen(points[points.length - 1]!, hover).toFixed(2)} mm</div>
+                <div className={DIM_ACTIVE}>{segLen(points[points.length - 1]!, hover).toFixed(2)} mm</div>
               </Html>
             </group>
           )}
@@ -255,9 +257,20 @@ export function SketchLayer(): JSX.Element | null {
       ) : (
         <>
           {linePts.length >= 2 && <Line points={linePts} color="#4fd1c5" lineWidth={2} />}
+          {/* 원: 지름선 표시 */}
+          {draft && tool === "circle" && (
+            <Line
+              points={[
+                toWorld({ u: 2 * draft.start.u - draft.current.u, v: 2 * draft.start.v - draft.current.v }),
+                toWorld(draft.current),
+              ]}
+              color="#e6ebf2"
+              lineWidth={1}
+            />
+          )}
           {dim && (
             <Html position={toWorld(dim.uv)} center style={{ pointerEvents: "none" }}>
-              <div className={DIM_LABEL}>{dim.label}</div>
+              <div className={DIM_ACTIVE}>{dim.label}</div>
             </Html>
           )}
         </>

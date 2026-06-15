@@ -88,6 +88,22 @@ describe("useAppStore — 스케치 도구", () => {
     expect(useAppStore.getState().sketchPoints).toHaveLength(48);
   });
 
+  it("선: 끝점 다시 클릭 → 그리기 종료(선택 모드), 점 추가 안 됨", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("line");
+    expect(useAppStore.getState().sketchLineDrawing).toBe(true);
+    st.sketchClickPoint({ u: 0, v: 0 });
+    st.sketchClickPoint({ u: 5, v: 0 });
+    st.sketchClickPoint({ u: 5, v: 0 }); // 끝점 다시 클릭 → 종료
+    expect(useAppStore.getState().sketchLineDrawing).toBe(false);
+    expect(useAppStore.getState().sketchPoints).toHaveLength(2);
+    // 종료 후엔 점이 더 안 늘어난다
+    st.sketchClickPoint({ u: 9, v: 9 });
+    expect(useAppStore.getState().sketchPoints).toHaveLength(2);
+  });
+
   it("선분 길이 설정: 방향 유지하며 정확한 길이로 (이후 점 동반 이동)", () => {
     const st = useAppStore.getState();
     st.beginSketch();

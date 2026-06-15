@@ -83,6 +83,8 @@ interface AppState {
   sketchPoints: SketchPoint[];
   /** 치수 편집 중인 선분 인덱스 (points[i]→points[i+1]) */
   sketchSelectedSeg: number | null;
+  /** 선을 적극적으로 그리는 중인지 (false 면 선택 모드) */
+  sketchLineDrawing: boolean;
   /** 내역(History) — 단계별 작업 로그 (우측 패널). 명세 Module 1.2 토대 */
   history: { id: string; label: string }[];
   backend: KernelBackend;
@@ -134,6 +136,8 @@ interface AppState {
   selectSketchSegment: (i: number) => void;
   setSegmentLength: (i: number, len: number) => void;
   clearSketchSegment: () => void;
+  /** 선 그리기 종료 → 선택 모드 */
+  finishLine: () => void;
   undoSketchPoint: () => void;
   cancelSketch: () => void;
   commitExtrude: (depth: number) => void;
@@ -162,6 +166,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   sketchHover: null,
   sketchPoints: [],
   sketchSelectedSeg: null,
+  sketchLineDrawing: false,
   history: [],
   displayMode: "shaded",
   panels: { items: true, history: true },
@@ -347,6 +352,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       sketchPlane: id,
       sketchPoints: [],
       sketchDraft: null,
+      sketchLineDrawing: s.sketchTool === "line",
       camera: viewPreset(s.camera, PLANE_VIEW[id]), // 그 면을 정면으로
       status: `${SKETCH_PLANES[id].label} 위에서 그리세요`,
     })),
@@ -356,6 +362,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       sketchTool: tool,
       sketchDraft: null,
       sketchPoints: [],
+      sketchSelectedSeg: null,
+      sketchLineDrawing: tool === "line",
       status:
         tool === "rectangle"
           ? "사각형 — 드래그해 그리기"
@@ -398,15 +406,28 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ sketchDraft: null, sketchPoints: pts, status: pts.length ? "프로파일 완성 — 돌출하세요" : "너무 작아요 — 다시 드래그" });
   },
 
-  // 선: 점 클릭 누적
+  // 선: 점 클릭 누적 (마지막 점 다시 클릭 → 종료)
   sketchClickPoint: (raw) => {
-    if (get().sketchTool !== "line" || !get().sketchPlane) return;
+    const s = get();
+    if (s.sketchTool !== "line" || !s.sketchPlane) return;
+    if (!s.sketchLineDrawing) {
+      // 선택 모드 — 빈 곳 클릭은 선분 선택 해제
+      set({ sketchSelectedSeg: null });
+      return;
+    }
     const p: SketchPoint = { u: snap(raw.u), v: snap(raw.v) };
-    set((s) => ({ sketchPoints: [...s.sketchPoints, p], sketchSelectedSeg: null, status: `선 — 점 ${s.sketchPoints.length + 1}개` }));
+    const last = s.sketchPoints[s.sketchPoints.length - 1];
+    if (last && Math.hypot(p.u - last.u, p.v - last.v) < 0.4) {
+      // 끝점 다시 클릭 → 그리기 종료, 선택 모드로
+      set({ sketchLineDrawing: false, sketchHover: null, status: "선 완료 — 선분을 클릭해 치수 편집" });
+      return;
+    }
+    set({ sketchPoints: [...s.sketchPoints, p], sketchSelectedSeg: null, status: `선 — 점 ${s.sketchPoints.length + 1}개 (끝점 다시 클릭/Esc 로 종료)` });
   },
 
   selectSketchSegment: (i) => set({ sketchSelectedSeg: i }),
   clearSketchSegment: () => set({ sketchSelectedSeg: null }),
+  finishLine: () => set({ sketchLineDrawing: false, sketchHover: null, status: "선 완료 — 선분을 클릭해 치수 편집" }),
 
   setSegmentLength: (i, len) =>
     set((s) => {
@@ -431,7 +452,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({ sketchPoints: s.sketchPoints.slice(0, -1), sketchDraft: null, sketchSelectedSeg: null })),
 
   cancelSketch: () =>
-    set({ sketchActive: false, sketchPlane: null, sketchPoints: [], sketchDraft: null, sketchHover: null, sketchSelectedSeg: null, status: "스케치 취소" }),
+    set({ sketchActive: false, sketchPlane: null, sketchPoints: [], sketchDraft: null, sketchHover: null, sketchSelectedSeg: null, sketchLineDrawing: false, status: "스케치 취소" }),
 
   commitExtrude: (depth) => {
     const { sketchPoints: pts, sketchPlane } = get();
@@ -449,6 +470,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         sketchPoints: [],
         sketchDraft: null,
         sketchHover: null,
+        sketchLineDrawing: false,
         history: [...s.history, { id: shapeId, label: "돌출" }],
         status: `돌출 완료 → ${shapeId}`,
       }));

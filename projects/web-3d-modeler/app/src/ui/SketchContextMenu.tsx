@@ -28,9 +28,12 @@ export function SketchContextMenu(): JSX.Element | null {
       setPos({ x: e.clientX, y: e.clientY });
     };
     const onKey = (e: KeyboardEvent) => {
-      if (!useAppStore.getState().sketchActive) return;
+      const st = useAppStore.getState();
+      if (!st.sketchActive) return;
       if (e.key === "Escape") {
-        useAppStore.getState().cancelSketch();
+        // 선 그리는 중이면 선만 종료(선택 모드로), 아니면 스케치 종료
+        if (st.sketchLineDrawing) st.finishLine();
+        else st.cancelSketch();
         setPos(null);
       }
     };
