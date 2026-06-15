@@ -138,6 +138,12 @@ interface AppState {
   toggleSnap: (key: "grid" | "sketchLine" | "sketchPoint" | "guide3d" | "farEdge" | "guidePoint" | "snapHint") => void;
   /** 모든 바디 선택 */
   selectAll: () => void;
+  /** 단위 (단위 팝업) */
+  unit: "mm" | "cm" | "m" | "in" | "ft";
+  setUnit: (u: "mm" | "cm" | "m" | "in" | "ft") => void;
+  /** 구속조건 설정 (스케치 구속 팝업) */
+  sketchPrefs: { auto: boolean; showConstraints: boolean; showDims: boolean; anchor: "first" | "last" };
+  setSketchPref: (patch: Partial<{ auto: boolean; showConstraints: boolean; showDims: boolean; anchor: "first" | "last" }>) => void;
   setHovered: (ref: FaceRef | null) => void;
   /** 항목 선택 토글 (탭). additive=false 면 단일 선택으로 교체 */
   selectEntity: (item: SelItem, additive?: boolean) => void;
@@ -197,6 +203,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   panels: { items: true, history: true },
   showEdges: true,
   snap: { grid: true, sketchLine: true, sketchPoint: true, guide3d: true, farEdge: true, guidePoint: true, snapHint: true },
+  unit: "mm",
+  sketchPrefs: { auto: true, showConstraints: false, showDims: true, anchor: "first" },
   backend: "deterministic",
   status: "초기화 중…",
   busy: false,
@@ -333,6 +341,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   togglePanel: (p) => set((s) => ({ panels: { ...s.panels, [p]: !s.panels[p] } })),
   toggleEdges: () => set((s) => ({ showEdges: !s.showEdges, status: `에지 표시: ${!s.showEdges ? "켜짐" : "꺼짐"}` })),
   toggleSnap: (key) => set((s) => ({ snap: { ...s.snap, [key]: !s.snap[key] } })),
+  setUnit: (u) => set({ unit: u, status: `단위: ${u}` }),
+  setSketchPref: (patch) => set((s) => ({ sketchPrefs: { ...s.sketchPrefs, ...patch } })),
   selectAll: () =>
     set((s) => ({
       selection: s.shapes.map((m) => ({ kind: "body" as const, shapeId: m.shapeId, index: -1 })),
