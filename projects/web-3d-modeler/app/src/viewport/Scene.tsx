@@ -7,6 +7,7 @@ import type { TessellatedMesh } from "../kernel/types";
 import { CameraRig } from "./CameraRig";
 import { ShapeMesh } from "./ShapeMesh";
 import { SketchLayer } from "./SketchLayer";
+import { SavedSketches } from "./SavedSketches";
 
 const ORIGIN: Vec3 = [0, 0, 0];
 
@@ -42,6 +43,9 @@ export function Scene(): JSX.Element {
   const shapes = useAppStore((s) => s.shapes);
   const selection = useAppStore((s) => s.selection);
   const sketchActive = useAppStore((s) => s.sketchActive);
+  const showGrid = useAppStore((s) => s.showGrid);
+  const showAxes = useAppStore((s) => s.showAxes);
+  const hidden = useAppStore((s) => s.hidden);
 
   // 선택이 정확히 한 바디에 속할 때만 이동 기즈모를 보인다.
   const bodyIds = selectionBodyIds(selection);
@@ -55,21 +59,18 @@ export function Scene(): JSX.Element {
       <directionalLight position={[8, 12, 6]} intensity={1.1} />
       <directionalLight position={[-6, 4, -8]} intensity={0.5} />
 
-      <Grid
-        args={[40, 40]}
-        cellSize={1}
-        cellColor="#2a3344"
-        sectionSize={5}
-        sectionColor="#3a4a63"
-        fadeDistance={60}
-        infiniteGrid
-      />
-      <axesHelper args={[3]} />
+      {showGrid && (
+        <Grid args={[40, 40]} cellSize={1} cellColor="#2a3344" sectionSize={5} sectionColor="#3a4a63" fadeDistance={60} infiniteGrid />
+      )}
+      {showAxes && <axesHelper args={[3]} />}
 
-      {shapes.map((mesh) => (
-        <MovableShape key={mesh.shapeId} mesh={mesh} gizmo={mesh.shapeId === gizmoId} />
-      ))}
+      {shapes
+        .filter((mesh) => !hidden.includes(mesh.shapeId))
+        .map((mesh) => (
+          <MovableShape key={mesh.shapeId} mesh={mesh} gizmo={mesh.shapeId === gizmoId} />
+        ))}
 
+      <SavedSketches />
       <SketchLayer />
     </>
   );

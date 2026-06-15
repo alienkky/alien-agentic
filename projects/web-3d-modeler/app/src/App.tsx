@@ -6,8 +6,9 @@ import { ItemsPanel } from "./ui/ItemsPanel";
 import { HistoryPanel } from "./ui/HistoryPanel";
 import { ViewportControls } from "./ui/ViewportControls";
 import { ContextBar } from "./ui/ContextBar";
-import { SketchBar } from "./ui/SketchBar";
 import { SketchConstraintsPanel } from "./ui/SketchConstraintsPanel";
+import { SketchContextMenu } from "./ui/SketchContextMenu";
+import { NormalContextMenu } from "./ui/NormalContextMenu";
 import { StatusPill } from "./ui/StatusPill";
 import { useAppStore } from "./store/useAppStore";
 import { useResponsiveShell } from "./device/useResponsiveShell";
@@ -30,7 +31,8 @@ export function App(): JSX.Element {
       <ViewportControls />
       <SketchConstraintsPanel />
       <ContextBar />
-      <SketchBar />
+      <SketchContextMenu />
+      <NormalContextMenu />
       <StatusPill layout={layout} />
     </div>
   );

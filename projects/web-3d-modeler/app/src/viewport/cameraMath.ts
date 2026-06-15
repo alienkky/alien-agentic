@@ -56,15 +56,18 @@ export function pan(state: CameraState, dxPx: number, dyPx: number): CameraState
   return { ...state, target: [tx, ty, tz] };
 }
 
-export type ViewPreset = "iso" | "front" | "top" | "right";
+export type ViewPreset = "iso" | "front" | "back" | "top" | "bottom" | "right" | "left";
 
 /** 표준 뷰로 카메라 방향을 맞춘다 (radius·target 유지). Shapr3D 네비큐브 대응. */
 export function viewPreset(state: CameraState, view: ViewPreset): CameraState {
   const angles: Record<ViewPreset, { azimuth: number; polar: number }> = {
     iso: { azimuth: Math.PI / 4, polar: Math.PI / 3 },
     front: { azimuth: 0, polar: Math.PI / 2 },
+    back: { azimuth: Math.PI, polar: Math.PI / 2 },
     top: { azimuth: 0, polar: POLAR_EPS },
+    bottom: { azimuth: 0, polar: Math.PI - POLAR_EPS },
     right: { azimuth: Math.PI / 2, polar: Math.PI / 2 },
+    left: { azimuth: -Math.PI / 2, polar: Math.PI / 2 },
   };
   const a = angles[view];
   return { ...state, azimuth: a.azimuth, polar: a.polar };

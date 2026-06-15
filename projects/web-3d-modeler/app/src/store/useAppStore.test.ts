@@ -51,47 +51,102 @@ describe("useAppStore — 스케치 도구", () => {
     useAppStore.getState().cancelSketch();
   });
 
-  it("사각형: 드래그 → 4점 프로파일 (격자 스냅)", () => {
+  it("기준면 미선택이면 그릴 수 없다", () => {
     const st = useAppStore.getState();
     st.beginSketch();
+    expect(useAppStore.getState().sketchPlane).toBeNull();
     st.setSketchTool("rectangle");
-    st.sketchDragStart({ x: 0.1, z: 0.1 }); // → (0,0)
-    st.sketchDragMove({ x: 3.9, z: 2.1 }); // → (4,2)
+    st.sketchDragStart({ u: 0, v: 0 });
+    st.sketchDragMove({ u: 4, v: 2 });
+    st.sketchDragEnd();
+    expect(useAppStore.getState().sketchPoints).toHaveLength(0);
+  });
+
+  it("사각형: 평면 선택 후 드래그 → 4점 프로파일 (격자 스냅)", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("rectangle");
+    st.sketchDragStart({ u: 0.1, v: 0.1 }); // → (0,0)
+    st.sketchDragMove({ u: 3.9, v: 2.1 }); // → (4,2)
     st.sketchDragEnd();
     const pts = useAppStore.getState().sketchPoints;
     expect(pts).toHaveLength(4);
-    expect(pts).toContainEqual({ x: 0, z: 0 });
-    expect(pts).toContainEqual({ x: 4, z: 2 });
+    expect(pts).toContainEqual({ u: 0, v: 0 });
+    expect(pts).toContainEqual({ u: 4, v: 2 });
     expect(useAppStore.getState().sketchDraft).toBeNull();
   });
 
-  it("원: 중심에서 드래그 → 48점", () => {
+  it("원: 평면 선택 후 중심에서 드래그 → 48점", () => {
     const st = useAppStore.getState();
     st.beginSketch();
+    st.pickPlane("xy");
     st.setSketchTool("circle");
-    st.sketchDragStart({ x: 0, z: 0 });
-    st.sketchDragMove({ x: 3, z: 0 });
+    st.sketchDragStart({ u: 0, v: 0 });
+    st.sketchDragMove({ u: 3, v: 0 });
     st.sketchDragEnd();
     expect(useAppStore.getState().sketchPoints).toHaveLength(48);
   });
 
-  it("너무 작은 드래그는 프로파일을 만들지 않는다", () => {
+  it("선: 끝점 다시 클릭 → 그리기 종료(선택 모드), 점 추가 안 됨", () => {
     const st = useAppStore.getState();
     st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("line");
+    expect(useAppStore.getState().sketchLineDrawing).toBe(true);
+    st.sketchClickPoint({ u: 0, v: 0 });
+    st.sketchClickPoint({ u: 5, v: 0 });
+    st.sketchClickPoint({ u: 5, v: 0 }); // 끝점 다시 클릭 → 종료
+    expect(useAppStore.getState().sketchLineDrawing).toBe(false);
+    expect(useAppStore.getState().sketchPoints).toHaveLength(2);
+    // 종료 후엔 점이 더 안 늘어난다
+    st.sketchClickPoint({ u: 9, v: 9 });
+    expect(useAppStore.getState().sketchPoints).toHaveLength(2);
+  });
+
+  it("선분 길이 설정: 방향 유지하며 정확한 길이로 (이후 점 동반 이동)", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("line");
+    st.sketchClickPoint({ u: 0, v: 0 });
+    st.sketchClickPoint({ u: 5, v: 0 }); // 길이 5
+    st.sketchClickPoint({ u: 5, v: 3 });
+    st.setSegmentLength(0, 10); // 0→1 구간을 10으로
+    const pts = useAppStore.getState().sketchPoints;
+    expect(pts[1]).toEqual({ u: 10, v: 0 });
+    expect(pts[2]).toEqual({ u: 10, v: 3 }); // 뒤 점도 +5 이동
+  });
+
+  it("스케칭 종료 → 스케치 항목 저장, 도구 돌출 → 바디 생성", () => {
+    const st = useAppStore.getState();
+    st.clear();
+    st.beginSketch();
+    st.pickPlane("xz");
     st.setSketchTool("rectangle");
-    st.sketchDragStart({ x: 0, z: 0 });
-    st.sketchDragMove({ x: 0, z: 0 });
+    st.sketchDragStart({ u: 0, v: 0 });
+    st.sketchDragMove({ u: 4, v: 3 });
     st.sketchDragEnd();
-    expect(useAppStore.getState().sketchPoints).toHaveLength(0);
+    st.finishSketch();
+    const after = useAppStore.getState();
+    expect(after.sketchActive).toBe(false);
+    expect(after.sketches).toHaveLength(1);
+    expect(after.shapes).toHaveLength(0); // 돌출 전 — 바디 없음
+    // 스케치 선택 후 돌출
+    const sk = after.sketches[0]!;
+    st.selectEntity({ kind: "sketch", shapeId: sk.id, index: -1 });
+    st.extrudeSketch(5);
+    expect(useAppStore.getState().shapes).toHaveLength(1);
   });
 
   it("선: 클릭마다 점 누적", () => {
     const st = useAppStore.getState();
     st.beginSketch();
+    st.pickPlane("yz");
     st.setSketchTool("line");
-    st.sketchClickPoint({ x: 0, z: 0 });
-    st.sketchClickPoint({ x: 2, z: 0 });
-    st.sketchClickPoint({ x: 2, z: 2 });
+    st.sketchClickPoint({ u: 0, v: 0 });
+    st.sketchClickPoint({ u: 2, v: 0 });
+    st.sketchClickPoint({ u: 2, v: 2 });
     expect(useAppStore.getState().sketchPoints).toHaveLength(3);
   });
 });
