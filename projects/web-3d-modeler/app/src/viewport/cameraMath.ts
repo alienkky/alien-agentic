@@ -73,6 +73,22 @@ export function viewPreset(state: CameraState, view: ViewPreset): CameraState {
   return { ...state, azimuth: a.azimuth, polar: a.polar };
 }
 
+/**
+ * 카메라를 면 법선 정면으로 정렬 — 그 면을 정면으로 바라보게(타깃=면 중심).
+ * 면 위 스케치 진입 시 사용. 법선이 수직(위/아래)이면 방위각은 유지.
+ */
+export function alignToNormal(
+  state: CameraState,
+  normal: [number, number, number],
+  target: [number, number, number],
+): CameraState {
+  const N = normalize(normal);
+  const polar = clamp(Math.acos(clamp(N[1], -1, 1)), POLAR_EPS, Math.PI - POLAR_EPS);
+  const sinP = Math.sin(polar);
+  const azimuth = sinP < 1e-4 ? state.azimuth : Math.atan2(N[0], N[2]);
+  return { ...state, azimuth, polar, target };
+}
+
 export function toCartesian(state: CameraState): [number, number, number] {
   const { polar, azimuth, radius, target } = state;
   const sinP = Math.sin(polar);

@@ -4,6 +4,8 @@
 import { useState, type ReactNode } from "react";
 import { useAppStore, type SketchTool } from "../store/useAppStore";
 import { buildMouse } from "../demo/mouse";
+import { buildBracket } from "../demo/bracket";
+import { roundedBox } from "../kernel/roundedBox";
 import {
   BoxIcon, CylinderIcon, SphereIcon, SketchIcon, SearchIcon, InsertIcon,
   ConstructIcon, TransformIcon, ToolsIcon, LayersIcon, SectionIcon, MeasureIcon,
@@ -148,11 +150,13 @@ export function LeftToolbar(): JSX.Element {
               <div className="my-1 h-px bg-aa-border" />
               <div className="px-3 py-1 text-[10px] text-aa-text-dim">기본 바디</div>
               <FlyoutItem icon={<BoxIcon />} label="박스" onClick={() => { void addPrimitive("box"); setOpen(null); }} />
+              <FlyoutItem icon={<BoxIcon />} label="둥근 박스" onClick={() => { addMesh(roundedBox(4, 4, 4, 0.6, `rbox-${Date.now()}`), "둥근 박스"); setOpen(null); }} />
               <FlyoutItem icon={<CylinderIcon />} label="실린더" onClick={() => { void addPrimitive("cylinder"); setOpen(null); }} />
               <FlyoutItem icon={<SphereIcon />} label="구" onClick={() => { void addPrimitive("sphere"); setOpen(null); }} />
               <div className="my-1 h-px bg-aa-border" />
               <div className="px-3 py-1 text-[10px] text-aa-text-dim">데모 (파이프라인 검증)</div>
               <FlyoutItem icon={<SphereIcon />} label="컴퓨터 마우스" onClick={() => { const { mouse } = buildMouse(); addMesh(mouse, "데모: 마우스"); setOpen(null); }} />
+              <FlyoutItem icon={<BoxIcon />} label="브래킷" onClick={() => { const { bracket } = buildBracket(); addMesh(bracket, "데모: 브래킷"); setOpen(null); }} />
             </>
           )}
           {open === "construct" && (

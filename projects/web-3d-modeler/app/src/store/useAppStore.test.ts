@@ -220,14 +220,26 @@ describe("useAppStore — Shapr3D식 돌출(빼기/합치기/새 바디)", () =>
     expect(after.shapes).toHaveLength(1);
   });
 
-  it("드래그 돌출: 높이는 0.1 미만으로 안 내려감", () => {
+  it("드래그 돌출: 격자 스냅 켜짐 → 0.5 단위, 음수는 최소 0.5", () => {
     const st = useAppStore.getState();
+    makeRectSketch();
+    st.startExtrudeDrag();
+    st.setExtrudeDragHeight(3.3); // 0.5 단위로 스냅 → 3.5
+    expect(useAppStore.getState().extrudeDrag!.height).toBe(3.5);
+    st.setExtrudeDragHeight(-5); // 최소 0.5
+    expect(useAppStore.getState().extrudeDrag!.height).toBe(0.5);
+    st.cancelExtrudeDrag();
+    expect(useAppStore.getState().extrudeDrag).toBeNull();
+  });
+
+  it("드래그 돌출: 격자 스냅 꺼짐 → 0.1 미만으로 안 내려감", () => {
+    const st = useAppStore.getState();
+    if (useAppStore.getState().snap.grid) st.toggleSnap("grid");
     makeRectSketch();
     st.startExtrudeDrag();
     st.setExtrudeDragHeight(-5);
     expect(useAppStore.getState().extrudeDrag!.height).toBe(0.1);
-    st.cancelExtrudeDrag();
-    expect(useAppStore.getState().extrudeDrag).toBeNull();
+    st.toggleSnap("grid"); // 원복
   });
 
   it("빼기: 겹치는 바디 없으면 변화 없음", () => {

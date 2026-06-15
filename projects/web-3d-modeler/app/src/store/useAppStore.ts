@@ -18,6 +18,7 @@ import {
   pan as panCam,
   zoom as zoomCam,
   viewPreset,
+  alignToNormal,
   type CameraState,
   type ViewPreset,
 } from "../viewport/cameraMath";
@@ -490,6 +491,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({
       sketchActive: true,
       sketchPlane: plane,
+      // 면 위 스케치면 카메라를 그 면 정면으로 자동 정렬 (펜 그리기 편의)
+      camera: plane ? alignToNormal(st.camera, plane.normal, plane.origin) : st.camera,
       sketchPoints: [],
       sketchStrokes: [],
       sketchDraft: null,
@@ -754,7 +757,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setExtrudeDragHeight: (h) =>
     set((s) => {
       if (!s.extrudeDrag) return {};
-      const height = Math.max(0.1, h);
+      // 격자 스냅이 켜져 있으면 0.5 mm 단위로 딱딱 끊는다
+      const height = s.snap.grid ? Math.max(SNAP, Math.round(h / SNAP) * SNAP) : Math.max(0.1, h);
       return { extrudeDrag: { ...s.extrudeDrag, height }, status: `돌출 높이 ${height.toFixed(1)} mm` };
     }),
   commitExtrudeDrag: () => {
