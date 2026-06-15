@@ -30,7 +30,64 @@ function normalize(a: V3): V3 {
   return [a[0] / l, a[1] / l, a[2] / l];
 }
 
-/** Rodrigues 회전: 단위축 k 둘레로 각 angle 회전한 벡터. */
+/** 메시 정점들의 중심(centroid). 중심 기준 변형(회전·스케일·미러)에 쓴다. */
+export function centroidOf(m: TessellatedMesh): V3 {
+  let x = 0, y = 0, z = 0;
+  const n = m.positions.length / 3;
+  for (let i = 0; i < m.positions.length; i += 3) {
+    x += m.positions[i]!;
+    y += m.positions[i + 1]!;
+    z += m.positions[i + 2]!;
+  }
+  return [x / n, y / n, z / n];
+}
+
+/** 중심 기준 균등 스케일 (factor 배). 법선은 균등이라 불변. */
+export function scaleMesh(m: TessellatedMesh, factor: number, center: V3, shapeId: string): TessellatedMesh {
+  const positions = new Float32Array(m.positions.length);
+  for (let i = 0; i < m.positions.length; i += 3) {
+    positions[i] = center[0] + (m.positions[i]! - center[0]) * factor;
+    positions[i + 1] = center[1] + (m.positions[i + 1]! - center[1]) * factor;
+    positions[i + 2] = center[2] + (m.positions[i + 2]! - center[2]) * factor;
+  }
+  const edges: EdgePolyline[] = m.edges.map((e) => {
+    const p = new Float32Array(e.positions.length);
+    for (let i = 0; i < e.positions.length; i += 3) {
+      p[i] = center[0] + (e.positions[i]! - center[0]) * factor;
+      p[i + 1] = center[1] + (e.positions[i + 1]! - center[1]) * factor;
+      p[i + 2] = center[2] + (e.positions[i + 2]! - center[2]) * factor;
+    }
+    return { edgeId: e.edgeId, positions: p };
+  });
+  return { ...m, positions, normals: new Float32Array(m.normals), edges, shapeId };
+}
+
+/**
+ * 중심을 지나는 축평면 기준 미러(반사). 반사는 winding 을 뒤집으므로
+ * 삼각형 인덱스 순서와 법선 부호를 함께 뒤집어 안팎이 정상이게 한다.
+ */
+export function mirrorMesh(m: TessellatedMesh, axis: 0 | 1 | 2, center: V3, shapeId: string): TessellatedMesh {
+  const positions = new Float32Array(m.positions);
+  const normals = new Float32Array(m.normals);
+  for (let i = 0; i < positions.length; i += 3) {
+    positions[i + axis] = 2 * center[axis] - positions[i + axis]!;
+    normals[i + axis] = -normals[i + axis]!;
+  }
+  // 삼각형 winding 뒤집기: (a,b,c) → (a,c,b)
+  const indices = new Uint32Array(m.indices);
+  for (let t = 0; t < indices.length; t += 3) {
+    const b = indices[t + 1]!;
+    indices[t + 1] = indices[t + 2]!;
+    indices[t + 2] = b;
+  }
+  const edges: EdgePolyline[] = m.edges.map((e) => {
+    const p = new Float32Array(e.positions);
+    for (let i = 0; i < p.length; i += 3) p[i + axis] = 2 * center[axis] - p[i + axis]!;
+    return { edgeId: e.edgeId, positions: p };
+  });
+  return { ...m, positions, normals, indices, edges, shapeId };
+}
+
 function rotateVec(v: V3, k: V3, c: number, s: number): V3 {
   const dot = k[0] * v[0] + k[1] * v[1] + k[2] * v[2];
   const crx = k[1] * v[2] - k[2] * v[1];

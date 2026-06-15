@@ -9,7 +9,7 @@ import type { TessellatedMesh, BooleanOp } from "../kernel/types";
 import { meshBoolean } from "../kernel/meshBoolean";
 import { extrudeProfile } from "../kernel/extrude";
 import { revolveProfile, type RevolveAxis } from "../kernel/revolve";
-import { translateMesh, rotateMeshAxis } from "../kernel/transformMesh";
+import { translateMesh, rotateMeshAxis, scaleMesh, mirrorMesh, centroidOf } from "../kernel/transformMesh";
 import { meshAabb, aabbOverlap } from "../kernel/aabb";
 import { parseStl } from "../kernel/stlImport";
 import { SKETCH_PLANES, planeFromFace, type PlaneId, type SketchPoint, type SketchPlaneDef } from "../kernel/sketchPlane";
@@ -145,6 +145,8 @@ interface AppState {
   extrudeDrag: { sketchId: string; height: number } | null;
   /** 패턴 다이얼로그 열림 여부 */
   patternOpen: boolean;
+  /** 바디 변형 다이얼로그 모드 (null 이면 닫힘) */
+  transformMode: "rotate" | "scale" | "mirror" | null;
   backend: KernelBackend;
   status: string;
   busy: boolean;
@@ -255,6 +257,13 @@ interface AppState {
   patternCircular: (axis: Axis3, count: number, angleDeg: number) => void;
   openPattern: () => void;
   closePattern: () => void;
+
+  /** 바디 변형 — 모두 바디 중심 기준 제자리 변형 (선택 바디 대상) */
+  rotateBody: (axis: Axis3, angleDeg: number) => void;
+  scaleBody: (factor: number) => void;
+  mirrorBody: (axis: Axis3) => void;
+  openTransform: (mode: "rotate" | "scale" | "mirror") => void;
+  closeTransform: () => void;
 }
 
 let kernel: KernelHandle | null = null;
@@ -288,6 +297,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   revolveOpen: false,
   extrudeDrag: null,
   patternOpen: false,
+  transformMode: null,
   displayMode: "shaded",
   panels: { items: true, history: true },
   showEdges: true,
@@ -898,4 +908,75 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ patternOpen: true, status: "패턴 — 방식과 수치를 정하세요" });
   },
   closePattern: () => set({ patternOpen: false }),
+
+  // 선택 바디를 변형(map). transform 오프셋을 좌표에 굽고 같은 id 로 교체.
+  // mapper(body, center) 가 변형된 메시를 돌려준다.
+  rotateBody: (axis, angleDeg) => {
+    const st = get();
+    const ids = new Set(selectionBodyIds(st.selection));
+    if (ids.size === 0) {
+      set({ status: "회전: 바디를 선택하세요" });
+      return;
+    }
+    const k = AXIS_VEC[axis];
+    const ang = (angleDeg * Math.PI) / 180;
+    const transforms = { ...st.transforms };
+    const shapes = st.shapes.map((body) => {
+      if (!ids.has(body.shapeId)) return body;
+      const off = st.transforms[body.shapeId] ?? [0, 0, 0];
+      const based = off[0] || off[1] || off[2] ? translateMesh(body, off[0], off[1], off[2], body.shapeId) : body;
+      const c = centroidOf(based);
+      // 중심 기준 회전: translate(-c) → rotate(원점) → translate(+c)
+      const r = translateMesh(rotateMeshAxis(translateMesh(based, -c[0], -c[1], -c[2], body.shapeId), k, ang, body.shapeId), c[0], c[1], c[2], body.shapeId);
+      delete transforms[body.shapeId];
+      return r;
+    });
+    set((s) => ({ shapes, transforms, transformMode: null, history: [...s.history, { id: `rot-${++counter}`, label: "회전" }], status: `바디 회전 ${angleDeg}° (${axis}축)` }));
+  },
+
+  scaleBody: (factor) => {
+    const st = get();
+    const ids = new Set(selectionBodyIds(st.selection));
+    if (ids.size === 0 || factor <= 0) {
+      set({ status: "스케일: 바디를 선택하고 양수 배율을 쓰세요" });
+      return;
+    }
+    const transforms = { ...st.transforms };
+    const shapes = st.shapes.map((body) => {
+      if (!ids.has(body.shapeId)) return body;
+      const off = st.transforms[body.shapeId] ?? [0, 0, 0];
+      const based = off[0] || off[1] || off[2] ? translateMesh(body, off[0], off[1], off[2], body.shapeId) : body;
+      delete transforms[body.shapeId];
+      return scaleMesh(based, factor, centroidOf(based), body.shapeId);
+    });
+    set((s) => ({ shapes, transforms, transformMode: null, history: [...s.history, { id: `scl-${++counter}`, label: "스케일" }], status: `바디 스케일 ×${factor}` }));
+  },
+
+  mirrorBody: (axis) => {
+    const st = get();
+    const ids = new Set(selectionBodyIds(st.selection));
+    if (ids.size === 0) {
+      set({ status: "미러: 바디를 선택하세요" });
+      return;
+    }
+    const a = axis === "x" ? 0 : axis === "y" ? 1 : 2;
+    const transforms = { ...st.transforms };
+    const shapes = st.shapes.map((body) => {
+      if (!ids.has(body.shapeId)) return body;
+      const off = st.transforms[body.shapeId] ?? [0, 0, 0];
+      const based = off[0] || off[1] || off[2] ? translateMesh(body, off[0], off[1], off[2], body.shapeId) : body;
+      delete transforms[body.shapeId];
+      return mirrorMesh(based, a, centroidOf(based), body.shapeId);
+    });
+    set((s) => ({ shapes, transforms, transformMode: null, history: [...s.history, { id: `mir-${++counter}`, label: "미러" }], status: `바디 미러 (${axis}축)` }));
+  },
+
+  openTransform: (mode) => {
+    if (selectionBodyIds(get().selection).length === 0) {
+      set({ status: "변형: 먼저 바디를 선택하세요" });
+      return;
+    }
+    set({ transformMode: mode });
+  },
+  closeTransform: () => set({ transformMode: null }),
 }));
