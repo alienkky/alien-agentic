@@ -11,6 +11,7 @@ import { SketchContextMenu } from "./ui/SketchContextMenu";
 import { NormalContextMenu } from "./ui/NormalContextMenu";
 import { ExtrudeDialog } from "./ui/ExtrudeDialog";
 import { RevolveDialog } from "./ui/RevolveDialog";
+import { PatternDialog } from "./ui/PatternDialog";
 import { StatusPill } from "./ui/StatusPill";
 import { useAppStore } from "./store/useAppStore";
 import { useResponsiveShell } from "./device/useResponsiveShell";
@@ -37,6 +38,7 @@ export function App(): JSX.Element {
       <NormalContextMenu />
       <ExtrudeDialog />
       <RevolveDialog />
+      <PatternDialog />
       <StatusPill layout={layout} />
     </div>
   );

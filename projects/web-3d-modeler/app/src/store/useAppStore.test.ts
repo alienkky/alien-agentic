@@ -261,6 +261,37 @@ describe("useAppStore — Shapr3D식 돌출(빼기/합치기/새 바디)", () =>
   });
 });
 
+describe("useAppStore — 패턴(선형·원형)", () => {
+  beforeEach(() => {
+    void useAppStore.getState().clear();
+    useAppStore.getState().cancelSketch();
+  });
+
+  it("선형 패턴: count-1 개 복제 추가", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(2, 2, 2, "box-1"), "박스");
+    st.selectEntity({ kind: "body", shapeId: "box-1", index: -1 });
+    st.patternLinear("x", 4, 5);
+    expect(useAppStore.getState().shapes).toHaveLength(4); // 원본 + 복제 3
+  });
+
+  it("원형 패턴: count-1 개 복제 추가", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(2, 2, 2, "box-1"), "박스");
+    st.setTransform("box-1", [5, 0, 0]); // 축에서 떨어뜨려 원형 배열
+    st.selectEntity({ kind: "body", shapeId: "box-1", index: -1 });
+    st.patternCircular("y", 6, 360);
+    expect(useAppStore.getState().shapes).toHaveLength(6);
+  });
+
+  it("선택 바디 없으면 패턴 안 됨", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(2, 2, 2, "box-1"), "박스");
+    st.patternLinear("x", 3, 5);
+    expect(useAppStore.getState().shapes).toHaveLength(1);
+  });
+});
+
 describe("useAppStore — 면 위에 스케치(Sketch on Face)", () => {
   beforeEach(() => {
     void useAppStore.getState().clear();

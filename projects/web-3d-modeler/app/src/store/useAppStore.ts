@@ -9,6 +9,7 @@ import type { TessellatedMesh, BooleanOp } from "../kernel/types";
 import { meshBoolean } from "../kernel/meshBoolean";
 import { extrudeProfile } from "../kernel/extrude";
 import { revolveProfile, type RevolveAxis } from "../kernel/revolve";
+import { translateMesh, rotateMeshAxis } from "../kernel/transformMesh";
 import { meshAabb, aabbOverlap } from "../kernel/aabb";
 import { parseStl } from "../kernel/stlImport";
 import { SKETCH_PLANES, planeFromFace, type PlaneId, type SketchPoint, type SketchPlaneDef } from "../kernel/sketchPlane";
@@ -48,6 +49,9 @@ export type PrimitiveKind = "box" | "cylinder" | "sphere";
 export type SketchTool = "rectangle" | "circle" | "line" | "ellipse" | "polygon";
 /** 돌출 방식 (Shapr3D식): 새 바디 / 겹친 바디에서 빼기 / 겹친 바디에 합치기. */
 export type ExtrudeMode = "new" | "cut" | "fuse";
+/** 패턴 축 (선형 방향 / 원형 회전축) */
+export type Axis3 = "x" | "y" | "z";
+const AXIS_VEC: Record<Axis3, Vec3> = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
 
 /** 저장된 스케치 (독립 항목). 여러 프로파일(획)을 가질 수 있다. 도구→돌출 입력. */
 export interface SketchEntity {
@@ -139,6 +143,8 @@ interface AppState {
   revolveOpen: boolean;
   /** 돌출 드래그 세션 (스케치 핸들을 끌어 실시간 높이). null 이면 비활성 */
   extrudeDrag: { sketchId: string; height: number } | null;
+  /** 패턴 다이얼로그 열림 여부 */
+  patternOpen: boolean;
   backend: KernelBackend;
   status: string;
   busy: boolean;
@@ -242,6 +248,13 @@ interface AppState {
   closeRevolve: () => void;
   /** STL 파일 불러오기 → 바디로 추가 */
   importStl: (buffer: ArrayBuffer, name: string) => void;
+
+  /** 선형 패턴: 선택 바디를 axis 방향으로 count개, spacing 간격 복제 */
+  patternLinear: (axis: Axis3, count: number, spacing: number) => void;
+  /** 원형 패턴: 선택 바디를 axis 둘레로 count개, 총 angleDeg 각도에 복제 */
+  patternCircular: (axis: Axis3, count: number, angleDeg: number) => void;
+  openPattern: () => void;
+  closePattern: () => void;
 }
 
 let kernel: KernelHandle | null = null;
@@ -274,6 +287,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   extrudeOpen: false,
   revolveOpen: false,
   extrudeDrag: null,
+  patternOpen: false,
   displayMode: "shaded",
   panels: { items: true, history: true },
   showEdges: true,
@@ -820,4 +834,68 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ status: `불러오기 오류: ${err instanceof Error ? err.message : String(err)}` });
     }
   },
+
+  patternLinear: (axis, count, spacing) => {
+    const st = get();
+    const ids = selectionBodyIds(st.selection);
+    if (ids.length === 0) {
+      set({ status: "패턴: 바디를 선택하세요" });
+      return;
+    }
+    const n = Math.max(2, Math.floor(count));
+    const dir = AXIS_VEC[axis];
+    const made: TessellatedMesh[] = [];
+    for (const id of ids) {
+      const body = st.shapes.find((m) => m.shapeId === id);
+      if (!body) continue;
+      const off = st.transforms[id] ?? [0, 0, 0];
+      for (let k = 1; k < n; k++) {
+        made.push(translateMesh(body, off[0] + dir[0] * spacing * k, off[1] + dir[1] * spacing * k, off[2] + dir[2] * spacing * k, `pat-${++counter}`));
+      }
+    }
+    set((s) => ({
+      shapes: [...s.shapes, ...made],
+      patternOpen: false,
+      history: [...s.history, { id: `pat-${counter}`, label: "선형 패턴" }],
+      status: `선형 패턴 — 복제 ${made.length}개 (${axis}축, ${spacing} 간격)`,
+    }));
+  },
+
+  patternCircular: (axis, count, angleDeg) => {
+    const st = get();
+    const ids = selectionBodyIds(st.selection);
+    if (ids.length === 0) {
+      set({ status: "패턴: 바디를 선택하세요" });
+      return;
+    }
+    const n = Math.max(2, Math.floor(count));
+    const axisVec = AXIS_VEC[axis];
+    // 360°면 마지막이 원본과 겹치므로 step=360/n, 부분각이면 양끝 포함 step=angle/(n-1)
+    const stepDeg = angleDeg >= 360 ? 360 / n : angleDeg / (n - 1);
+    const made: TessellatedMesh[] = [];
+    for (const id of ids) {
+      const body = st.shapes.find((m) => m.shapeId === id);
+      if (!body) continue;
+      const off = st.transforms[id] ?? [0, 0, 0];
+      const based = (off[0] || off[1] || off[2]) ? translateMesh(body, off[0], off[1], off[2], `${id}-b`) : body;
+      for (let k = 1; k < n; k++) {
+        made.push(rotateMeshAxis(based, axisVec, (stepDeg * k * Math.PI) / 180, `pat-${++counter}`));
+      }
+    }
+    set((s) => ({
+      shapes: [...s.shapes, ...made],
+      patternOpen: false,
+      history: [...s.history, { id: `pat-${counter}`, label: "원형 패턴" }],
+      status: `원형 패턴 — 복제 ${made.length}개 (${axis}축, ${angleDeg}°)`,
+    }));
+  },
+
+  openPattern: () => {
+    if (selectionBodyIds(get().selection).length === 0) {
+      set({ status: "패턴: 먼저 바디를 선택하세요" });
+      return;
+    }
+    set({ patternOpen: true, status: "패턴 — 방식과 수치를 정하세요" });
+  },
+  closePattern: () => set({ patternOpen: false }),
 }));
