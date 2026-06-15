@@ -12,9 +12,10 @@ import { revolveProfile, type RevolveAxis } from "../kernel/revolve";
 import { translateMesh, rotateMeshAxis, scaleMesh, mirrorMesh, centroidOf } from "../kernel/transformMesh";
 import { meshAabb, aabbOverlap } from "../kernel/aabb";
 import { parseStl } from "../kernel/stlImport";
-import { SKETCH_PLANES, planeFromFace, type PlaneId, type SketchPoint, type SketchPlaneDef } from "../kernel/sketchPlane";
+import { SKETCH_PLANES, planeFromFace, worldToPlane, type PlaneId, type SketchPoint, type SketchPlaneDef } from "../kernel/sketchPlane";
 import { trimAt, nearestStrokeIndex } from "../kernel/sketchTrim";
 import { catmullRom, arc3 } from "../kernel/sketchCurves";
+import { mirrorStrokes, patternLinearStrokes, patternCircularStrokes, offsetStroke, type UVAxis } from "../kernel/sketchTransform2d";
 import {
   defaultCamera,
   orbit as orbitCam,
@@ -238,6 +239,17 @@ interface AppState {
   trimSketchAt: (uv: SketchPoint) => void;
   /** 삭제: 클릭 지점 근처 획을 통째로 제거 */
   deleteSketchStrokeAt: (uv: SketchPoint) => void;
+  /** 스케치 변형 다이얼로그 모드 (null=닫힘) */
+  sketchTransformMode: "mirror" | "pattern" | "offset" | null;
+  openSketchTransform: (mode: "mirror" | "pattern" | "offset") => void;
+  closeSketchTransform: () => void;
+  /** 스케치 변형 — 모두 확정 획(sketchStrokes)에 적용 */
+  sketchMirror: (axis: UVAxis) => void;
+  sketchPatternLinear: (axis: UVAxis, count: number, spacing: number) => void;
+  sketchPatternCircular: (count: number, angleDeg: number) => void;
+  sketchOffset: (dist: number) => void;
+  /** 투상: 바디 모서리를 현재 스케치 평면에 투영해 획으로 */
+  sketchProject: () => void;
   /** 선분 치수 편집 선택 / 길이 설정 / 해제 */
   selectSketchSegment: (s: number, i: number) => void;
   setSegmentLength: (s: number, i: number, len: number) => void;
@@ -352,6 +364,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   sketchStrokes: [],
   sketchSelectedSeg: null,
   sketchLineDrawing: false,
+  sketchTransformMode: null,
   history: [],
   extrudeOpen: false,
   revolveOpen: false,
@@ -717,6 +730,44 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (idx === null) return { status: "삭제: 지울 선을 클릭하세요" };
       return { sketchStrokes: s.sketchStrokes.filter((_, i) => i !== idx), sketchSelectedSeg: null, status: "선 삭제" };
     }),
+
+  openSketchTransform: (mode) =>
+    set((s) => (s.sketchStrokes.length === 0 ? { status: "먼저 스케치 도형을 그리세요" } : { sketchTransformMode: mode })),
+  closeSketchTransform: () => set({ sketchTransformMode: null }),
+  sketchMirror: (axis) =>
+    set((s) => ({ sketchStrokes: [...s.sketchStrokes, ...mirrorStrokes(s.sketchStrokes, axis)], sketchTransformMode: null, status: `스케치 미러 (${axis === "u" ? "가로축" : "세로축"})` })),
+  sketchPatternLinear: (axis, count, spacing) =>
+    set((s) => ({ sketchStrokes: [...s.sketchStrokes, ...patternLinearStrokes(s.sketchStrokes, axis, Math.max(2, count), spacing)], sketchTransformMode: null, status: `스케치 선형 패턴 ${count}개` })),
+  sketchPatternCircular: (count, angleDeg) =>
+    set((s) => ({ sketchStrokes: [...s.sketchStrokes, ...patternCircularStrokes(s.sketchStrokes, Math.max(2, count), angleDeg)], sketchTransformMode: null, status: `스케치 원형 패턴 ${count}개` })),
+  sketchOffset: (dist) =>
+    set((s) => ({ sketchStrokes: [...s.sketchStrokes, ...s.sketchStrokes.filter((st) => st.length >= 2).map((st) => offsetStroke(st, dist))], sketchTransformMode: null, status: `모서리 오프셋 ${dist} mm` })),
+  sketchProject: () => {
+    const st = get();
+    const plane = st.sketchPlane;
+    if (!plane) {
+      set({ status: "투상: 스케치 평면이 없습니다" });
+      return;
+    }
+    const ids = selectionBodyIds(st.selection);
+    const bodies = ids.length ? st.shapes.filter((m) => ids.includes(m.shapeId)) : st.shapes;
+    if (bodies.length === 0) {
+      set({ status: "투상: 투영할 바디가 없습니다" });
+      return;
+    }
+    const newStrokes: SketchPoint[][] = [];
+    for (const body of bodies) {
+      const off = st.transforms[body.shapeId] ?? [0, 0, 0];
+      for (const e of body.edges) {
+        const pts: SketchPoint[] = [];
+        for (let i = 0; i < e.positions.length; i += 3) {
+          pts.push(worldToPlane(plane, e.positions[i]! + off[0], e.positions[i + 1]! + off[1], e.positions[i + 2]! + off[2]));
+        }
+        if (pts.length >= 2) newStrokes.push(pts);
+      }
+    }
+    set((s) => ({ sketchStrokes: [...s.sketchStrokes, ...newStrokes], status: `투상 — 모서리 ${newStrokes.length}개` }));
+  },
 
   selectSketchSegment: (st, i) => set({ sketchSelectedSeg: { s: st, i } }),
   clearSketchSegment: () => set({ sketchSelectedSeg: null }),

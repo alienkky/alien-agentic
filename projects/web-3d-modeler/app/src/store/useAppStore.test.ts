@@ -331,6 +331,52 @@ describe("useAppStore — 스케치 그리기 도구(호·스플라인·삭제)"
   });
 });
 
+describe("useAppStore — 스케치 변형(미러·패턴·오프셋·투상)", () => {
+  beforeEach(() => {
+    void useAppStore.getState().clear();
+    useAppStore.getState().cancelSketch();
+  });
+
+  function drawRect(): void {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("rectangle");
+    st.sketchDragStart({ u: 2, v: 2 });
+    st.sketchDragMove({ u: 4, v: 4 });
+    st.sketchDragEnd();
+  }
+
+  it("미러: 획이 반사 복제되어 2배", () => {
+    drawRect();
+    expect(useAppStore.getState().sketchStrokes).toHaveLength(1);
+    useAppStore.getState().sketchMirror("v");
+    expect(useAppStore.getState().sketchStrokes).toHaveLength(2);
+  });
+
+  it("선형 패턴: count배 만큼 획 증가", () => {
+    drawRect();
+    useAppStore.getState().sketchPatternLinear("u", 4, 5);
+    expect(useAppStore.getState().sketchStrokes).toHaveLength(4); // 원본1 + 복제3
+  });
+
+  it("오프셋: 각 획마다 오프셋 획 추가", () => {
+    drawRect();
+    useAppStore.getState().sketchOffset(0.5);
+    expect(useAppStore.getState().sketchStrokes).toHaveLength(2);
+  });
+
+  it("투상: 바디 모서리를 평면에 투영해 획 생성", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(4, 4, 4, "box-1"), "박스");
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.sketchProject();
+    // 박스 모서리(12) 가 획으로
+    expect(useAppStore.getState().sketchStrokes.length).toBeGreaterThanOrEqual(12);
+  });
+});
+
 describe("useAppStore — 측정", () => {
   beforeEach(() => {
     useAppStore.getState().clearMeasure();
