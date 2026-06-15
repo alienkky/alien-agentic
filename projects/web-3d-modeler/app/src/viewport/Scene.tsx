@@ -8,6 +8,7 @@ import { CameraRig } from "./CameraRig";
 import { ShapeMesh } from "./ShapeMesh";
 import { SketchLayer } from "./SketchLayer";
 import { SavedSketches } from "./SavedSketches";
+import { ExtrudeDragLayer } from "./ExtrudeDragLayer";
 
 const ORIGIN: Vec3 = [0, 0, 0];
 
@@ -72,6 +73,7 @@ export function Scene(): JSX.Element {
 
       <SavedSketches />
       <SketchLayer />
+      <ExtrudeDragLayer />
     </>
   );
 }

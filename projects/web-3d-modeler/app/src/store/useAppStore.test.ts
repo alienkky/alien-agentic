@@ -1,5 +1,19 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { useAppStore, selectionBodyIds, type SelItem } from "./useAppStore";
+import { tessellateBox } from "../kernel/occt/boxMesh";
+
+function makeRectSketch(): void {
+  const st = useAppStore.getState();
+  st.beginSketch();
+  st.pickPlane("xz");
+  st.setSketchTool("rectangle");
+  st.sketchDragStart({ u: -1, v: -1 });
+  st.sketchDragMove({ u: 1, v: 1 });
+  st.sketchDragEnd();
+  st.finishSketch();
+  const sk = useAppStore.getState().sketches.at(-1)!;
+  st.selectEntity({ kind: "sketch", shapeId: sk.id, index: -1 });
+}
 
 const face = (shapeId: string, index: number): SelItem => ({ kind: "face", shapeId, index });
 const body = (shapeId: string): SelItem => ({ kind: "body", shapeId, index: -1 });
@@ -119,6 +133,32 @@ describe("useAppStore — 스케치 도구", () => {
     expect(stroke[2]).toEqual({ u: 10, v: 3 });
   });
 
+  it("타원: 드래그 → 닫힌 획 (가로·세로 반경)", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("ellipse");
+    st.sketchDragStart({ u: 0, v: 0 });
+    st.sketchDragMove({ u: 4, v: 2 });
+    st.sketchDragEnd();
+    const strokes = useAppStore.getState().sketchStrokes;
+    expect(strokes).toHaveLength(1);
+    expect(strokes[0]!.length).toBeGreaterThan(8); // 폴리곤화
+  });
+
+  it("다각형: 드래그 → 6각형(6점)", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("polygon");
+    st.sketchDragStart({ u: 0, v: 0 });
+    st.sketchDragMove({ u: 3, v: 0 });
+    st.sketchDragEnd();
+    const strokes = useAppStore.getState().sketchStrokes;
+    expect(strokes).toHaveLength(1);
+    expect(strokes[0]).toHaveLength(6);
+  });
+
   it("스케칭 종료 → 스케치 항목 저장, 도구 돌출 → 바디 생성", () => {
     const st = useAppStore.getState();
     st.clear();
@@ -138,5 +178,200 @@ describe("useAppStore — 스케치 도구", () => {
     st.selectEntity({ kind: "sketch", shapeId: sk.id, index: -1 });
     st.extrudeSketch(5);
     expect(useAppStore.getState().shapes).toHaveLength(1);
+  });
+});
+
+describe("useAppStore — Shapr3D식 돌출(빼기/합치기/새 바디)", () => {
+  beforeEach(() => {
+    void useAppStore.getState().clear();
+    useAppStore.getState().cancelSketch();
+  });
+
+  it("새 바디: 돌출체가 별도 바디로 추가", () => {
+    const st = useAppStore.getState();
+    makeRectSketch();
+    st.extrudeSketchAs(5, "new");
+    expect(useAppStore.getState().shapes).toHaveLength(1);
+  });
+
+  it("빼기: 겹친 바디에서 깎고, 바디 수는 유지(도구 소비)", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(8, 8, 8, "box-1"), "박스"); // y -4..4, 중앙에 스케치 돌출이 관통
+    makeRectSketch();
+    const before = useAppStore.getState().shapes[0]!.indices.length;
+    st.extrudeSketchAs(10, "cut");
+    const after = useAppStore.getState();
+    expect(after.shapes).toHaveLength(1); // 박스만 (돌출 도구는 빼기로 소비)
+    expect(after.shapes[0]!.indices.length).not.toBe(before); // 가공됨
+  });
+
+  it("드래그 돌출: 시작→높이→확정 시 새 바디 생성", () => {
+    const st = useAppStore.getState();
+    makeRectSketch(); // 스케치 선택 상태
+    st.startExtrudeDrag();
+    expect(useAppStore.getState().extrudeDrag).not.toBeNull();
+    expect(useAppStore.getState().gizmoDragging).toBe(true);
+    st.setExtrudeDragHeight(6);
+    expect(useAppStore.getState().extrudeDrag!.height).toBe(6);
+    st.commitExtrudeDrag();
+    const after = useAppStore.getState();
+    expect(after.extrudeDrag).toBeNull();
+    expect(after.gizmoDragging).toBe(false);
+    expect(after.shapes).toHaveLength(1);
+  });
+
+  it("드래그 돌출: 격자 스냅 켜짐 → 0.5 단위, 음수는 최소 0.5", () => {
+    const st = useAppStore.getState();
+    makeRectSketch();
+    st.startExtrudeDrag();
+    st.setExtrudeDragHeight(3.3); // 0.5 단위로 스냅 → 3.5
+    expect(useAppStore.getState().extrudeDrag!.height).toBe(3.5);
+    st.setExtrudeDragHeight(-5); // 최소 0.5
+    expect(useAppStore.getState().extrudeDrag!.height).toBe(0.5);
+    st.cancelExtrudeDrag();
+    expect(useAppStore.getState().extrudeDrag).toBeNull();
+  });
+
+  it("드래그 돌출: 격자 스냅 꺼짐 → 0.1 미만으로 안 내려감", () => {
+    const st = useAppStore.getState();
+    if (useAppStore.getState().snap.grid) st.toggleSnap("grid");
+    makeRectSketch();
+    st.startExtrudeDrag();
+    st.setExtrudeDragHeight(-5);
+    expect(useAppStore.getState().extrudeDrag!.height).toBe(0.1);
+    st.toggleSnap("grid"); // 원복
+  });
+
+  it("빼기: 겹치는 바디 없으면 변화 없음", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(2, 2, 2, "box-far"), "박스");
+    // 멀리 떨어뜨려 겹치지 않게
+    st.setTransform("box-far", [100, 0, 0]);
+    makeRectSketch();
+    st.extrudeSketchAs(5, "cut");
+    expect(useAppStore.getState().shapes).toHaveLength(1);
+  });
+
+  it("합치기: 겹친 바디에 흡수되어 바디 수 유지", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(8, 8, 8, "box-1"), "박스");
+    makeRectSketch();
+    st.extrudeSketchAs(10, "fuse");
+    expect(useAppStore.getState().shapes).toHaveLength(1);
+  });
+});
+
+describe("useAppStore — 패턴(선형·원형)", () => {
+  beforeEach(() => {
+    void useAppStore.getState().clear();
+    useAppStore.getState().cancelSketch();
+  });
+
+  it("선형 패턴: count-1 개 복제 추가", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(2, 2, 2, "box-1"), "박스");
+    st.selectEntity({ kind: "body", shapeId: "box-1", index: -1 });
+    st.patternLinear("x", 4, 5);
+    expect(useAppStore.getState().shapes).toHaveLength(4); // 원본 + 복제 3
+  });
+
+  it("원형 패턴: count-1 개 복제 추가", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(2, 2, 2, "box-1"), "박스");
+    st.setTransform("box-1", [5, 0, 0]); // 축에서 떨어뜨려 원형 배열
+    st.selectEntity({ kind: "body", shapeId: "box-1", index: -1 });
+    st.patternCircular("y", 6, 360);
+    expect(useAppStore.getState().shapes).toHaveLength(6);
+  });
+
+  it("선택 바디 없으면 패턴 안 됨", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(2, 2, 2, "box-1"), "박스");
+    st.patternLinear("x", 3, 5);
+    expect(useAppStore.getState().shapes).toHaveLength(1);
+  });
+});
+
+describe("useAppStore — 바디 변형(회전·스케일·미러)", () => {
+  beforeEach(() => {
+    void useAppStore.getState().clear();
+    useAppStore.getState().cancelSketch();
+  });
+
+  function bbox(): { min: number[]; max: number[] } {
+    const p = useAppStore.getState().shapes[0]!.positions;
+    const min = [Infinity, Infinity, Infinity];
+    const max = [-Infinity, -Infinity, -Infinity];
+    for (let i = 0; i < p.length; i += 3) for (let k = 0; k < 3; k++) { min[k] = Math.min(min[k]!, p[i + k]!); max[k] = Math.max(max[k]!, p[i + k]!); }
+    return { min, max };
+  }
+
+  it("스케일: 중심 기준 2배 → 바운딩 2배 (바디 수 유지)", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(2, 2, 2, "box-1"), "박스"); // -1..1
+    st.selectEntity({ kind: "body", shapeId: "box-1", index: -1 });
+    st.scaleBody(2);
+    expect(useAppStore.getState().shapes).toHaveLength(1);
+    const b = bbox();
+    expect(b.max[0]! - b.min[0]!).toBeCloseTo(4, 4); // 2 → 4
+  });
+
+  it("회전: 바디 수 유지, 중심 보존(중심은 제자리)", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(4, 2, 2, "box-1"), "박스");
+    st.selectEntity({ kind: "body", shapeId: "box-1", index: -1 });
+    st.rotateBody("y", 90);
+    const b = bbox();
+    // 4x2x2 가 y축 90° → x폭 2, z폭 4
+    expect(b.max[0]! - b.min[0]!).toBeCloseTo(2, 3);
+    expect(b.max[2]! - b.min[2]!).toBeCloseTo(4, 3);
+  });
+
+  it("미러: 바디 수 유지, winding 뒤집혀도 유효(인덱스 길이 동일)", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(2, 2, 2, "box-1"), "박스");
+    const before = useAppStore.getState().shapes[0]!.indices.length;
+    st.selectEntity({ kind: "body", shapeId: "box-1", index: -1 });
+    st.mirrorBody("x");
+    expect(useAppStore.getState().shapes).toHaveLength(1);
+    expect(useAppStore.getState().shapes[0]!.indices.length).toBe(before);
+  });
+});
+
+describe("useAppStore — 면 위에 스케치(Sketch on Face)", () => {
+  beforeEach(() => {
+    void useAppStore.getState().clear();
+    useAppStore.getState().cancelSketch();
+  });
+
+  it("면을 선택하고 스케치 시작 → 그 면의 법선·위치로 평면 생성", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(4, 4, 4, "box-1"), "박스"); // 면 2 = +Y (y=+2)
+    st.selectEntity({ kind: "face", shapeId: "box-1", index: 2 });
+    st.beginSketch();
+    const plane = useAppStore.getState().sketchPlane;
+    expect(plane).not.toBeNull();
+    expect(plane!.normal[1]).toBeCloseTo(1, 5); // +Y
+    expect(plane!.origin[1]).toBeCloseTo(2, 5); // 윗면 y=+2
+  });
+
+  it("면이 없으면 기준면 선택(평면 null)으로 진입", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    expect(useAppStore.getState().sketchPlane).toBeNull();
+  });
+
+  it("면 위 스케치 → 저장된 스케치가 그 면 평면을 보존", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(4, 4, 4, "box-1"), "박스");
+    st.selectEntity({ kind: "face", shapeId: "box-1", index: 2 });
+    st.beginSketch();
+    st.setSketchTool("rectangle");
+    st.sketchDragStart({ u: -1, v: -1 });
+    st.sketchDragMove({ u: 1, v: 1 });
+    st.sketchDragEnd();
+    st.finishSketch();
+    const sk = useAppStore.getState().sketches.at(-1)!;
+    expect(sk.plane.normal[1]).toBeCloseTo(1, 5);
   });
 });

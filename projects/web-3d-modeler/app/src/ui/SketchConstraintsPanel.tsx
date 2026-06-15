@@ -5,6 +5,7 @@
 import { useState } from "react";
 import { useAppStore } from "../store/useAppStore";
 import { GearIcon } from "./icons";
+import { DraggablePanel } from "./DraggablePanel";
 
 function Toggle({ on }: { on: boolean }): JSX.Element {
   return (
@@ -67,33 +68,39 @@ export function SketchConstraintsPanel(): JSX.Element | null {
 
   if (!sketchActive) return null;
 
+  // 기본 위치: 우측(히스토리 패널 왼쪽), 뷰포트 컨트롤 아래 — 겹치지 않게
+  const defaultLeft = Math.max(0, window.innerWidth - 240 - 188);
+  const defaultTop = 320;
+
   return (
-    <div className="pointer-events-auto absolute right-64 top-28 z-20 w-44 rounded-2xl border border-aa-border bg-aa-surface/95 p-1.5 backdrop-blur">
-      <div className="relative">
-        <button
-          type="button"
-          onClick={() => setSettingsOpen((o) => !o)}
-          className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-aa-text aa-hoverable"
-        >
-          <span className="flex h-5 w-5 items-center justify-center text-[18px]">
-            <GearIcon />
-          </span>
-          구속조건 설정
-        </button>
-        {settingsOpen && <ConstraintSettingsPopup onClose={() => setSettingsOpen(false)} />}
+    <DraggablePanel title="구속조건" defaultLeft={defaultLeft} defaultTop={defaultTop} width={180}>
+      <div className="p-1.5">
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setSettingsOpen((o) => !o)}
+            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-aa-text aa-hoverable"
+          >
+            <span className="flex h-5 w-5 items-center justify-center text-[18px]">
+              <GearIcon />
+            </span>
+            구속조건 설정
+          </button>
+          {settingsOpen && <ConstraintSettingsPopup onClose={() => setSettingsOpen(false)} />}
+        </div>
+        <div className="my-1 h-px bg-aa-border" />
+        {CONSTRAINTS.map((c) => (
+          <button
+            key={c.label}
+            type="button"
+            onClick={() => setStatus(`구속: ${c.label} — 준비 중`)}
+            className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-sm text-aa-text aa-hoverable"
+          >
+            <span>{c.label}</span>
+            {c.shortcut && <span className="text-[10px] text-aa-text-dim">{c.shortcut}</span>}
+          </button>
+        ))}
       </div>
-      <div className="my-1 h-px bg-aa-border" />
-      {CONSTRAINTS.map((c) => (
-        <button
-          key={c.label}
-          type="button"
-          onClick={() => setStatus(`구속: ${c.label} — 준비 중`)}
-          className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-sm text-aa-text aa-hoverable"
-        >
-          <span>{c.label}</span>
-          {c.shortcut && <span className="text-[10px] text-aa-text-dim">{c.shortcut}</span>}
-        </button>
-      ))}
-    </div>
+    </DraggablePanel>
   );
 }

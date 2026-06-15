@@ -8,13 +8,18 @@ import type { KernelBackend } from "../kernel/worker";
 import type { TessellatedMesh, BooleanOp } from "../kernel/types";
 import { meshBoolean } from "../kernel/meshBoolean";
 import { extrudeProfile } from "../kernel/extrude";
-import { SKETCH_PLANES, type PlaneId, type SketchPoint } from "../kernel/sketchPlane";
+import { revolveProfile, type RevolveAxis } from "../kernel/revolve";
+import { translateMesh, rotateMeshAxis, scaleMesh, mirrorMesh, centroidOf } from "../kernel/transformMesh";
+import { meshAabb, aabbOverlap } from "../kernel/aabb";
+import { parseStl } from "../kernel/stlImport";
+import { SKETCH_PLANES, planeFromFace, type PlaneId, type SketchPoint, type SketchPlaneDef } from "../kernel/sketchPlane";
 import {
   defaultCamera,
   orbit as orbitCam,
   pan as panCam,
   zoom as zoomCam,
   viewPreset,
+  alignToNormal,
   type CameraState,
   type ViewPreset,
 } from "../viewport/cameraMath";
@@ -41,12 +46,18 @@ function sameSel(a: SelItem, b: SelItem): boolean {
 }
 
 export type PrimitiveKind = "box" | "cylinder" | "sphere";
-export type SketchTool = "rectangle" | "circle" | "line";
+export type SketchTool = "rectangle" | "circle" | "line" | "ellipse" | "polygon";
+/** 돌출 방식 (Shapr3D식): 새 바디 / 겹친 바디에서 빼기 / 겹친 바디에 합치기. */
+export type ExtrudeMode = "new" | "cut" | "fuse";
+/** 패턴 축 (선형 방향 / 원형 회전축) */
+export type Axis3 = "x" | "y" | "z";
+const AXIS_VEC: Record<Axis3, Vec3> = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
 
 /** 저장된 스케치 (독립 항목). 여러 프로파일(획)을 가질 수 있다. 도구→돌출 입력. */
 export interface SketchEntity {
   id: string;
-  plane: PlaneId;
+  /** 표준평면 또는 면 위 평면 (def 통째 보관) */
+  plane: SketchPlaneDef;
   profiles: SketchPoint[][];
 }
 
@@ -61,6 +72,29 @@ function circlePolygon(center: SketchPoint, radius: number, segments = 48): Sket
   }
   return pts;
 }
+
+/** 타원: 중심에서 반장축(ru)·반단축(rv) 으로 폴리곤화. */
+export function ellipsePolygon(center: SketchPoint, ru: number, rv: number, segments = 48): SketchPoint[] {
+  const pts: SketchPoint[] = [];
+  for (let i = 0; i < segments; i++) {
+    const a = (i / segments) * Math.PI * 2;
+    pts.push({ u: center.u + ru * Math.cos(a), v: center.v + rv * Math.sin(a) });
+  }
+  return pts;
+}
+
+/** 정다각형: 중심에서 반지름 radius, 꼭짓점 sides 개. 위쪽(+v)을 첫 꼭짓점으로. */
+export function regularPolygon(center: SketchPoint, radius: number, sides = 6): SketchPoint[] {
+  const pts: SketchPoint[] = [];
+  for (let i = 0; i < sides; i++) {
+    const a = (i / sides) * Math.PI * 2 + Math.PI / 2;
+    pts.push({ u: center.u + radius * Math.cos(a), v: center.v + radius * Math.sin(a) });
+  }
+  return pts;
+}
+
+/** 기본 정다각형 변의 수 (육각형). 향후 도구 옵션으로 조정. */
+export const POLYGON_SIDES = 6;
 
 const PLANE_VIEW: Record<PlaneId, "top" | "front" | "right"> = { xz: "top", xy: "front", yz: "right" };
 
@@ -85,8 +119,8 @@ interface AppState {
   gizmoDragging: boolean;
   /** 스케치 모드 활성 여부 */
   sketchActive: boolean;
-  /** 선택된 기준면. null 이면 "활성 평면 없음" (면을 골라야 그릴 수 있음) */
-  sketchPlane: PlaneId | null;
+  /** 선택된 기준면 (표준평면 또는 면 위 평면). null 이면 "활성 평면 없음" */
+  sketchPlane: SketchPlaneDef | null;
   /** 현재 스케치 도구 */
   sketchTool: SketchTool;
   /** 사각형·원 드래그 초안 (평면 (u,v)). 드래그 중 실시간 미리보기 */
@@ -103,6 +137,16 @@ interface AppState {
   sketchLineDrawing: boolean;
   /** 내역(History) — 단계별 작업 로그 (우측 패널). 명세 Module 1.2 토대 */
   history: { id: string; label: string }[];
+  /** 돌출 다이얼로그 열림 여부 (Shapr3D식 높이·모드 입력) */
+  extrudeOpen: boolean;
+  /** 회전 다이얼로그 열림 여부 (각도·축 입력) */
+  revolveOpen: boolean;
+  /** 돌출 드래그 세션 (스케치 핸들을 끌어 실시간 높이). null 이면 비활성 */
+  extrudeDrag: { sketchId: string; height: number } | null;
+  /** 패턴 다이얼로그 열림 여부 */
+  patternOpen: boolean;
+  /** 바디 변형 다이얼로그 모드 (null 이면 닫힘) */
+  transformMode: "rotate" | "scale" | "mirror" | null;
   backend: KernelBackend;
   status: string;
   busy: boolean;
@@ -116,6 +160,8 @@ interface AppState {
   initKernel: () => Promise<void>;
   setBackend: (backend: KernelBackend) => Promise<void>;
   addPrimitive: (kind: PrimitiveKind) => Promise<void>;
+  /** 외부에서 만든 메시(데모·가져오기)를 바디로 추가. */
+  addMesh: (mesh: TessellatedMesh, label: string) => void;
   booleanOp: (op: BooleanOp) => Promise<void>;
   removeShape: (shapeId: string) => Promise<void>;
   undoLast: () => Promise<void>;
@@ -185,8 +231,39 @@ interface AppState {
   cancelSketch: () => void;
   /** 스케치 종료 → 유효 프로파일이면 항목으로 저장 */
   finishSketch: () => void;
-  /** 선택된 스케치를 돌출 (도구→돌출) */
+  /** 선택된 스케치를 돌출 (도구→돌출, 기본 새 바디) */
   extrudeSketch: (depth: number) => void;
+  /** Shapr3D식 돌출: 높이 + 모드(새 바디/빼기/합치기). 빼기·합치기는 겹친 바디에 적용 */
+  extrudeSketchAs: (depth: number, mode: ExtrudeMode) => void;
+  /** 돌출 다이얼로그 열기/닫기 */
+  openExtrude: () => void;
+  closeExtrude: () => void;
+  /** 돌출 드래그: 시작 / 높이 갱신 / 확정 / 취소 */
+  startExtrudeDrag: () => void;
+  setExtrudeDragHeight: (h: number) => void;
+  commitExtrudeDrag: () => void;
+  cancelExtrudeDrag: () => void;
+  /** 선택된 스케치를 회전체로 (도구→회전) */
+  revolveSketchAs: (angleDeg: number, axis: RevolveAxis) => void;
+  /** 회전 다이얼로그 열기/닫기 */
+  openRevolve: () => void;
+  closeRevolve: () => void;
+  /** STL 파일 불러오기 → 바디로 추가 */
+  importStl: (buffer: ArrayBuffer, name: string) => void;
+
+  /** 선형 패턴: 선택 바디를 axis 방향으로 count개, spacing 간격 복제 */
+  patternLinear: (axis: Axis3, count: number, spacing: number) => void;
+  /** 원형 패턴: 선택 바디를 axis 둘레로 count개, 총 angleDeg 각도에 복제 */
+  patternCircular: (axis: Axis3, count: number, angleDeg: number) => void;
+  openPattern: () => void;
+  closePattern: () => void;
+
+  /** 바디 변형 — 모두 바디 중심 기준 제자리 변형 (선택 바디 대상) */
+  rotateBody: (axis: Axis3, angleDeg: number) => void;
+  scaleBody: (factor: number) => void;
+  mirrorBody: (axis: Axis3) => void;
+  openTransform: (mode: "rotate" | "scale" | "mirror") => void;
+  closeTransform: () => void;
 }
 
 let kernel: KernelHandle | null = null;
@@ -216,6 +293,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   sketchSelectedSeg: null,
   sketchLineDrawing: false,
   history: [],
+  extrudeOpen: false,
+  revolveOpen: false,
+  extrudeDrag: null,
+  patternOpen: false,
+  transformMode: null,
   displayMode: "shaded",
   panels: { items: true, history: true },
   showEdges: true,
@@ -280,6 +362,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ busy: false });
     }
   },
+
+  addMesh: (mesh, label) =>
+    set((s) => ({
+      shapes: [...s.shapes, mesh],
+      history: [...s.history, { id: mesh.shapeId, label }],
+      status: `${label} 추가됨 · 면 ${mesh.faceRanges.length} · 삼각형 ${mesh.indices.length / 3}`,
+    })),
 
   booleanOp: async (op) => {
     const bodies = selectionBodyIds(get().selection);
@@ -403,10 +492,31 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setGizmoDragging: (dragging) => set({ gizmoDragging: dragging }),
 
-  beginSketch: () =>
+  beginSketch: () => {
+    // 면(face)이 선택돼 있으면 그 면 위에서 바로 스케치 (Shapr3D식). 아니면 기준면 선택.
+    const st = get();
+    const faceSel = st.selection.find((it) => it.kind === "face");
+    let plane: SketchPlaneDef | null = null;
+    if (faceSel) {
+      const mesh = st.shapes.find((m) => m.shapeId === faceSel.shapeId);
+      const range = mesh?.faceRanges.find((r) => r.faceId === faceSel.index);
+      if (mesh && range) {
+        const off = st.transforms[mesh.shapeId] ?? [0, 0, 0];
+        const verts: number[] = [];
+        for (let i = range.start; i < range.start + range.count; i++) {
+          const vi = mesh.indices[i]! * 3;
+          verts.push(mesh.positions[vi]! + off[0], mesh.positions[vi + 1]! + off[1], mesh.positions[vi + 2]! + off[2]);
+        }
+        const ni = mesh.indices[range.start]! * 3;
+        const normal: [number, number, number] = [mesh.normals[ni]!, mesh.normals[ni + 1]!, mesh.normals[ni + 2]!];
+        plane = planeFromFace(verts, normal, `face-${mesh.shapeId}-${faceSel.index}`);
+      }
+    }
     set({
       sketchActive: true,
-      sketchPlane: null,
+      sketchPlane: plane,
+      // 면 위 스케치면 카메라를 그 면 정면으로 자동 정렬 (펜 그리기 편의)
+      camera: plane ? alignToNormal(st.camera, plane.normal, plane.origin) : st.camera,
       sketchPoints: [],
       sketchStrokes: [],
       sketchDraft: null,
@@ -414,12 +524,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       sketchSelectedSeg: null,
       sketchLineDrawing: false,
       selection: [],
-      status: "스케치: 기준면(XY/YZ/XZ)을 선택하세요",
-    }),
+      status: plane ? "선택한 면 위에 스케치 — 도형을 그리세요" : "스케치: 기준면(XY/YZ/XZ)을 선택하세요",
+    });
+  },
 
   pickPlane: (id) =>
     set((s) => ({
-      sketchPlane: id,
+      sketchPlane: SKETCH_PLANES[id],
       sketchPoints: [],
       sketchStrokes: [],
       sketchDraft: null,
@@ -442,7 +553,11 @@ export const useAppStore = create<AppState>((set, get) => ({
           ? "사각형 — 드래그해 그리기"
           : tool === "circle"
             ? "원 — 중심에서 바깥으로 드래그"
-            : "선 — 점을 순서대로 탭 (3개 이상)",
+            : tool === "ellipse"
+              ? "타원 — 중심에서 가로·세로로 드래그"
+              : tool === "polygon"
+                ? `다각형 — 중심에서 바깥으로 드래그 (${POLYGON_SIDES}각형)`
+                : "선 — 점을 순서대로 탭 (3개 이상)",
     })),
 
   // 사각형·원: 드래그 (좌표는 평면 (u,v))
@@ -468,6 +583,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (sketchTool === "circle") {
       const r = Math.hypot(current.u - start.u, current.v - start.v);
       pts = r > 0.01 ? circlePolygon(start, r) : [];
+    } else if (sketchTool === "ellipse") {
+      const ru = Math.abs(current.u - start.u);
+      const rv = Math.abs(current.v - start.v);
+      pts = ru > 0.01 && rv > 0.01 ? ellipsePolygon(start, ru, rv) : [];
+    } else if (sketchTool === "polygon") {
+      const r = Math.hypot(current.u - start.u, current.v - start.v);
+      pts = r > 0.01 ? regularPolygon(start, r, POLYGON_SIDES) : [];
     } else {
       pts =
         Math.abs(current.u - start.u) > 0.01 && Math.abs(current.v - start.v) > 0.01
@@ -563,12 +685,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  // 도구 → 돌출: 선택된 스케치의 닫힌 프로파일을 각각 입체화
-  extrudeSketch: (depth) => {
-    const sel = get().selection.find((it) => it.kind === "sketch");
-    const sketch = sel ? get().sketches.find((sk) => sk.id === sel.shapeId) : undefined;
+  // 도구 → 돌출: 선택된 스케치의 닫힌 프로파일을 입체화 (기본: 새 바디)
+  extrudeSketch: (depth) => get().extrudeSketchAs(depth, "new"),
+
+  // Shapr3D식 돌출 — 높이 + 모드(새 바디/빼기/합치기).
+  //  cut/fuse 는 돌출체와 AABB 가 겹치는 기존 바디에만 불리언을 건다.
+  extrudeSketchAs: (depth, mode) => {
+    const st = get();
+    const sel = st.selection.find((it) => it.kind === "sketch");
+    const sketch = sel ? st.sketches.find((sk) => sk.id === sel.shapeId) : undefined;
     if (!sketch) {
-      set({ status: "돌출: 먼저 스케치를 선택하세요 (스케치 항목 클릭)" });
+      set({ status: "돌출: 먼저 스케치를 선택하세요 (항목 패널에서 스케치 클릭)" });
       return;
     }
     const closed = sketch.profiles.filter((p) => p.length >= 3);
@@ -577,19 +704,279 @@ export const useAppStore = create<AppState>((set, get) => ({
       return;
     }
     try {
-      const made: TessellatedMesh[] = [];
-      for (const profile of closed) {
-        const shapeId = `extrude-${++counter}`;
-        made.push(extrudeProfile(profile, SKETCH_PLANES[sketch.plane], depth, shapeId));
+      const plane = sketch.plane;
+      const tools = closed.map((p) => extrudeProfile(p, plane, depth, `extrude-${++counter}`));
+
+      if (mode === "new") {
+        set((s) => ({
+          shapes: [...s.shapes, ...tools],
+          selection: [],
+          extrudeOpen: false,
+          history: [...s.history, ...tools.map((m) => ({ id: m.shapeId, label: "돌출(새 바디)" }))],
+          status: `돌출 — 새 바디 ${tools.length}개 (높이 ${depth})`,
+        }));
+        return;
+      }
+
+      const op: BooleanOp = mode === "cut" ? "cut" : "fuse";
+      const toolBoxes = tools.map((t) => ({ t, box: meshAabb(t) }));
+      const consumed = new Set<TessellatedMesh>();
+      const transforms = { ...st.transforms };
+      const nextShapes: TessellatedMesh[] = [];
+      let affected = 0;
+
+      for (const body of st.shapes) {
+        let acc = body;
+        let baked = false; // 첫 불리언 후엔 오프셋이 좌표에 구워짐
+        const off = (): Vec3 => (baked ? [0, 0, 0] : st.transforms[body.shapeId] ?? [0, 0, 0]);
+        for (const { t, box } of toolBoxes) {
+          if (mode === "fuse" && consumed.has(t)) continue;
+          if (!aabbOverlap(meshAabb(acc, off()), box)) continue;
+          acc = meshBoolean(acc, t, op, `${mode}-${++counter}`, off(), [0, 0, 0]);
+          baked = true;
+          affected++;
+          if (mode === "fuse") consumed.add(t);
+        }
+        if (baked) delete transforms[body.shapeId];
+        nextShapes.push(acc);
+      }
+      // 합치기: 어떤 바디와도 안 겹친 돌출체는 새 바디로 남긴다
+      if (mode === "fuse") for (const { t } of toolBoxes) if (!consumed.has(t)) nextShapes.push(t);
+
+      if (affected === 0) {
+        set({ extrudeOpen: false, status: `돌출(${mode === "cut" ? "빼기" : "합치기"}): 겹치는 바디가 없습니다` });
+        return;
       }
       set((s) => ({
-        shapes: [...s.shapes, ...made],
+        shapes: nextShapes,
+        transforms,
         selection: [],
-        history: [...s.history, ...made.map((m) => ({ id: m.shapeId, label: "돌출" }))],
-        status: `돌출 완료 — ${made.length}개 (높이 ${depth})`,
+        extrudeOpen: false,
+        history: [...s.history, { id: `${mode}-${counter}`, label: mode === "cut" ? "돌출(빼기)" : "돌출(합치기)" }],
+        status: mode === "cut" ? `돌출 빼기 — ${affected}곳 가공` : `돌출 합치기 — ${affected}곳 결합`,
       }));
     } catch (err) {
       set({ status: `오류: ${err instanceof Error ? err.message : String(err)}` });
     }
   },
+
+  openExtrude: () => {
+    const sel = get().selection.find((it) => it.kind === "sketch");
+    if (!sel) {
+      set({ status: "돌출: 먼저 스케치를 선택하세요 (항목 패널에서 스케치 클릭)" });
+      return;
+    }
+    set({ extrudeOpen: true, status: "돌출 — 높이와 방식을 정하세요" });
+  },
+  closeExtrude: () => set({ extrudeOpen: false }),
+
+  startExtrudeDrag: () => {
+    const sel = get().selection.find((it) => it.kind === "sketch");
+    if (!sel) {
+      set({ status: "돌출: 스케치를 선택하세요" });
+      return;
+    }
+    set({ extrudeDrag: { sketchId: sel.shapeId, height: 1 }, gizmoDragging: true, status: "드래그해서 돌출 높이를 정하세요" });
+  },
+  setExtrudeDragHeight: (h) =>
+    set((s) => {
+      if (!s.extrudeDrag) return {};
+      // 격자 스냅이 켜져 있으면 0.5 mm 단위로 딱딱 끊는다
+      const height = s.snap.grid ? Math.max(SNAP, Math.round(h / SNAP) * SNAP) : Math.max(0.1, h);
+      return { extrudeDrag: { ...s.extrudeDrag, height }, status: `돌출 높이 ${height.toFixed(1)} mm` };
+    }),
+  commitExtrudeDrag: () => {
+    const d = get().extrudeDrag;
+    set({ extrudeDrag: null, gizmoDragging: false });
+    if (d) get().extrudeSketchAs(d.height, "new");
+  },
+  cancelExtrudeDrag: () => set({ extrudeDrag: null, gizmoDragging: false, status: "돌출 취소" }),
+
+  // 도구 → 회전: 선택된 스케치의 닫힌 프로파일을 축 둘레로 회전
+  revolveSketchAs: (angleDeg, axis) => {
+    const st = get();
+    const sel = st.selection.find((it) => it.kind === "sketch");
+    const sketch = sel ? st.sketches.find((sk) => sk.id === sel.shapeId) : undefined;
+    if (!sketch) {
+      set({ status: "회전: 먼저 스케치를 선택하세요 (항목 패널에서 스케치 클릭)" });
+      return;
+    }
+    const closed = sketch.profiles.filter((p) => p.length >= 3);
+    if (closed.length === 0) {
+      set({ status: "회전: 닫힌 프로파일이 없습니다 (점 3개 이상)" });
+      return;
+    }
+    try {
+      const plane = sketch.plane;
+      const made = closed.map((p) => revolveProfile(p, plane, angleDeg, axis, `revolve-${++counter}`));
+      set((s) => ({
+        shapes: [...s.shapes, ...made],
+        selection: [],
+        revolveOpen: false,
+        history: [...s.history, ...made.map((m) => ({ id: m.shapeId, label: "회전" }))],
+        status: `회전 완료 — ${made.length}개 (${angleDeg}°, ${axis === "v" ? "세로축" : "가로축"})`,
+      }));
+    } catch (err) {
+      set({ status: `오류: ${err instanceof Error ? err.message : String(err)}` });
+    }
+  },
+
+  openRevolve: () => {
+    const sel = get().selection.find((it) => it.kind === "sketch");
+    if (!sel) {
+      set({ status: "회전: 먼저 스케치를 선택하세요 (항목 패널에서 스케치 클릭)" });
+      return;
+    }
+    set({ revolveOpen: true, status: "회전 — 각도와 축을 정하세요" });
+  },
+  closeRevolve: () => set({ revolveOpen: false }),
+
+  importStl: (buffer, name) => {
+    try {
+      const id = `import-${++counter}`;
+      const mesh = parseStl(buffer, id);
+      set((s) => ({
+        shapes: [...s.shapes, mesh],
+        history: [...s.history, { id, label: `가져오기: ${name}` }],
+        status: `${name} 불러옴 · 삼각형 ${mesh.indices.length / 3}`,
+      }));
+    } catch (err) {
+      set({ status: `불러오기 오류: ${err instanceof Error ? err.message : String(err)}` });
+    }
+  },
+
+  patternLinear: (axis, count, spacing) => {
+    const st = get();
+    const ids = selectionBodyIds(st.selection);
+    if (ids.length === 0) {
+      set({ status: "패턴: 바디를 선택하세요" });
+      return;
+    }
+    const n = Math.max(2, Math.floor(count));
+    const dir = AXIS_VEC[axis];
+    const made: TessellatedMesh[] = [];
+    for (const id of ids) {
+      const body = st.shapes.find((m) => m.shapeId === id);
+      if (!body) continue;
+      const off = st.transforms[id] ?? [0, 0, 0];
+      for (let k = 1; k < n; k++) {
+        made.push(translateMesh(body, off[0] + dir[0] * spacing * k, off[1] + dir[1] * spacing * k, off[2] + dir[2] * spacing * k, `pat-${++counter}`));
+      }
+    }
+    set((s) => ({
+      shapes: [...s.shapes, ...made],
+      patternOpen: false,
+      history: [...s.history, { id: `pat-${counter}`, label: "선형 패턴" }],
+      status: `선형 패턴 — 복제 ${made.length}개 (${axis}축, ${spacing} 간격)`,
+    }));
+  },
+
+  patternCircular: (axis, count, angleDeg) => {
+    const st = get();
+    const ids = selectionBodyIds(st.selection);
+    if (ids.length === 0) {
+      set({ status: "패턴: 바디를 선택하세요" });
+      return;
+    }
+    const n = Math.max(2, Math.floor(count));
+    const axisVec = AXIS_VEC[axis];
+    // 360°면 마지막이 원본과 겹치므로 step=360/n, 부분각이면 양끝 포함 step=angle/(n-1)
+    const stepDeg = angleDeg >= 360 ? 360 / n : angleDeg / (n - 1);
+    const made: TessellatedMesh[] = [];
+    for (const id of ids) {
+      const body = st.shapes.find((m) => m.shapeId === id);
+      if (!body) continue;
+      const off = st.transforms[id] ?? [0, 0, 0];
+      const based = (off[0] || off[1] || off[2]) ? translateMesh(body, off[0], off[1], off[2], `${id}-b`) : body;
+      for (let k = 1; k < n; k++) {
+        made.push(rotateMeshAxis(based, axisVec, (stepDeg * k * Math.PI) / 180, `pat-${++counter}`));
+      }
+    }
+    set((s) => ({
+      shapes: [...s.shapes, ...made],
+      patternOpen: false,
+      history: [...s.history, { id: `pat-${counter}`, label: "원형 패턴" }],
+      status: `원형 패턴 — 복제 ${made.length}개 (${axis}축, ${angleDeg}°)`,
+    }));
+  },
+
+  openPattern: () => {
+    if (selectionBodyIds(get().selection).length === 0) {
+      set({ status: "패턴: 먼저 바디를 선택하세요" });
+      return;
+    }
+    set({ patternOpen: true, status: "패턴 — 방식과 수치를 정하세요" });
+  },
+  closePattern: () => set({ patternOpen: false }),
+
+  // 선택 바디를 변형(map). transform 오프셋을 좌표에 굽고 같은 id 로 교체.
+  // mapper(body, center) 가 변형된 메시를 돌려준다.
+  rotateBody: (axis, angleDeg) => {
+    const st = get();
+    const ids = new Set(selectionBodyIds(st.selection));
+    if (ids.size === 0) {
+      set({ status: "회전: 바디를 선택하세요" });
+      return;
+    }
+    const k = AXIS_VEC[axis];
+    const ang = (angleDeg * Math.PI) / 180;
+    const transforms = { ...st.transforms };
+    const shapes = st.shapes.map((body) => {
+      if (!ids.has(body.shapeId)) return body;
+      const off = st.transforms[body.shapeId] ?? [0, 0, 0];
+      const based = off[0] || off[1] || off[2] ? translateMesh(body, off[0], off[1], off[2], body.shapeId) : body;
+      const c = centroidOf(based);
+      // 중심 기준 회전: translate(-c) → rotate(원점) → translate(+c)
+      const r = translateMesh(rotateMeshAxis(translateMesh(based, -c[0], -c[1], -c[2], body.shapeId), k, ang, body.shapeId), c[0], c[1], c[2], body.shapeId);
+      delete transforms[body.shapeId];
+      return r;
+    });
+    set((s) => ({ shapes, transforms, transformMode: null, history: [...s.history, { id: `rot-${++counter}`, label: "회전" }], status: `바디 회전 ${angleDeg}° (${axis}축)` }));
+  },
+
+  scaleBody: (factor) => {
+    const st = get();
+    const ids = new Set(selectionBodyIds(st.selection));
+    if (ids.size === 0 || factor <= 0) {
+      set({ status: "스케일: 바디를 선택하고 양수 배율을 쓰세요" });
+      return;
+    }
+    const transforms = { ...st.transforms };
+    const shapes = st.shapes.map((body) => {
+      if (!ids.has(body.shapeId)) return body;
+      const off = st.transforms[body.shapeId] ?? [0, 0, 0];
+      const based = off[0] || off[1] || off[2] ? translateMesh(body, off[0], off[1], off[2], body.shapeId) : body;
+      delete transforms[body.shapeId];
+      return scaleMesh(based, factor, centroidOf(based), body.shapeId);
+    });
+    set((s) => ({ shapes, transforms, transformMode: null, history: [...s.history, { id: `scl-${++counter}`, label: "스케일" }], status: `바디 스케일 ×${factor}` }));
+  },
+
+  mirrorBody: (axis) => {
+    const st = get();
+    const ids = new Set(selectionBodyIds(st.selection));
+    if (ids.size === 0) {
+      set({ status: "미러: 바디를 선택하세요" });
+      return;
+    }
+    const a = axis === "x" ? 0 : axis === "y" ? 1 : 2;
+    const transforms = { ...st.transforms };
+    const shapes = st.shapes.map((body) => {
+      if (!ids.has(body.shapeId)) return body;
+      const off = st.transforms[body.shapeId] ?? [0, 0, 0];
+      const based = off[0] || off[1] || off[2] ? translateMesh(body, off[0], off[1], off[2], body.shapeId) : body;
+      delete transforms[body.shapeId];
+      return mirrorMesh(based, a, centroidOf(based), body.shapeId);
+    });
+    set((s) => ({ shapes, transforms, transformMode: null, history: [...s.history, { id: `mir-${++counter}`, label: "미러" }], status: `바디 미러 (${axis}축)` }));
+  },
+
+  openTransform: (mode) => {
+    if (selectionBodyIds(get().selection).length === 0) {
+      set({ status: "변형: 먼저 바디를 선택하세요" });
+      return;
+    }
+    set({ transformMode: mode });
+  },
+  closeTransform: () => set({ transformMode: null }),
 }));

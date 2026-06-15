@@ -10,25 +10,26 @@
 | 1.1 GeometryKernel | B-Rep(Vertex/Edge/Face/SolidBody) | 🟡 | OCCT(B-rep) + FAST(메시). 메시가 기본 |
 | 1.2 HistoryTreeManager | 피처트리·롤백(rebuildTree) | ⬜ | **미구현 — 큰 백본** |
 | 2.1 InputController | 터치=카메라 / 펜=형상 분리 | ✅ | Pointer Events 분기 |
-| 2.2 CameraManager | 뷰큐브 alignToAxis(보간) | 🟡 | 표준뷰 즉시전환(보간 0.3s 추가 예정) |
+| 2.2 CameraManager | 뷰큐브 alignToAxis(보간) | 🟡 | 표준뷰 즉시전환 + **면 법선 자동 정렬**(alignToNormal). 보간 0.3s 예정 |
 | 2.2 GridSystem | 어댑티브 그리드 + snapToGrid | 🟡 | 격자 스냅 0.5(고정) → 어댑티브 예정 |
-| 3.1 SketchPlane | 3 표준평면 선택 + 평면 위 스케치 | ✅ | XY/YZ/XZ 선택→정렬→그 평면(u,v) 스케치·돌출 (3점 커스텀평면/면 위는 다음) |
-| 3.2 CurveEntity | Line/Arc | 🟡 | Line/Rect/Circle (Arc 미구현) |
+| 3.1 SketchPlane | 3 표준평면 + 면 위 스케치 | ✅ | XY/YZ/XZ + **면 클릭→그 면 평면**(planeFromFace). 3점 커스텀평면은 다음 |
+| 3.2 CurveEntity | Line/Arc | 🟡 | Line/Rect/Circle/타원/다각형 (Arc·스플라인 미구현) |
 | **3.3 ProfileDetector** | **닫힌 루프 → 파란 면** | 🟡→✅ | **← 이번 구현 (블루 필)** |
 
 ## Part 2 — Solid Generation & Boolean
 | Module | 기능 | 상태 | 우리 구현 |
 |---|---|---|---|
-| 4.1 ExtrudeOperation | 돌출(+taperAngle) | 🟡 | 돌출 O, taper/방향 미구현 |
-| 4.2 RevolveOperation | 회전체 | ⬜ | 다음 우선순위 |
+| 4.1 ExtrudeOperation | 돌출(+taperAngle) | ✅ | 높이입력 + 새바디/빼기/합치기(AABB 겹침) + **드래그 핸들 실시간 높이**. taper 미구현 |
+| 4.2 RevolveOperation | 회전체 | ✅ | 각도+축(세로/가로) Lathe 회전. cut/fuse·축지정선택 다음 |
 | 4.3 LoftOperation | 로프트 | ⬜ | |
 | 5.1 BooleanSolver | union/subtract/intersect | ✅ | 메시CSG / OCCT |
-| 5.2 AutoContextManager | 돌출 충돌 → 자동 cut/add | ⬜ | **돌출 컷 — 다음 우선** |
+| 5.2 AutoContextManager | 돌출 충돌 → 자동 cut/add | 🟡 | 돌출 빼기/합치기(AABB 겹침 자동). 면 위 스케치 연동은 다음 |
 | 6.1 ExtrudeCutFilter | 컷 대상 필터(제외 바디) | ⬜ | |
 
 ## Part 3 — Constraint & Timeline & PBR
 | Module | 기능 | 상태 |
 |---|---|---|
+| 4.x Fillet/Chamfer | 모깎기/모따기 | 🟡 | **둥근 박스 프리미티브**(RoundedBox). 임의-모서리 fillet 은 B-rep(OCCT) 트랙 — 메시론 미보장 |
 | 7 ConstraintManager | 구속(Coincident/Tangent/Distance) + DOF 색상 | ⬜ (PlaneGCS) |
 | 8 Timeline/Breakpoint | 피처 재배치·브레이크포인트 타임워프 | ⬜ (1.2 의존) |
 | 9 PBR_RenderManager | 면별 재질(roughness/metallic/opacity) | ⬜ |
@@ -36,11 +37,13 @@
 ## Part 4 — Assembly & Export
 | Module | 기능 | 상태 |
 |---|---|---|
-| 10.1 TransformationMatrix | translate/rotate/scale | 🟡 | 이동 O, 회전·스케일 미구현 |
-| 10.2 InstanceCopier | 복제/패턴 | ⬜ |
+| 10.1 TransformationMatrix | translate/rotate/scale | ✅ | 이동(기즈모) + 회전·스케일·미러(중심기준 다이얼로그) |
+| 10.2 InstanceCopier | 복제/패턴 | ✅ | 선형(축·간격) + 원형(축·각도) 배열. transformMesh(이동/회전) |
 | 11.1 TessellationEngine | chordal/angular 공차 | 🟡 (고정 deflection) |
 | 11.2 ToleranceManager | 조립 공극 오프셋 | ⬜ |
-| 12 CadAutomationAPI | 스크립트 API | ⬜ |
+| 12 CadAutomationAPI | 스크립트 API | 🟡 | `buildMouse` 데모(스케치→돌출→불리언 코드 파이프라인) |
+| STL Export | 바이너리 STL 내보내기 | ✅ | `meshesToStl` + 파일메뉴(이동 오프셋 반영). STEP 미구현 |
+| STL Import | STL 불러오기 | ✅ | `parseStl`(바이너리/ASCII) + 파일메뉴 |
 
 ## UI 셸 (Shapr3D 레이아웃 — 기영님 스크린샷 참고)
 | 요소 | 상태 | 비고 |
@@ -75,7 +78,7 @@
 - 셰이더 팝업(와이어프레임/X-Ray/음영/시각화 + 곡면분석 + 에지/숨긴모서리/데칼)
 - 구속조건 설정 팝업(자동 구속조건 + 가시성 + 앵커 처음/마지막)
 
-**스케치 도구:** 호 · 스플라인 · 타원 · 다각형 · 모서리 오프셋 · 미러 · 패턴 · 투상 · 텍스트 · 자르기 · 삭제 · 구속조건 솔버(Module 7)
+**스케치 도구:** 호 · 스플라인 · 모서리 오프셋 · 미러 · 패턴 · 투상 · 텍스트 · 자르기 · 삭제 · 구속조건 솔버(Module 7) _(타원·다각형 완료 2026-06-15)_
 **변형:** 스케일 · 평행이동 · 패턴 · 축둘레회전 · 정렬 · 미러 · 회전 기즈모
 **도구(3D):** 면 오프셋 · 모따기/모깎기 · 셸 · 로프트 · 바디분할 · 회전(Revolve) · 스윕 · 면교체 · 모서리오프셋 · 투상 · 랩&엠보스 · 시각화
 **삽입:** 변수/이미지/파일/프로젝트 가져오기

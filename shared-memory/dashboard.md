@@ -1,12 +1,12 @@
 ---
-last_updated: 2026-06-14T03:40
+last_updated: 2026-06-15T12:10
 updated_by: master-orchestrator
 ---
 
 # Alien Agentic — Today's Dashboard
 
 ## 🛸 오늘의 한 줄
-자체 IP 첫 제품 **ALIEN SPACE**(웹 3D 모델러) — 설계 v2 + Phase 0(디바이스 "잘됨") + Phase 1(프리미티브·불리언) 코드까지. 리네임 Nebula→ALIEN SPACE 완료.
+**ALIEN SPACE** 1차 배치 — 스케치 타원·다각형 + STL 내보내기 + 마우스 데모(스케치→돌출→돔→슬롯, 실제 커널만으로). tsc 0 · vitest 54/54 · build OK. PR #14 갱신. (교훈: 손수 짠 UV구는 CSG에서 빈 결과 → 매니폴드 THREE 지오메트리 사용)
 
 ## 📊 진행 중 클라이언트
 

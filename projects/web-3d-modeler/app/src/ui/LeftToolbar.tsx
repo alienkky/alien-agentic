@@ -3,6 +3,9 @@
  */
 import { useState, type ReactNode } from "react";
 import { useAppStore, type SketchTool } from "../store/useAppStore";
+import { buildMouse } from "../demo/mouse";
+import { buildBracket } from "../demo/bracket";
+import { roundedBox } from "../kernel/roundedBox";
 import {
   BoxIcon, CylinderIcon, SphereIcon, SketchIcon, SearchIcon, InsertIcon,
   ConstructIcon, TransformIcon, ToolsIcon, LayersIcon, SectionIcon, MeasureIcon,
@@ -69,7 +72,7 @@ function SketchPalette(): JSX.Element {
   const setSketchTool = useAppStore((s) => s.setSketchTool);
   const finishSketch = useAppStore((s) => s.finishSketch);
   const setStatus = useAppStore((s) => s.setStatus);
-  const planeId = useAppStore((s) => s.sketchPlane);
+  const plane = useAppStore((s) => s.sketchPlane);
 
   const pick = (t: SketchTool) => setSketchTool(t);
   const soon = (name: string) => setStatus(`${name} — 준비 중`);
@@ -77,14 +80,14 @@ function SketchPalette(): JSX.Element {
   return (
     <div className="flex max-h-[calc(100vh-9rem)] flex-col gap-0.5 overflow-y-auto border-t border-aa-border pt-1.5">
       <Row icon={<SearchIcon />} label="검색" shortcut="⌃F" onClick={() => soon("검색")} />
-      <Row icon={<CloseIcon />} label="스케칭 종료" sub={planeId ? "프로파일 저장" : "활성 평면 없음"} onClick={finishSketch} />
+      <Row icon={<CloseIcon />} label="스케칭 종료" sub={plane ? "프로파일 저장" : "활성 평면 없음"} onClick={finishSketch} />
       <Row icon={<LineIcon />} label="선" shortcut="L" active={tool === "line"} onClick={() => pick("line")} />
       <Row icon={<ArcIcon />} label="호" shortcut="A" onClick={() => soon("호")} />
       <Row icon={<SplineIcon />} label="스플라인" sub="맞춤 점" shortcut="I" onClick={() => soon("스플라인")} />
       <Row icon={<RectIcon />} label="사각형" sub="대각선" shortcut="R" active={tool === "rectangle"} onClick={() => pick("rectangle")} />
       <Row icon={<Circle2DIcon />} label="원" shortcut="C" active={tool === "circle"} onClick={() => pick("circle")} />
-      <Row icon={<EllipseIcon />} label="타원" onClick={() => soon("타원")} />
-      <Row icon={<PolygonIcon />} label="다각형" sub="오각형" shortcut="G" onClick={() => soon("다각형")} />
+      <Row icon={<EllipseIcon />} label="타원" active={tool === "ellipse"} onClick={() => pick("ellipse")} />
+      <Row icon={<PolygonIcon />} label="다각형" sub="육각형" shortcut="G" active={tool === "polygon"} onClick={() => pick("polygon")} />
       <Row icon={<OffsetIcon />} label="모서리 오프셋" sub="체인" shortcut="O" onClick={() => soon("모서리 오프셋")} />
       <Row icon={<TransformIcon />} label="이동/회전" shortcut="M" onClick={() => soon("이동/회전")} />
       <Row icon={<MirrorIcon />} label="미러" onClick={() => soon("미러")} />
@@ -103,7 +106,11 @@ export function LeftToolbar(): JSX.Element {
   const addPrimitive = useAppStore((s) => s.addPrimitive);
   const beginSketch = useAppStore((s) => s.beginSketch);
   const booleanOp = useAppStore((s) => s.booleanOp);
-  const extrudeSketch = useAppStore((s) => s.extrudeSketch);
+  const openExtrude = useAppStore((s) => s.openExtrude);
+  const openRevolve = useAppStore((s) => s.openRevolve);
+  const openPattern = useAppStore((s) => s.openPattern);
+  const openTransform = useAppStore((s) => s.openTransform);
+  const addMesh = useAppStore((s) => s.addMesh);
   const setStatus = useAppStore((s) => s.setStatus);
 
   const toggle = (c: Category) => setOpen((cur) => (cur === c ? null : c));
@@ -145,8 +152,13 @@ export function LeftToolbar(): JSX.Element {
               <div className="my-1 h-px bg-aa-border" />
               <div className="px-3 py-1 text-[10px] text-aa-text-dim">기본 바디</div>
               <FlyoutItem icon={<BoxIcon />} label="박스" onClick={() => { void addPrimitive("box"); setOpen(null); }} />
+              <FlyoutItem icon={<BoxIcon />} label="둥근 박스" onClick={() => { addMesh(roundedBox(4, 4, 4, 0.6, `rbox-${Date.now()}`), "둥근 박스"); setOpen(null); }} />
               <FlyoutItem icon={<CylinderIcon />} label="실린더" onClick={() => { void addPrimitive("cylinder"); setOpen(null); }} />
               <FlyoutItem icon={<SphereIcon />} label="구" onClick={() => { void addPrimitive("sphere"); setOpen(null); }} />
+              <div className="my-1 h-px bg-aa-border" />
+              <div className="px-3 py-1 text-[10px] text-aa-text-dim">데모 (파이프라인 검증)</div>
+              <FlyoutItem icon={<SphereIcon />} label="컴퓨터 마우스" onClick={() => { const { mouse } = buildMouse(); addMesh(mouse, "데모: 마우스"); setOpen(null); }} />
+              <FlyoutItem icon={<BoxIcon />} label="브래킷" onClick={() => { const { bracket } = buildBracket(); addMesh(bracket, "데모: 브래킷"); setOpen(null); }} />
             </>
           )}
           {open === "construct" && (
@@ -157,27 +169,26 @@ export function LeftToolbar(): JSX.Element {
           )}
           {open === "transform" && (
             <>
-              <FlyoutItem icon={<TransformIcon />} label="이동/회전" shortcut="M" onClick={() => { setStatus("이동: 바디 선택 후 기즈모 드래그"); setOpen(null); }} />
-              <FlyoutItem icon={<BoxIcon />} label="스케일" shortcut="S" onClick={() => soon("스케일")} />
-              <FlyoutItem icon={<TransformIcon />} label="평행 이동" shortcut="N" onClick={() => soon("평행 이동")} />
-              <FlyoutItem icon={<PatternIcon />} label="패턴" onClick={() => soon("패턴")} />
-              <FlyoutItem icon={<TransformIcon />} label="축 둘레 회전" onClick={() => soon("축 둘레 회전")} />
+              <FlyoutItem icon={<TransformIcon />} label="이동" shortcut="M" onClick={() => { setStatus("이동: 바디 선택 후 기즈모 드래그"); setOpen(null); }} />
+              <FlyoutItem icon={<TransformIcon />} label="축 둘레 회전" onClick={() => { openTransform("rotate"); setOpen(null); }} />
+              <FlyoutItem icon={<BoxIcon />} label="스케일" shortcut="S" onClick={() => { openTransform("scale"); setOpen(null); }} />
+              <FlyoutItem icon={<MirrorIcon />} label="미러" onClick={() => { openTransform("mirror"); setOpen(null); }} />
+              <FlyoutItem icon={<PatternIcon />} label="패턴" onClick={() => { openPattern(); setOpen(null); }} />
               <FlyoutItem icon={<ConstructIcon />} label="정렬" onClick={() => soon("정렬")} />
-              <FlyoutItem icon={<MirrorIcon />} label="미러" onClick={() => soon("미러")} />
             </>
           )}
           {open === "tools" && (
             <>
               <FlyoutItem icon={<OffsetIcon />} label="면 오프셋" onClick={() => soon("면 오프셋")} />
               <FlyoutItem icon={<ToolsIcon />} label="모따기/모깎기" shortcut="F" onClick={() => soon("필렛/모따기")} />
-              <FlyoutItem icon={<ExtrudeIcon />} label="돌출" shortcut="E" onClick={() => { extrudeSketch(4); setOpen(null); }} />
+              <FlyoutItem icon={<ExtrudeIcon />} label="돌출" shortcut="E" onClick={() => { openExtrude(); setOpen(null); }} />
               <FlyoutItem icon={<BoxIcon />} label="셸" shortcut="H" onClick={() => soon("셸")} />
               <FlyoutItem icon={<SphereIcon />} label="로프트" onClick={() => soon("로프트")} />
               <FlyoutItem icon={<UnionIcon />} label="결합" shortcut="⌃U" onClick={() => { void booleanOp("fuse"); setOpen(null); }} />
               <FlyoutItem icon={<SubtractIcon />} label="빼기" shortcut="⌃B" onClick={() => { void booleanOp("cut"); setOpen(null); }} />
               <FlyoutItem icon={<IntersectIcon />} label="교차" shortcut="⌃I" onClick={() => { void booleanOp("common"); setOpen(null); }} />
               <FlyoutItem icon={<SectionIcon />} label="바디 분할" onClick={() => soon("바디 분할")} />
-              <FlyoutItem icon={<CylinderIcon />} label="회전" shortcut="V" onClick={() => soon("회전(Revolve)")} />
+              <FlyoutItem icon={<CylinderIcon />} label="회전" shortcut="V" onClick={() => { openRevolve(); setOpen(null); }} />
               <FlyoutItem icon={<SplineIcon />} label="스윕" shortcut="W" onClick={() => soon("스윕")} />
               <FlyoutItem icon={<RectIcon />} label="면 교체" onClick={() => soon("면 교체")} />
               <FlyoutItem icon={<OffsetIcon />} label="모서리 오프셋" shortcut="O" onClick={() => soon("모서리 오프셋")} />

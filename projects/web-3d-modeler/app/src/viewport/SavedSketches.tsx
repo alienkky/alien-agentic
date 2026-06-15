@@ -5,10 +5,10 @@ import { useMemo } from "react";
 import * as THREE from "three";
 import { Line } from "@react-three/drei";
 import { useAppStore, type SketchEntity } from "../store/useAppStore";
-import { SKETCH_PLANES, planeToWorld } from "../kernel/sketchPlane";
+import { planeToWorld } from "../kernel/sketchPlane";
 
 function SketchItem({ sketch }: { sketch: SketchEntity }): JSX.Element {
-  const plane = SKETCH_PLANES[sketch.plane];
+  const plane = sketch.plane;
   const selectEntity = useAppStore((s) => s.selectEntity);
   const selected = useAppStore((s) =>
     s.selection.some((it) => it.kind === "sketch" && it.shapeId === sketch.id),

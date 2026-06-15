@@ -9,7 +9,7 @@ import * as THREE from "three";
 import { Line, Html } from "@react-three/drei";
 import { useAppStore } from "../store/useAppStore";
 import {
-  SKETCH_PLANES, planeToWorld, worldToPlane,
+  planeToWorld, worldToPlane,
   type PlaneId, type SketchPlaneDef, type SketchPoint,
 } from "../kernel/sketchPlane";
 
@@ -17,6 +17,8 @@ const PLANE_ROT: Record<PlaneId, [number, number, number]> = {
   xz: [-Math.PI / 2, 0, 0], xy: [0, 0, 0], yz: [0, Math.PI / 2, 0],
 };
 const PLANE_COLOR: Record<PlaneId, string> = { xz: "#4fd1c5", xy: "#5b9cff", yz: "#e06fae" };
+/** 평면 색 — 표준평면이면 고유색, 면 위 평면이면 기본 청록. */
+const planeColorFor = (plane: SketchPlaneDef): string => PLANE_COLOR[plane.id as PlaneId] ?? "#4fd1c5";
 const DIM_LABEL = "cursor-pointer whitespace-nowrap rounded bg-aa-bg/90 px-1.5 py-0.5 text-xs font-semibold text-aa-accent ring-1 ring-aa-border";
 const DIM_ACTIVE = "whitespace-nowrap rounded bg-blue-600 px-1.5 py-0.5 text-xs font-semibold text-white ring-1 ring-blue-300";
 
@@ -33,6 +35,17 @@ function circlePts(c: SketchPoint, r: number, seg = 48): SketchPoint[] {
   for (let i = 0; i < seg; i++) { const a = (i / seg) * Math.PI * 2; out.push({ u: c.u + r * Math.cos(a), v: c.v + r * Math.sin(a) }); }
   return out;
 }
+function ellipsePts(c: SketchPoint, ru: number, rv: number, seg = 48): SketchPoint[] {
+  const out: SketchPoint[] = [];
+  for (let i = 0; i < seg; i++) { const a = (i / seg) * Math.PI * 2; out.push({ u: c.u + ru * Math.cos(a), v: c.v + rv * Math.sin(a) }); }
+  return out;
+}
+function polygonPts(c: SketchPoint, r: number, sides: number): SketchPoint[] {
+  const out: SketchPoint[] = [];
+  for (let i = 0; i < sides; i++) { const a = (i / sides) * Math.PI * 2 + Math.PI / 2; out.push({ u: c.u + r * Math.cos(a), v: c.v + r * Math.sin(a) }); }
+  return out;
+}
+const POLY_SIDES = 6;
 const segLen = (a: SketchPoint, b: SketchPoint) => Math.hypot(b.u - a.u, b.v - a.v);
 const midUV = (a: SketchPoint, b: SketchPoint): SketchPoint => ({ u: (a.u + b.u) / 2, v: (a.v + b.v) / 2 });
 
@@ -121,7 +134,7 @@ function PlanePicker(): JSX.Element {
 
 export function SketchLayer(): JSX.Element | null {
   const active = useAppStore((s) => s.sketchActive);
-  const planeId = useAppStore((s) => s.sketchPlane);
+  const plane = useAppStore((s) => s.sketchPlane);
   const tool = useAppStore((s) => s.sketchTool);
   const draft = useAppStore((s) => s.sketchDraft);
   const hover = useAppStore((s) => s.sketchHover);
@@ -133,8 +146,6 @@ export function SketchLayer(): JSX.Element | null {
   const dragEnd = useAppStore((s) => s.sketchDragEnd);
   const clickPoint = useAppStore((s) => s.sketchClickPoint);
 
-  const plane = planeId ? SKETCH_PLANES[planeId] : null;
-
   // 드래그 중 미리보기(사각형/원)
   const draftView = useMemo(() => {
     if (!draft) return null;
@@ -142,6 +153,15 @@ export function SketchLayer(): JSX.Element | null {
     if (tool === "circle") {
       const r = Math.hypot(current.u - start.u, current.v - start.v);
       return { pts: circlePts(start, r), dim: `⌀ ${(r * 2).toFixed(2)} mm`, dimAt: midUV(start, current) };
+    }
+    if (tool === "ellipse") {
+      const ru = Math.abs(current.u - start.u);
+      const rv = Math.abs(current.v - start.v);
+      return { pts: ellipsePts(start, ru, rv), dim: `${(ru * 2).toFixed(2)} × ${(rv * 2).toFixed(2)} mm`, dimAt: midUV(start, current) };
+    }
+    if (tool === "polygon") {
+      const r = Math.hypot(current.u - start.u, current.v - start.v);
+      return { pts: polygonPts(start, r, POLY_SIDES), dim: `${POLY_SIDES}각 ⌀ ${(r * 2).toFixed(2)} mm`, dimAt: midUV(start, current) };
     }
     return {
       pts: rectPts(start, current),
@@ -161,15 +181,17 @@ export function SketchLayer(): JSX.Element | null {
 
   return (
     <group>
-      <mesh
-        rotation={PLANE_ROT[plane.id]}
-        onPointerDown={(e) => { e.stopPropagation(); if (tool === "line") clickPoint(onPlane(e)); else dragStart(onPlane(e)); }}
-        onPointerMove={(e) => { e.stopPropagation(); dragMove(onPlane(e)); }}
-        onPointerUp={(e) => { e.stopPropagation(); dragEnd(); }}
-      >
-        <planeGeometry args={[400, 400]} />
-        <meshBasicMaterial color={PLANE_COLOR[plane.id]} transparent opacity={0.05} side={THREE.DoubleSide} />
-      </mesh>
+      {/* 그리기 평면 — 표준/면위 평면 모두 basis 행렬로 정렬 (local XY → 평면) */}
+      <group matrixAutoUpdate={false} matrix={planeMatrix(plane)}>
+        <mesh
+          onPointerDown={(e) => { e.stopPropagation(); if (tool === "line") clickPoint(onPlane(e)); else dragStart(onPlane(e)); }}
+          onPointerMove={(e) => { e.stopPropagation(); dragMove(onPlane(e)); }}
+          onPointerUp={(e) => { e.stopPropagation(); dragEnd(); }}
+        >
+          <planeGeometry args={[400, 400]} />
+          <meshBasicMaterial color={planeColorFor(plane)} transparent opacity={0.05} side={THREE.DoubleSide} />
+        </mesh>
+      </group>
 
       {/* 누적된 확정 획들 */}
       {strokes.map((stroke, i) => (
