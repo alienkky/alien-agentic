@@ -20,7 +20,7 @@
 | Module | 기능 | 상태 | 우리 구현 |
 |---|---|---|---|
 | 4.1 ExtrudeOperation | 돌출(+taperAngle) | ✅ | 높이입력 + 새바디/빼기/합치기(AABB 겹침) + **드래그 핸들 실시간 높이**. taper 미구현 |
-| 4.2 RevolveOperation | 회전체 | ✅ | 각도+축(세로/가로) Lathe 회전. cut/fuse·축지정선택 다음 |
+| 4.2 RevolveOperation | 회전체 | ✅ | 각도+축 Lathe 회전 + 새바디/빼기/합치기(combineTools 공유). 축지정선택 다음 |
 | 4.3 LoftOperation | 로프트 | ⬜ | |
 | 5.1 BooleanSolver | union/subtract/intersect | ✅ | 메시CSG / OCCT |
 | 5.2 AutoContextManager | 돌출 충돌 → 자동 cut/add | 🟡 | 돌출 빼기/합치기(AABB 겹침 자동). 면 위 스케치 연동은 다음 |
@@ -44,6 +44,7 @@
 | 12 CadAutomationAPI | 스크립트 API | 🟡 | `buildMouse` 데모(스케치→돌출→불리언 코드 파이프라인) |
 | STL Export | 바이너리 STL 내보내기 | ✅ | `meshesToStl` + 파일메뉴(이동 오프셋 반영). STEP 미구현 |
 | STL Import | STL 불러오기 | ✅ | `parseStl`(바이너리/ASCII) + 파일메뉴 |
+| 측정 Measure | 두 점 거리 | ✅ | 측정 모드 → 두 점 클릭 → 거리(mm). 각도·모서리스냅 다음 |
 
 ## UI 셸 (Shapr3D 레이아웃 — 기영님 스크린샷 참고)
 | 요소 | 상태 | 비고 |
