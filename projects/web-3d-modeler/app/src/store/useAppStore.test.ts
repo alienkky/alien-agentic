@@ -284,6 +284,53 @@ describe("useAppStore — 회전 모드(새/빼기/합치기)", () => {
   });
 });
 
+describe("useAppStore — 스케치 그리기 도구(호·스플라인·삭제)", () => {
+  beforeEach(() => {
+    useAppStore.getState().cancelSketch();
+  });
+
+  it("스플라인: 점 찍고 확정 → 곡선 획(점 증가)", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("spline");
+    st.sketchClickPoint({ u: 0, v: 0 });
+    st.sketchClickPoint({ u: 3, v: 2 });
+    st.sketchClickPoint({ u: 6, v: 0 });
+    st.sketchClickPoint({ u: 6, v: 0 }); // 끝점 재클릭 → 확정
+    const strokes = useAppStore.getState().sketchStrokes;
+    expect(strokes).toHaveLength(1);
+    expect(strokes[0]!.length).toBeGreaterThan(10); // 곡선화
+  });
+
+  it("호: 3점 클릭 → 자동 확정(원호 폴리라인)", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("arc");
+    st.sketchClickPoint({ u: 1, v: 0 });
+    st.sketchClickPoint({ u: 0, v: 1 });
+    st.sketchClickPoint({ u: -1, v: 0 }); // 3점 → 자동 확정
+    const strokes = useAppStore.getState().sketchStrokes;
+    expect(strokes).toHaveLength(1);
+    expect(strokes[0]!.length).toBeGreaterThan(10);
+  });
+
+  it("삭제: 클릭한 획 제거", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("rectangle");
+    st.sketchDragStart({ u: 0, v: 0 });
+    st.sketchDragMove({ u: 4, v: 3 });
+    st.sketchDragEnd();
+    expect(useAppStore.getState().sketchStrokes).toHaveLength(1);
+    st.setSketchTool("delete");
+    st.deleteSketchStrokeAt({ u: 0, v: 0 });
+    expect(useAppStore.getState().sketchStrokes).toHaveLength(0);
+  });
+});
+
 describe("useAppStore — 측정", () => {
   beforeEach(() => {
     useAppStore.getState().clearMeasure();

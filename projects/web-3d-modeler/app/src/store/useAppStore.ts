@@ -13,7 +13,8 @@ import { translateMesh, rotateMeshAxis, scaleMesh, mirrorMesh, centroidOf } from
 import { meshAabb, aabbOverlap } from "../kernel/aabb";
 import { parseStl } from "../kernel/stlImport";
 import { SKETCH_PLANES, planeFromFace, type PlaneId, type SketchPoint, type SketchPlaneDef } from "../kernel/sketchPlane";
-import { trimAt } from "../kernel/sketchTrim";
+import { trimAt, nearestStrokeIndex } from "../kernel/sketchTrim";
+import { catmullRom, arc3 } from "../kernel/sketchCurves";
 import {
   defaultCamera,
   orbit as orbitCam,
@@ -47,7 +48,9 @@ function sameSel(a: SelItem, b: SelItem): boolean {
 }
 
 export type PrimitiveKind = "box" | "cylinder" | "sphere";
-export type SketchTool = "rectangle" | "circle" | "line" | "ellipse" | "polygon" | "trim";
+export type SketchTool = "rectangle" | "circle" | "line" | "ellipse" | "polygon" | "trim" | "spline" | "arc" | "delete";
+/** 점을 순서대로 찍어 그리는 도구 (선·스플라인·호) */
+const isPointTool = (t: SketchTool): boolean => t === "line" || t === "spline" || t === "arc";
 /** 돌출 방식 (Shapr3D식): 새 바디 / 겹친 바디에서 빼기 / 겹친 바디에 합치기. */
 export type ExtrudeMode = "new" | "cut" | "fuse";
 /** 패턴 축 (선형 방향 / 원형 회전축) */
@@ -101,7 +104,16 @@ const PLANE_VIEW: Record<PlaneId, "top" | "front" | "right"> = { xz: "top", xy: 
 
 /** 획이 유효한가 — 선은 2점 이상, 닫힌 도형은 3점 이상. */
 function strokeValid(pts: SketchPoint[], tool: SketchTool): boolean {
-  return tool === "line" ? pts.length >= 2 : pts.length >= 3;
+  if (tool === "line" || tool === "spline") return pts.length >= 2;
+  if (tool === "arc") return pts.length >= 3;
+  return pts.length >= 3;
+}
+
+/** 찍은 제어점들을 도구에 맞는 최종 폴리라인으로 — 스플라인은 곡선화, 호는 3점 원호. */
+function finalizeStroke(pts: SketchPoint[], tool: SketchTool): SketchPoint[] {
+  if (tool === "spline") return catmullRom(pts);
+  if (tool === "arc" && pts.length >= 3) return arc3(pts[0]!, pts[1]!, pts[2]!);
+  return pts;
 }
 
 export type Vec3 = [number, number, number];
@@ -224,6 +236,8 @@ interface AppState {
   sketchClickPoint: (p: SketchPoint) => void;
   /** 자르기: 클릭 지점 근처 선분을 교차점 기준으로 잘라낸다 */
   trimSketchAt: (uv: SketchPoint) => void;
+  /** 삭제: 클릭 지점 근처 획을 통째로 제거 */
+  deleteSketchStrokeAt: (uv: SketchPoint) => void;
   /** 선분 치수 편집 선택 / 길이 설정 / 해제 */
   selectSketchSegment: (s: number, i: number) => void;
   setSegmentLength: (s: number, i: number, len: number) => void;
@@ -582,7 +596,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       sketchPoints: [],
       sketchStrokes: [],
       sketchDraft: null,
-      sketchLineDrawing: s.sketchTool === "line",
+      sketchLineDrawing: isPointTool(s.sketchTool),
       camera: viewPreset(s.camera, PLANE_VIEW[id]), // 그 면을 정면으로
       status: `${SKETCH_PLANES[id].label} 위에서 그리세요`,
     })),
@@ -592,10 +606,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({
       sketchTool: tool,
       sketchDraft: null,
-      sketchStrokes: strokeValid(s.sketchPoints, s.sketchTool) ? [...s.sketchStrokes, s.sketchPoints] : s.sketchStrokes,
+      sketchStrokes: strokeValid(s.sketchPoints, s.sketchTool) ? [...s.sketchStrokes, finalizeStroke(s.sketchPoints, s.sketchTool)] : s.sketchStrokes,
       sketchPoints: [],
       sketchSelectedSeg: null,
-      sketchLineDrawing: tool === "line",
+      sketchLineDrawing: isPointTool(tool),
       status:
         tool === "rectangle"
           ? "사각형 — 드래그해 그리기"
@@ -607,13 +621,19 @@ export const useAppStore = create<AppState>((set, get) => ({
                 ? `다각형 — 중심에서 바깥으로 드래그 (${POLYGON_SIDES}각형)`
                 : tool === "trim"
                   ? "자르기 — 지울 선 구간을 클릭"
-                  : "선 — 점을 순서대로 탭 (3개 이상)",
+                  : tool === "delete"
+                    ? "삭제 — 지울 선을 클릭"
+                    : tool === "spline"
+                      ? "스플라인 — 점을 이어 찍기 (끝점 재클릭/Esc 로 확정)"
+                      : tool === "arc"
+                        ? "호 — 시작·중간·끝 3점을 클릭"
+                        : "선 — 점을 순서대로 탭 (끝점 재클릭/Esc 로 확정)",
     })),
 
   // 사각형·원: 드래그 (좌표는 평면 (u,v))
   sketchDragStart: (raw) => {
     const t = get().sketchTool;
-    if (t === "line" || t === "trim" || !get().sketchPlane) return;
+    if (isPointTool(t) || t === "trim" || t === "delete" || !get().sketchPlane) return;
     const g = get().snap.grid;
     const p: SketchPoint = g ? { u: snap(raw.u), v: snap(raw.v) } : raw;
     set({ sketchDraft: { start: p, current: p }, sketchPoints: [] });
@@ -659,23 +679,29 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  // 선: 점 클릭. 비그리기 상태에서 클릭 → 새 획 시작. 끝점 다시 클릭 → 현재 획 확정.
+  // 점 도구(선·스플라인·호) 클릭. 끝점 재클릭→확정. 호는 3점 모이면 자동 확정.
   sketchClickPoint: (raw) => {
     const s = get();
-    if (s.sketchTool !== "line" || !s.sketchPlane) return;
+    if (!isPointTool(s.sketchTool) || !s.sketchPlane) return;
+    const tool = s.sketchTool;
     const p: SketchPoint = s.snap.grid ? { u: snap(raw.u), v: snap(raw.v) } : raw;
     if (!s.sketchLineDrawing) {
-      // 새 획 시작 (기존 획들은 그대로 유지)
-      set({ sketchLineDrawing: true, sketchPoints: [p], sketchSelectedSeg: null, status: "선 — 점을 이어 찍기 (끝점 다시 클릭/Esc 로 확정)" });
+      set({ sketchLineDrawing: true, sketchPoints: [p], sketchSelectedSeg: null, status: "점을 이어 찍기 (끝점 재클릭/Esc 로 확정)" });
       return;
     }
     const last = s.sketchPoints[s.sketchPoints.length - 1];
-    if (last && Math.hypot(p.u - last.u, p.v - last.v) < 0.4 && s.sketchPoints.length >= 2) {
-      // 끝점 다시 클릭 → 현재 획 확정(누적), 새 획 대기
-      set((st) => ({ sketchStrokes: [...st.sketchStrokes, st.sketchPoints], sketchPoints: [], sketchLineDrawing: false, sketchHover: null, status: "선 확정 — 치수 클릭 편집 / 계속 그리기 / 스케칭 종료" }));
+    // 선·스플라인: 끝점 재클릭 → 확정
+    if (tool !== "arc" && last && Math.hypot(p.u - last.u, p.v - last.v) < 0.4 && s.sketchPoints.length >= 2) {
+      set((st) => ({ sketchStrokes: [...st.sketchStrokes, finalizeStroke(st.sketchPoints, tool)], sketchPoints: [], sketchLineDrawing: false, sketchHover: null, status: "확정 — 계속 그리기 / 스케칭 종료" }));
       return;
     }
-    set({ sketchPoints: [...s.sketchPoints, p], status: `선 — 점 ${s.sketchPoints.length + 1}개` });
+    const next = [...s.sketchPoints, p];
+    // 호: 3점(시작·중간·끝) 모이면 자동 확정
+    if (tool === "arc" && next.length >= 3) {
+      set((st) => ({ sketchStrokes: [...st.sketchStrokes, arc3(next[0]!, next[1]!, next[2]!)], sketchPoints: [], sketchLineDrawing: false, sketchHover: null, status: "호 완성 — 계속 그리기 / 스케칭 종료" }));
+      return;
+    }
+    set({ sketchPoints: next, status: tool === "arc" ? `호 — 점 ${next.length}/3` : `점 ${next.length}개` });
   },
 
   trimSketchAt: (uv) =>
@@ -685,12 +711,19 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { sketchStrokes: res, sketchSelectedSeg: null, status: "선 잘림" };
     }),
 
+  deleteSketchStrokeAt: (uv) =>
+    set((s) => {
+      const idx = nearestStrokeIndex(s.sketchStrokes, uv);
+      if (idx === null) return { status: "삭제: 지울 선을 클릭하세요" };
+      return { sketchStrokes: s.sketchStrokes.filter((_, i) => i !== idx), sketchSelectedSeg: null, status: "선 삭제" };
+    }),
+
   selectSketchSegment: (st, i) => set({ sketchSelectedSeg: { s: st, i } }),
   clearSketchSegment: () => set({ sketchSelectedSeg: null }),
   finishLine: () =>
     set((s) => {
-      if (strokeValid(s.sketchPoints, "line")) {
-        return { sketchStrokes: [...s.sketchStrokes, s.sketchPoints], sketchPoints: [], sketchLineDrawing: false, sketchHover: null, status: "선 확정 — 치수 편집 / 계속 / 종료" };
+      if (strokeValid(s.sketchPoints, s.sketchTool)) {
+        return { sketchStrokes: [...s.sketchStrokes, finalizeStroke(s.sketchPoints, s.sketchTool)], sketchPoints: [], sketchLineDrawing: false, sketchHover: null, status: "확정 — 계속 / 종료" };
       }
       return { sketchPoints: [], sketchLineDrawing: false, sketchHover: null };
     }),
@@ -725,7 +758,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   finishSketch: () => {
     const { sketchActive, sketchPlane, sketchPoints, sketchTool, sketchStrokes } = get();
     if (!sketchActive) return;
-    const allStrokes = strokeValid(sketchPoints, sketchTool) ? [...sketchStrokes, sketchPoints] : sketchStrokes;
+    const allStrokes = strokeValid(sketchPoints, sketchTool) ? [...sketchStrokes, finalizeStroke(sketchPoints, sketchTool)] : sketchStrokes;
     const base: Partial<AppState> = {
       sketchActive: false, sketchPlane: null, sketchPoints: [], sketchStrokes: [],
       sketchDraft: null, sketchHover: null, sketchSelectedSeg: null, sketchLineDrawing: false,

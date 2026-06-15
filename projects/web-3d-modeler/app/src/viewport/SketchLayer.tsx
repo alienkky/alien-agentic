@@ -179,7 +179,9 @@ export function SketchLayer(): JSX.Element | null {
   const dragEnd = useAppStore((s) => s.sketchDragEnd);
   const clickPoint = useAppStore((s) => s.sketchClickPoint);
   const trimAtPoint = useAppStore((s) => s.trimSketchAt);
+  const deleteAtPoint = useAppStore((s) => s.deleteSketchStrokeAt);
   const radius = useAppStore((s) => s.camera.radius);
+  const isPointTool = tool === "line" || tool === "spline" || tool === "arc";
   const cell = useMemo(() => adaptiveCellSize(radius), [radius]);
 
   // 드래그 중 미리보기(사각형/원)
@@ -221,7 +223,7 @@ export function SketchLayer(): JSX.Element | null {
       <group matrixAutoUpdate={false} matrix={planeMatrix(plane)}>
         <SketchGrid cell={cell} />
         <mesh
-          onPointerDown={(e) => { e.stopPropagation(); if (tool === "trim") trimAtPoint(onPlane(e)); else if (tool === "line") clickPoint(onPlane(e)); else dragStart(onPlane(e)); }}
+          onPointerDown={(e) => { e.stopPropagation(); if (tool === "trim") trimAtPoint(onPlane(e)); else if (tool === "delete") deleteAtPoint(onPlane(e)); else if (isPointTool) clickPoint(onPlane(e)); else dragStart(onPlane(e)); }}
           onPointerMove={(e) => { e.stopPropagation(); dragMove(onPlane(e)); }}
           onPointerUp={(e) => { e.stopPropagation(); dragEnd(); }}
         >
@@ -248,9 +250,9 @@ export function SketchLayer(): JSX.Element | null {
         </>
       )}
 
-      {/* 현재 그리는 선 체인 + 러버밴드 */}
-      {tool === "line" && chainLoop.length >= 2 && <Line points={chainLoop} color={SK.active} lineWidth={2} />}
-      {tool === "line" && points.map((p, i) => (
+      {/* 현재 그리는 점 체인(선·스플라인·호) + 러버밴드 */}
+      {isPointTool && chainLoop.length >= 2 && <Line points={chainLoop} color={SK.active} lineWidth={2} />}
+      {isPointTool && points.map((p, i) => (
         <mesh key={i} position={toWorld(p)} renderOrder={4}><sphereGeometry args={[0.11, 14, 14]} /><meshBasicMaterial color={SK.point} depthTest={false} /></mesh>
       ))}
       {lineDrawing && hover && last && (

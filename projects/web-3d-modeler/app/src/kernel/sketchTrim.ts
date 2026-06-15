@@ -50,6 +50,26 @@ function dedupe(pts: SketchPoint[]): SketchPoint[] {
 
 const isClosed = (stroke: SketchPoint[]): boolean => stroke.length >= 3;
 
+/** 클릭 지점에 가장 가까운 획의 인덱스 (삭제용). 임계 밖이면 null. */
+export function nearestStrokeIndex(strokes: SketchPoint[][], uv: SketchPoint, threshold = 0.8): number | null {
+  let bestS = -1;
+  let bestDist = Infinity;
+  for (let s = 0; s < strokes.length; s++) {
+    const stroke = strokes[s]!;
+    const n = stroke.length;
+    if (n < 2) continue;
+    const lim = isClosed(stroke) ? n : n - 1;
+    for (let i = 0; i < lim; i++) {
+      const { dist } = segDist(stroke[i]!, stroke[(i + 1) % n]!, uv);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestS = s;
+      }
+    }
+  }
+  return bestS >= 0 && bestDist <= threshold ? bestS : null;
+}
+
 /**
  * 클릭 지점 uv 근처 선분을 교차점 기준으로 자른다.
  * 반환: 새 strokes 배열, 자를 게 없으면 null.
