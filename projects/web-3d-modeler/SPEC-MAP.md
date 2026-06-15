@@ -37,8 +37,8 @@
 ## Part 4 — Assembly & Export
 | Module | 기능 | 상태 |
 |---|---|---|
-| 10.1 TransformationMatrix | translate/rotate/scale | 🟡 | 이동 O, 회전·스케일 미구현 |
-| 10.2 InstanceCopier | 복제/패턴 | ⬜ |
+| 10.1 TransformationMatrix | translate/rotate/scale | ✅ | 이동(기즈모) + 회전·스케일·미러(중심기준 다이얼로그) |
+| 10.2 InstanceCopier | 복제/패턴 | ✅ | 선형(축·간격) + 원형(축·각도) 배열. transformMesh(이동/회전) |
 | 11.1 TessellationEngine | chordal/angular 공차 | 🟡 (고정 deflection) |
 | 11.2 ToleranceManager | 조립 공극 오프셋 | ⬜ |
 | 12 CadAutomationAPI | 스크립트 API | 🟡 | `buildMouse` 데모(스케치→돌출→불리언 코드 파이프라인) |

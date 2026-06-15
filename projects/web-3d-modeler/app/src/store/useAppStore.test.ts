@@ -261,6 +261,83 @@ describe("useAppStore — Shapr3D식 돌출(빼기/합치기/새 바디)", () =>
   });
 });
 
+describe("useAppStore — 패턴(선형·원형)", () => {
+  beforeEach(() => {
+    void useAppStore.getState().clear();
+    useAppStore.getState().cancelSketch();
+  });
+
+  it("선형 패턴: count-1 개 복제 추가", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(2, 2, 2, "box-1"), "박스");
+    st.selectEntity({ kind: "body", shapeId: "box-1", index: -1 });
+    st.patternLinear("x", 4, 5);
+    expect(useAppStore.getState().shapes).toHaveLength(4); // 원본 + 복제 3
+  });
+
+  it("원형 패턴: count-1 개 복제 추가", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(2, 2, 2, "box-1"), "박스");
+    st.setTransform("box-1", [5, 0, 0]); // 축에서 떨어뜨려 원형 배열
+    st.selectEntity({ kind: "body", shapeId: "box-1", index: -1 });
+    st.patternCircular("y", 6, 360);
+    expect(useAppStore.getState().shapes).toHaveLength(6);
+  });
+
+  it("선택 바디 없으면 패턴 안 됨", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(2, 2, 2, "box-1"), "박스");
+    st.patternLinear("x", 3, 5);
+    expect(useAppStore.getState().shapes).toHaveLength(1);
+  });
+});
+
+describe("useAppStore — 바디 변형(회전·스케일·미러)", () => {
+  beforeEach(() => {
+    void useAppStore.getState().clear();
+    useAppStore.getState().cancelSketch();
+  });
+
+  function bbox(): { min: number[]; max: number[] } {
+    const p = useAppStore.getState().shapes[0]!.positions;
+    const min = [Infinity, Infinity, Infinity];
+    const max = [-Infinity, -Infinity, -Infinity];
+    for (let i = 0; i < p.length; i += 3) for (let k = 0; k < 3; k++) { min[k] = Math.min(min[k]!, p[i + k]!); max[k] = Math.max(max[k]!, p[i + k]!); }
+    return { min, max };
+  }
+
+  it("스케일: 중심 기준 2배 → 바운딩 2배 (바디 수 유지)", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(2, 2, 2, "box-1"), "박스"); // -1..1
+    st.selectEntity({ kind: "body", shapeId: "box-1", index: -1 });
+    st.scaleBody(2);
+    expect(useAppStore.getState().shapes).toHaveLength(1);
+    const b = bbox();
+    expect(b.max[0]! - b.min[0]!).toBeCloseTo(4, 4); // 2 → 4
+  });
+
+  it("회전: 바디 수 유지, 중심 보존(중심은 제자리)", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(4, 2, 2, "box-1"), "박스");
+    st.selectEntity({ kind: "body", shapeId: "box-1", index: -1 });
+    st.rotateBody("y", 90);
+    const b = bbox();
+    // 4x2x2 가 y축 90° → x폭 2, z폭 4
+    expect(b.max[0]! - b.min[0]!).toBeCloseTo(2, 3);
+    expect(b.max[2]! - b.min[2]!).toBeCloseTo(4, 3);
+  });
+
+  it("미러: 바디 수 유지, winding 뒤집혀도 유효(인덱스 길이 동일)", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(2, 2, 2, "box-1"), "박스");
+    const before = useAppStore.getState().shapes[0]!.indices.length;
+    st.selectEntity({ kind: "body", shapeId: "box-1", index: -1 });
+    st.mirrorBody("x");
+    expect(useAppStore.getState().shapes).toHaveLength(1);
+    expect(useAppStore.getState().shapes[0]!.indices.length).toBe(before);
+  });
+});
+
 describe("useAppStore — 면 위에 스케치(Sketch on Face)", () => {
   beforeEach(() => {
     void useAppStore.getState().clear();

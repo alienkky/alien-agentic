@@ -108,6 +108,8 @@ export function LeftToolbar(): JSX.Element {
   const booleanOp = useAppStore((s) => s.booleanOp);
   const openExtrude = useAppStore((s) => s.openExtrude);
   const openRevolve = useAppStore((s) => s.openRevolve);
+  const openPattern = useAppStore((s) => s.openPattern);
+  const openTransform = useAppStore((s) => s.openTransform);
   const addMesh = useAppStore((s) => s.addMesh);
   const setStatus = useAppStore((s) => s.setStatus);
 
@@ -167,13 +169,12 @@ export function LeftToolbar(): JSX.Element {
           )}
           {open === "transform" && (
             <>
-              <FlyoutItem icon={<TransformIcon />} label="이동/회전" shortcut="M" onClick={() => { setStatus("이동: 바디 선택 후 기즈모 드래그"); setOpen(null); }} />
-              <FlyoutItem icon={<BoxIcon />} label="스케일" shortcut="S" onClick={() => soon("스케일")} />
-              <FlyoutItem icon={<TransformIcon />} label="평행 이동" shortcut="N" onClick={() => soon("평행 이동")} />
-              <FlyoutItem icon={<PatternIcon />} label="패턴" onClick={() => soon("패턴")} />
-              <FlyoutItem icon={<TransformIcon />} label="축 둘레 회전" onClick={() => soon("축 둘레 회전")} />
+              <FlyoutItem icon={<TransformIcon />} label="이동" shortcut="M" onClick={() => { setStatus("이동: 바디 선택 후 기즈모 드래그"); setOpen(null); }} />
+              <FlyoutItem icon={<TransformIcon />} label="축 둘레 회전" onClick={() => { openTransform("rotate"); setOpen(null); }} />
+              <FlyoutItem icon={<BoxIcon />} label="스케일" shortcut="S" onClick={() => { openTransform("scale"); setOpen(null); }} />
+              <FlyoutItem icon={<MirrorIcon />} label="미러" onClick={() => { openTransform("mirror"); setOpen(null); }} />
+              <FlyoutItem icon={<PatternIcon />} label="패턴" onClick={() => { openPattern(); setOpen(null); }} />
               <FlyoutItem icon={<ConstructIcon />} label="정렬" onClick={() => soon("정렬")} />
-              <FlyoutItem icon={<MirrorIcon />} label="미러" onClick={() => soon("미러")} />
             </>
           )}
           {open === "tools" && (
