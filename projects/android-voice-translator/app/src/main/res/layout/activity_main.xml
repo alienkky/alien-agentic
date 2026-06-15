@@ -29,25 +29,35 @@
         android:text="@string/listening_japanese" />
 
     <TextView
+        android:id="@+id/modeText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:textColor="@color/muted"
+        android:textSize="12sp"
+        app:layout_constraintTop_toBottomOf="@id/statusText"
+        app:layout_constraintStart_toStartOf="parent"
+        android:text="@string/mode_ondevice" />
+
+    <TextView
         android:id="@+id/directionText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
         android:textColor="@color/accent"
         android:textSize="13sp"
         android:textStyle="bold"
         android:visibility="invisible"
-        app:layout_constraintTop_toBottomOf="@id/statusText"
-        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@id/modeText"
+        app:layout_constraintEnd_toEndOf="parent"
         android:text="JA → EN" />
 
     <ScrollView
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="16dp"
         android:fillViewport="true"
-        app:layout_constraintTop_toBottomOf="@id/directionText"
-        app:layout_constraintBottom_toTopOf="@id/micButton"
+        app:layout_constraintTop_toBottomOf="@id/modeText"
+        app:layout_constraintBottom_toTopOf="@id/buttonRow"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
@@ -82,6 +92,36 @@
                 android:text="@string/hint_translated" />
         </LinearLayout>
     </ScrollView>
+
+    <LinearLayout
+        android:id="@+id/buttonRow"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="12dp"
+        app:layout_constraintBottom_toTopOf="@id/micButton"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <Button
+            android:id="@+id/settingsButton"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
+            android:textColor="@color/accent"
+            android:text="@string/settings_button" />
+
+        <Button
+            android:id="@+id/overlayButton"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="@color/accent"
+            android:text="@string/overlay_button" />
+    </LinearLayout>
 
     <Button
         android:id="@+id/micButton"

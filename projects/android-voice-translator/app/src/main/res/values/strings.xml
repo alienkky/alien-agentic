@@ -12,8 +12,29 @@
     <string name="status_ready">준비됨 — 버튼을 눌러 말하세요</string>
     <string name="status_listening">듣는 중…</string>
 
+    <string name="mode_ondevice">엔진: 온디바이스(오프라인)</string>
+    <string name="mode_cloud">엔진: 클라우드 Whisper</string>
+
     <string name="hint_source">여기에 인식된 음성이 표시됩니다</string>
     <string name="hint_translated">번역 결과</string>
+
+    <string name="settings_button">⚙ 설정</string>
+    <string name="overlay_button">⧉ 오버레이</string>
+
+    <string name="overlay_need_permission">다른 앱 위에 표시 권한이 필요합니다</string>
+    <string name="overlay_started">오버레이 자막을 시작했습니다</string>
+    <string name="overlay_channel_name">자막 오버레이</string>
+    <string name="overlay_notification_title">실시간 번역 자막 실행 중</string>
+    <string name="overlay_notification_text">탭하여 멈출 수 있습니다</string>
+
+    <string name="settings_title">설정</string>
+    <string name="settings_speak">번역을 음성으로 읽어주기 (TTS)</string>
+    <string name="settings_use_cloud">클라우드 Whisper 사용 (고정밀)</string>
+    <string name="settings_cloud_hint">켜면 네트워크와 API 키가 필요합니다. 끄면 온디바이스 오프라인 인식을 씁니다.</string>
+    <string name="settings_base_url">Whisper API Base URL</string>
+    <string name="settings_api_key">API Key</string>
+    <string name="settings_model">모델 (예: whisper-1)</string>
+    <string name="settings_save">저장</string>
 
     <string name="error_no_mic_permission">마이크 권한이 필요합니다</string>
     <string name="error_no_recognizer">이 기기에서 음성 인식을 사용할 수 없습니다</string>
