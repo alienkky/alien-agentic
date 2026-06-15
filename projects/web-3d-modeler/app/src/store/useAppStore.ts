@@ -11,7 +11,7 @@ import { extrudeProfile } from "../kernel/extrude";
 import { revolveProfile, type RevolveAxis } from "../kernel/revolve";
 import { meshAabb, aabbOverlap } from "../kernel/aabb";
 import { parseStl } from "../kernel/stlImport";
-import { SKETCH_PLANES, type PlaneId, type SketchPoint } from "../kernel/sketchPlane";
+import { SKETCH_PLANES, planeFromFace, type PlaneId, type SketchPoint, type SketchPlaneDef } from "../kernel/sketchPlane";
 import {
   defaultCamera,
   orbit as orbitCam,
@@ -51,7 +51,8 @@ export type ExtrudeMode = "new" | "cut" | "fuse";
 /** 저장된 스케치 (독립 항목). 여러 프로파일(획)을 가질 수 있다. 도구→돌출 입력. */
 export interface SketchEntity {
   id: string;
-  plane: PlaneId;
+  /** 표준평면 또는 면 위 평면 (def 통째 보관) */
+  plane: SketchPlaneDef;
   profiles: SketchPoint[][];
 }
 
@@ -113,8 +114,8 @@ interface AppState {
   gizmoDragging: boolean;
   /** 스케치 모드 활성 여부 */
   sketchActive: boolean;
-  /** 선택된 기준면. null 이면 "활성 평면 없음" (면을 골라야 그릴 수 있음) */
-  sketchPlane: PlaneId | null;
+  /** 선택된 기준면 (표준평면 또는 면 위 평면). null 이면 "활성 평면 없음" */
+  sketchPlane: SketchPlaneDef | null;
   /** 현재 스케치 도구 */
   sketchTool: SketchTool;
   /** 사각형·원 드래그 초안 (평면 (u,v)). 드래그 중 실시간 미리보기 */
@@ -458,10 +459,29 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setGizmoDragging: (dragging) => set({ gizmoDragging: dragging }),
 
-  beginSketch: () =>
+  beginSketch: () => {
+    // 면(face)이 선택돼 있으면 그 면 위에서 바로 스케치 (Shapr3D식). 아니면 기준면 선택.
+    const st = get();
+    const faceSel = st.selection.find((it) => it.kind === "face");
+    let plane: SketchPlaneDef | null = null;
+    if (faceSel) {
+      const mesh = st.shapes.find((m) => m.shapeId === faceSel.shapeId);
+      const range = mesh?.faceRanges.find((r) => r.faceId === faceSel.index);
+      if (mesh && range) {
+        const off = st.transforms[mesh.shapeId] ?? [0, 0, 0];
+        const verts: number[] = [];
+        for (let i = range.start; i < range.start + range.count; i++) {
+          const vi = mesh.indices[i]! * 3;
+          verts.push(mesh.positions[vi]! + off[0], mesh.positions[vi + 1]! + off[1], mesh.positions[vi + 2]! + off[2]);
+        }
+        const ni = mesh.indices[range.start]! * 3;
+        const normal: [number, number, number] = [mesh.normals[ni]!, mesh.normals[ni + 1]!, mesh.normals[ni + 2]!];
+        plane = planeFromFace(verts, normal, `face-${mesh.shapeId}-${faceSel.index}`);
+      }
+    }
     set({
       sketchActive: true,
-      sketchPlane: null,
+      sketchPlane: plane,
       sketchPoints: [],
       sketchStrokes: [],
       sketchDraft: null,
@@ -469,12 +489,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       sketchSelectedSeg: null,
       sketchLineDrawing: false,
       selection: [],
-      status: "스케치: 기준면(XY/YZ/XZ)을 선택하세요",
-    }),
+      status: plane ? "선택한 면 위에 스케치 — 도형을 그리세요" : "스케치: 기준면(XY/YZ/XZ)을 선택하세요",
+    });
+  },
 
   pickPlane: (id) =>
     set((s) => ({
-      sketchPlane: id,
+      sketchPlane: SKETCH_PLANES[id],
       sketchPoints: [],
       sketchStrokes: [],
       sketchDraft: null,
@@ -648,7 +669,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       return;
     }
     try {
-      const plane = SKETCH_PLANES[sketch.plane];
+      const plane = sketch.plane;
       const tools = closed.map((p) => extrudeProfile(p, plane, depth, `extrude-${++counter}`));
 
       if (mode === "new") {
@@ -729,7 +750,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       return;
     }
     try {
-      const plane = SKETCH_PLANES[sketch.plane];
+      const plane = sketch.plane;
       const made = closed.map((p) => revolveProfile(p, plane, angleDeg, axis, `revolve-${++counter}`));
       set((s) => ({
         shapes: [...s.shapes, ...made],

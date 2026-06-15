@@ -70,7 +70,7 @@ function SketchPalette(): JSX.Element {
   const setSketchTool = useAppStore((s) => s.setSketchTool);
   const finishSketch = useAppStore((s) => s.finishSketch);
   const setStatus = useAppStore((s) => s.setStatus);
-  const planeId = useAppStore((s) => s.sketchPlane);
+  const plane = useAppStore((s) => s.sketchPlane);
 
   const pick = (t: SketchTool) => setSketchTool(t);
   const soon = (name: string) => setStatus(`${name} — 준비 중`);
@@ -78,7 +78,7 @@ function SketchPalette(): JSX.Element {
   return (
     <div className="flex max-h-[calc(100vh-9rem)] flex-col gap-0.5 overflow-y-auto border-t border-aa-border pt-1.5">
       <Row icon={<SearchIcon />} label="검색" shortcut="⌃F" onClick={() => soon("검색")} />
-      <Row icon={<CloseIcon />} label="스케칭 종료" sub={planeId ? "프로파일 저장" : "활성 평면 없음"} onClick={finishSketch} />
+      <Row icon={<CloseIcon />} label="스케칭 종료" sub={plane ? "프로파일 저장" : "활성 평면 없음"} onClick={finishSketch} />
       <Row icon={<LineIcon />} label="선" shortcut="L" active={tool === "line"} onClick={() => pick("line")} />
       <Row icon={<ArcIcon />} label="호" shortcut="A" onClick={() => soon("호")} />
       <Row icon={<SplineIcon />} label="스플라인" sub="맞춤 점" shortcut="I" onClick={() => soon("스플라인")} />

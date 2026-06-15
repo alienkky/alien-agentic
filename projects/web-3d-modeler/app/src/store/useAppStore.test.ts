@@ -223,3 +223,41 @@ describe("useAppStore — Shapr3D식 돌출(빼기/합치기/새 바디)", () =>
     expect(useAppStore.getState().shapes).toHaveLength(1);
   });
 });
+
+describe("useAppStore — 면 위에 스케치(Sketch on Face)", () => {
+  beforeEach(() => {
+    void useAppStore.getState().clear();
+    useAppStore.getState().cancelSketch();
+  });
+
+  it("면을 선택하고 스케치 시작 → 그 면의 법선·위치로 평면 생성", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(4, 4, 4, "box-1"), "박스"); // 면 2 = +Y (y=+2)
+    st.selectEntity({ kind: "face", shapeId: "box-1", index: 2 });
+    st.beginSketch();
+    const plane = useAppStore.getState().sketchPlane;
+    expect(plane).not.toBeNull();
+    expect(plane!.normal[1]).toBeCloseTo(1, 5); // +Y
+    expect(plane!.origin[1]).toBeCloseTo(2, 5); // 윗면 y=+2
+  });
+
+  it("면이 없으면 기준면 선택(평면 null)으로 진입", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    expect(useAppStore.getState().sketchPlane).toBeNull();
+  });
+
+  it("면 위 스케치 → 저장된 스케치가 그 면 평면을 보존", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(4, 4, 4, "box-1"), "박스");
+    st.selectEntity({ kind: "face", shapeId: "box-1", index: 2 });
+    st.beginSketch();
+    st.setSketchTool("rectangle");
+    st.sketchDragStart({ u: -1, v: -1 });
+    st.sketchDragMove({ u: 1, v: 1 });
+    st.sketchDragEnd();
+    st.finishSketch();
+    const sk = useAppStore.getState().sketches.at(-1)!;
+    expect(sk.plane.normal[1]).toBeCloseTo(1, 5);
+  });
+});
