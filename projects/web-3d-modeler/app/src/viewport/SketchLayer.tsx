@@ -8,6 +8,7 @@ import { useMemo, useState } from "react";
 import * as THREE from "three";
 import { Line, Html } from "@react-three/drei";
 import { useAppStore } from "../store/useAppStore";
+import { adaptiveCellSize } from "./cameraMath";
 import {
   planeToWorld, worldToPlane,
   type PlaneId, type SketchPlaneDef, type SketchPoint,
@@ -19,6 +20,31 @@ const PLANE_ROT: Record<PlaneId, [number, number, number]> = {
 const PLANE_COLOR: Record<PlaneId, string> = { xz: "#4fd1c5", xy: "#5b9cff", yz: "#e06fae" };
 /** 평면 색 — 표준평면이면 고유색, 면 위 평면이면 기본 청록. */
 const planeColorFor = (plane: SketchPlaneDef): string => PLANE_COLOR[plane.id as PlaneId] ?? "#4fd1c5";
+
+/** Shapr3D 식 스케치 팔레트 — 선=연한 흰파랑, 점=파랑, 면=파랑, 보조=회색. */
+const SK = { line: "#cdd9ee", fill: "#5b9cff", point: "#2f6bff", active: "#5b9cff", guide: "#7d8a9e" };
+
+/** 스케치 평면 격자 (local XY, 어댑티브 셀). planeMatrix 그룹 안에 두어 그 평면에 눕는다. */
+function SketchGrid({ cell }: { cell: number }): JSX.Element {
+  const geo = useMemo(() => {
+    const n = Math.min(100, Math.max(10, Math.ceil(24 / cell)));
+    const ext = n * cell;
+    const pos: number[] = [];
+    for (let i = -n; i <= n; i++) {
+      const t = i * cell;
+      pos.push(t, -ext, 0, t, ext, 0);
+      pos.push(-ext, t, 0, ext, t, 0);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pos), 3));
+    return g;
+  }, [cell]);
+  return (
+    <lineSegments geometry={geo}>
+      <lineBasicMaterial color="#3a4a5e" transparent opacity={0.45} />
+    </lineSegments>
+  );
+}
 const DIM_LABEL = "cursor-pointer whitespace-nowrap rounded bg-aa-bg/90 px-1.5 py-0.5 text-xs font-semibold text-aa-accent ring-1 ring-aa-border";
 const DIM_ACTIVE = "whitespace-nowrap rounded bg-blue-600 px-1.5 py-0.5 text-xs font-semibold text-white ring-1 ring-blue-300";
 
@@ -91,8 +117,15 @@ function StrokeView({ plane, pts, strokeIndex }: { plane: SketchPlaneDef; pts: S
 
   return (
     <group>
-      {fill && <mesh geometry={fill}><meshBasicMaterial color="#5b9cff" transparent opacity={0.22} side={THREE.DoubleSide} depthWrite={false} /></mesh>}
-      {linePts.length >= 2 && <Line points={linePts} color="#4fd1c5" lineWidth={2} />}
+      {fill && <mesh geometry={fill}><meshBasicMaterial color={SK.fill} transparent opacity={0.18} side={THREE.DoubleSide} depthWrite={false} /></mesh>}
+      {linePts.length >= 2 && <Line points={linePts} color={SK.line} lineWidth={2} />}
+      {!isCircleLike &&
+        pts.map((p, i) => (
+          <mesh key={`pt${i}`} position={toWorld(p)} renderOrder={4}>
+            <sphereGeometry args={[0.09, 14, 14]} />
+            <meshBasicMaterial color={SK.point} depthTest={false} />
+          </mesh>
+        ))}
       {!isCircleLike &&
         pts.map((a, i) => {
           const b = pts[i + 1];
@@ -145,6 +178,11 @@ export function SketchLayer(): JSX.Element | null {
   const dragMove = useAppStore((s) => s.sketchDragMove);
   const dragEnd = useAppStore((s) => s.sketchDragEnd);
   const clickPoint = useAppStore((s) => s.sketchClickPoint);
+  const trimAtPoint = useAppStore((s) => s.trimSketchAt);
+  const deleteAtPoint = useAppStore((s) => s.deleteSketchStrokeAt);
+  const radius = useAppStore((s) => s.camera.radius);
+  const isPointTool = tool === "line" || tool === "spline" || tool === "arc";
+  const cell = useMemo(() => adaptiveCellSize(radius), [radius]);
 
   // 드래그 중 미리보기(사각형/원)
   const draftView = useMemo(() => {
@@ -183,13 +221,14 @@ export function SketchLayer(): JSX.Element | null {
     <group>
       {/* 그리기 평면 — 표준/면위 평면 모두 basis 행렬로 정렬 (local XY → 평면) */}
       <group matrixAutoUpdate={false} matrix={planeMatrix(plane)}>
+        <SketchGrid cell={cell} />
         <mesh
-          onPointerDown={(e) => { e.stopPropagation(); if (tool === "line") clickPoint(onPlane(e)); else dragStart(onPlane(e)); }}
+          onPointerDown={(e) => { e.stopPropagation(); if (tool === "trim") trimAtPoint(onPlane(e)); else if (tool === "delete") deleteAtPoint(onPlane(e)); else if (isPointTool) clickPoint(onPlane(e)); else dragStart(onPlane(e)); }}
           onPointerMove={(e) => { e.stopPropagation(); dragMove(onPlane(e)); }}
           onPointerUp={(e) => { e.stopPropagation(); dragEnd(); }}
         >
           <planeGeometry args={[400, 400]} />
-          <meshBasicMaterial color={planeColorFor(plane)} transparent opacity={0.05} side={THREE.DoubleSide} />
+          <meshBasicMaterial color={planeColorFor(plane)} transparent opacity={0.04} side={THREE.DoubleSide} />
         </mesh>
       </group>
 
@@ -201,9 +240,9 @@ export function SketchLayer(): JSX.Element | null {
       {/* 사각형/원 드래그 미리보기 */}
       {draftView && (
         <>
-          {draftView.pts.length > 2 && <Line points={draftLoop} color="#4fd1c5" lineWidth={2} />}
+          {draftView.pts.length > 2 && <Line points={draftLoop} color={SK.active} lineWidth={2} />}
           {tool === "circle" && draft && (
-            <Line points={[toWorld({ u: 2 * draft.start.u - draft.current.u, v: 2 * draft.start.v - draft.current.v }), toWorld(draft.current)]} color="#e6ebf2" lineWidth={1} />
+            <Line points={[toWorld({ u: 2 * draft.start.u - draft.current.u, v: 2 * draft.start.v - draft.current.v }), toWorld(draft.current)]} color={SK.guide} lineWidth={1} />
           )}
           <Html position={toWorld(draftView.dimAt)} center style={{ pointerEvents: "none" }}>
             <div className={DIM_ACTIVE}>{draftView.dim}</div>
@@ -211,14 +250,14 @@ export function SketchLayer(): JSX.Element | null {
         </>
       )}
 
-      {/* 현재 그리는 선 체인 + 러버밴드 */}
-      {tool === "line" && chainLoop.length >= 2 && <Line points={chainLoop} color="#4fd1c5" lineWidth={2} />}
-      {tool === "line" && points.map((p, i) => (
-        <mesh key={i} position={toWorld(p)}><sphereGeometry args={[0.1, 12, 12]} /><meshBasicMaterial color="#4fd1c5" /></mesh>
+      {/* 현재 그리는 점 체인(선·스플라인·호) + 러버밴드 */}
+      {isPointTool && chainLoop.length >= 2 && <Line points={chainLoop} color={SK.active} lineWidth={2} />}
+      {isPointTool && points.map((p, i) => (
+        <mesh key={i} position={toWorld(p)} renderOrder={4}><sphereGeometry args={[0.11, 14, 14]} /><meshBasicMaterial color={SK.point} depthTest={false} /></mesh>
       ))}
       {lineDrawing && hover && last && (
         <group>
-          <Line points={[toWorld(last), toWorld(hover)]} color="#8b97a8" lineWidth={1.5} />
+          <Line points={[toWorld(last), toWorld(hover)]} color={SK.guide} lineWidth={1.5} />
           <Html position={toWorld(midUV(last, hover))} center style={{ pointerEvents: "none" }}>
             <div className={DIM_ACTIVE}>{segLen(last, hover).toFixed(2)} mm</div>
           </Html>

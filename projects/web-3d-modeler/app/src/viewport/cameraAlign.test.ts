@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { alignToNormal, toCartesian, defaultCamera } from "./cameraMath";
+import { alignToNormal, toCartesian, defaultCamera, adaptiveCellSize } from "./cameraMath";
+
+describe("어댑티브 그리드 셀", () => {
+  it("거리가 가까울수록 셀이 잘아진다 (10의 거듭제곱 단계)", () => {
+    expect(adaptiveCellSize(12)).toBeCloseTo(1, 9);
+    expect(adaptiveCellSize(3)).toBeCloseTo(0.1, 9);
+    expect(adaptiveCellSize(120)).toBeCloseTo(10, 9);
+    expect(adaptiveCellSize(0.6)).toBeCloseTo(0.01, 9);
+  });
+});
 
 describe("카메라 면 법선 정렬", () => {
   it("+Y 법선 → 카메라가 위에서 내려다봄 (target=면 중심)", () => {
