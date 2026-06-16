@@ -40,12 +40,29 @@ class AppSettings(context: Context) {
         get() = prefs.getString(KEY_TARGET, "ko") ?: "ko"
         set(v) = prefs.edit().putString(KEY_TARGET, v).apply()
 
+    /** Overlay translated-caption font size in sp. */
+    var overlayFontSize: Int
+        get() = prefs.getInt(KEY_FONT, DEFAULT_FONT).coerceIn(MIN_FONT, MAX_FONT)
+        set(v) = prefs.edit().putInt(KEY_FONT, v.coerceIn(MIN_FONT, MAX_FONT)).apply()
+
+    /** Overlay background opacity, 20–100 (%). */
+    var overlayOpacity: Int
+        get() = prefs.getInt(KEY_OPACITY, DEFAULT_OPACITY).coerceIn(MIN_OPACITY, MAX_OPACITY)
+        set(v) = prefs.edit().putInt(KEY_OPACITY, v.coerceIn(MIN_OPACITY, MAX_OPACITY)).apply()
+
     /** True only if cloud mode is selected AND a key is present. */
     fun cloudReady(): Boolean = useCloud && whisperApiKey.isNotBlank()
 
     companion object {
         const val DEFAULT_BASE_URL = "https://api.openai.com/v1"
         const val DEFAULT_MODEL = "whisper-1"
+
+        const val MIN_FONT = 16
+        const val MAX_FONT = 48
+        const val DEFAULT_FONT = 26
+        const val MIN_OPACITY = 20
+        const val MAX_OPACITY = 100
+        const val DEFAULT_OPACITY = 80
 
         private const val KEY_USE_CLOUD = "use_cloud"
         private const val KEY_BASE_URL = "whisper_base_url"
@@ -54,5 +71,7 @@ class AppSettings(context: Context) {
         private const val KEY_SPEAK = "speak_translation"
         private const val KEY_LOCALE = "listen_locale"
         private const val KEY_TARGET = "target_language"
+        private const val KEY_FONT = "overlay_font_size"
+        private const val KEY_OPACITY = "overlay_opacity"
     }
 }

@@ -135,42 +135,69 @@ class CaptionOverlayService : Service() {
         }
     }
 
+    private fun makeHeaderButton(label: String, onClick: () -> Unit): TextView =
+        TextView(this).apply {
+            text = label
+            setTextColor(Color.parseColor("#5BC8FF"))
+            textSize = 16f
+            setPadding(24, 8, 24, 16)
+            isClickable = true
+            setOnClickListener { onClick() }
+        }
+
+    /** Dark caption background with the configured opacity (20–100%). */
+    private fun backgroundColorFor(opacityPercent: Int): Int {
+        val alpha = opacityPercent.coerceIn(0, 100) * 255 / 100
+        return Color.argb(alpha, 0x0B, 0x0E, 0x14)
+    }
+
+    private fun sourceSizeFor(font: Int): Float = (font * 0.62f).coerceAtLeast(12f)
+
+    /** Live-adjust caption font size and persist it. */
+    private fun adjustFontSize(delta: Int) {
+        val newSize = (settings.overlayFontSize + delta)
+            .coerceIn(AppSettings.MIN_FONT, AppSettings.MAX_FONT)
+        settings.overlayFontSize = newSize
+        translatedView?.textSize = newSize.toFloat()
+        sourceView?.textSize = sourceSizeFor(newSize)
+    }
+
     private fun addOverlay() {
         val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         windowManager = wm
 
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#CC0B0E14"))
-            setPadding(36, 20, 36, 28)
+            setBackgroundColor(backgroundColorFor(settings.overlayOpacity))
+            setPadding(36, 12, 36, 28)
         }
-        // Close button — tapping it dismisses the overlay and stops the service.
-        // This is the reliable way to remove the caption regardless of whether
-        // the foreground notification (with its stop action) is visible.
-        val close = TextView(this).apply {
-            text = getString(R.string.overlay_close)
-            setTextColor(Color.parseColor("#5BC8FF"))
-            textSize = 15f
-            gravity = Gravity.END
-            setPadding(24, 8, 8, 16)
-            isClickable = true
-            setOnClickListener { stopSelf() }
+
+        // Header row: A- / A+ live-resize the caption; ✕ closes the overlay.
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
         }
+        header.addView(makeHeaderButton("A−") { adjustFontSize(-2) })
+        header.addView(makeHeaderButton("A+") { adjustFontSize(+2) })
+        header.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f)) // spacer
+        header.addView(makeHeaderButton(getString(R.string.overlay_close)) { stopSelf() })
         container.addView(
-            close,
+            header,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
         )
+
+        val font = settings.overlayFontSize
         val src = TextView(this).apply {
             setTextColor(Color.parseColor("#8B93A7"))
-            textSize = 16f
+            textSize = sourceSizeFor(font)
             text = getString(R.string.hint_source)
         }
         val dst = TextView(this).apply {
             setTextColor(Color.parseColor("#F2F5FA"))
-            textSize = 26f
+            textSize = font.toFloat()
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             text = getString(R.string.hint_translated)
         }

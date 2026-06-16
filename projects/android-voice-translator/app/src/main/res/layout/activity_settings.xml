@@ -143,6 +143,50 @@
                 android:inputType="text" />
         </com.google.android.material.textfield.TextInputLayout>
 
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginBottom="12dp"
+            android:background="@color/divider" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_overlay_section"
+            android:textColor="@color/fg"
+            android:textSize="16sp"
+            android:paddingBottom="8dp" />
+
+        <TextView
+            android:id="@+id/fontValue"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/muted"
+            android:textSize="14sp" />
+
+        <SeekBar
+            android:id="@+id/fontSeek"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:progressTint="@color/accent"
+            android:thumbTint="@color/accent"
+            android:layout_marginBottom="12dp" />
+
+        <TextView
+            android:id="@+id/opacityValue"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/muted"
+            android:textSize="14sp" />
+
+        <SeekBar
+            android:id="@+id/opacitySeek"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:progressTint="@color/accent"
+            android:thumbTint="@color/accent"
+            android:layout_marginBottom="24dp" />
+
         <Button
             android:id="@+id/saveButton"
             android:layout_width="match_parent"

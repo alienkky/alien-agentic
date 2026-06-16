@@ -1,6 +1,7 @@
 package com.alienagentic.voicetranslator
 
 import android.os.Bundle
+import android.widget.SeekBar
 import androidx.appcompat.app.AppCompatActivity
 import com.alienagentic.voicetranslator.databinding.ActivitySettingsBinding
 
@@ -36,6 +37,30 @@ class SettingsActivity : AppCompatActivity() {
             updateCloudFieldsEnabled(checked)
         }
 
+        // Font size slider (sp), mapped onto a 0-based SeekBar.
+        binding.fontSeek.max = AppSettings.MAX_FONT - AppSettings.MIN_FONT
+        binding.fontSeek.progress = settings.overlayFontSize - AppSettings.MIN_FONT
+        updateFontLabel(settings.overlayFontSize)
+        binding.fontSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, p: Int, fromUser: Boolean) {
+                updateFontLabel(AppSettings.MIN_FONT + p)
+            }
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {}
+        })
+
+        // Background opacity slider (%), mapped onto a 0-based SeekBar.
+        binding.opacitySeek.max = AppSettings.MAX_OPACITY - AppSettings.MIN_OPACITY
+        binding.opacitySeek.progress = settings.overlayOpacity - AppSettings.MIN_OPACITY
+        updateOpacityLabel(settings.overlayOpacity)
+        binding.opacitySeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, p: Int, fromUser: Boolean) {
+                updateOpacityLabel(AppSettings.MIN_OPACITY + p)
+            }
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {}
+        })
+
         binding.saveButton.setOnClickListener {
             settings.targetLanguage = when (binding.targetGroup.checkedRadioButtonId) {
                 R.id.targetEn -> "en"
@@ -49,8 +74,18 @@ class SettingsActivity : AppCompatActivity() {
             settings.whisperApiKey = binding.apiKeyInput.text.toString().trim()
             settings.whisperModel = binding.modelInput.text.toString().trim()
                 .ifBlank { AppSettings.DEFAULT_MODEL }
+            settings.overlayFontSize = AppSettings.MIN_FONT + binding.fontSeek.progress
+            settings.overlayOpacity = AppSettings.MIN_OPACITY + binding.opacitySeek.progress
             finish()
         }
+    }
+
+    private fun updateFontLabel(size: Int) {
+        binding.fontValue.text = getString(R.string.settings_font_value, size)
+    }
+
+    private fun updateOpacityLabel(opacity: Int) {
+        binding.opacityValue.text = getString(R.string.settings_opacity_value, opacity)
     }
 
     private fun updateCloudFieldsEnabled(enabled: Boolean) {

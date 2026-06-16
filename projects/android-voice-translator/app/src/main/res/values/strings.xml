@@ -44,6 +44,9 @@
     <string name="settings_base_url">Whisper API Base URL</string>
     <string name="settings_api_key">API Key</string>
     <string name="settings_model">모델 (예: whisper-1)</string>
+    <string name="settings_overlay_section">오버레이 자막</string>
+    <string name="settings_font_value">글자 크기: %1$d sp</string>
+    <string name="settings_opacity_value">배경 투명도: %1$d%%</string>
     <string name="settings_save">저장</string>
 
     <string name="error_no_mic_permission">마이크 권한이 필요합니다</string>
