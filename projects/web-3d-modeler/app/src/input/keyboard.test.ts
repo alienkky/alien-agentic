@@ -1,5 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { sketchToolForKey } from "./keyboard";
+import { sketchToolForKey, viewForKey } from "./keyboard";
+
+describe("표준 뷰 단축키 매핑", () => {
+  it("숫자키 → 뷰", () => {
+    expect(viewForKey("1")).toBe("iso");
+    expect(viewForKey("2")).toBe("front");
+    expect(viewForKey("4")).toBe("top");
+    expect(viewForKey("6")).toBe("right");
+    expect(viewForKey("9")).toBeNull();
+  });
+});
 
 describe("스케치 단축키 매핑", () => {
   it("기본 도구 키", () => {

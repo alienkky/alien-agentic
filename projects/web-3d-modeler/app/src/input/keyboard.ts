@@ -4,6 +4,21 @@
  */
 import { useEffect } from "react";
 import { useAppStore, selectionBodyIds, type SketchTool } from "../store/useAppStore";
+import type { ViewPreset } from "../viewport/cameraMath";
+
+/** 숫자키 → 표준 뷰 (Shapr3D 식). 없으면 null. */
+export function viewForKey(key: string): ViewPreset | null {
+  const m: Record<string, ViewPreset> = {
+    "1": "iso",
+    "2": "front",
+    "3": "back",
+    "4": "top",
+    "5": "bottom",
+    "6": "right",
+    "7": "left",
+  };
+  return m[key] ?? null;
+}
 
 /** 스케치 도구 단축키 매핑 (소문자 키 → 도구). 없으면 null. */
 export function sketchToolForKey(key: string): SketchTool | null {
@@ -48,6 +63,8 @@ export function useKeyboardShortcuts(): void {
 
       // 일반 모드
       if (mod && low === "z") { void st.undoLast(); e.preventDefault(); return; }
+      const view = viewForKey(key);
+      if (view && !mod) { st.setView(view); e.preventDefault(); return; }
       if (key === "Escape") { st.clearSelection(); e.preventDefault(); return; }
       if (key === "Delete" || key === "Backspace") {
         const ids = selectionBodyIds(st.selection);
