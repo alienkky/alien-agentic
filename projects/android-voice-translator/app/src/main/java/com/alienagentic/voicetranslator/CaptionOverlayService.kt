@@ -81,7 +81,14 @@ class CaptionOverlayService : Service() {
         speaker = Speaker(this)
         prepareAndListen()
         isRunning = true
-        return START_STICKY
+        // Don't resurrect the overlay if the system kills the service.
+        return START_NOT_STICKY
+    }
+
+    /** Called when the user swipes the app away from recents — stop everything. */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
     }
 
     private fun startInForeground() {
