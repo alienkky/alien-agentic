@@ -13,7 +13,7 @@ import { translateMesh, rotateMeshAxis, scaleMesh, mirrorMesh, centroidOf } from
 import { meshAabb, aabbOverlap } from "../kernel/aabb";
 import { parseStl } from "../kernel/stlImport";
 import { SKETCH_PLANES, planeFromFace, worldToPlane, type PlaneId, type SketchPoint, type SketchPlaneDef } from "../kernel/sketchPlane";
-import { trimAt, nearestStrokeIndex } from "../kernel/sketchTrim";
+import { trimAt, trimPreviewAt, nearestStrokeIndex } from "../kernel/sketchTrim";
 import { catmullRom, arc3 } from "../kernel/sketchCurves";
 import { mirrorStrokes, patternLinearStrokes, patternCircularStrokes, offsetStroke, transformStrokes, strokesCentroid, type UVAxis } from "../kernel/sketchTransform2d";
 import { snapToGuides, type Guide } from "../kernel/sketchGuides";
@@ -222,6 +222,8 @@ interface AppState {
   toggleSnap: (key: "grid" | "sketchLine" | "sketchPoint" | "guide3d" | "farEdge" | "guidePoint" | "snapHint" | "gridAdaptive") => void;
   /** 그리는 중 보라색 정렬 안내선 */
   sketchGuides: Guide[];
+  /** 자르기 모드에서 마우스 올린 곳의 잘릴 구간 (빨강 미리보기) */
+  sketchTrimPreview: { a: SketchPoint; b: SketchPoint } | null;
   /** 모든 바디 선택 */
   selectAll: () => void;
   /** 단위 (단위 팝업) */
@@ -407,6 +409,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   hidden: [],
   snap: { grid: true, sketchLine: true, sketchPoint: true, guide3d: true, farEdge: true, guidePoint: true, snapHint: true, gridAdaptive: true },
   sketchGuides: [],
+  sketchTrimPreview: null,
   unit: "mm",
   sketchPrefs: { auto: true, showConstraints: false, showDims: true, anchor: "first" },
   backend: "deterministic",
@@ -653,6 +656,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       sketchStrokes: strokeValid(s.sketchPoints, s.sketchTool) ? [...s.sketchStrokes, finalizeStroke(s.sketchPoints, s.sketchTool)] : s.sketchStrokes,
       sketchPoints: [],
       sketchSelectedSeg: null,
+      sketchTrimPreview: null,
       sketchLineDrawing: isPointTool(tool),
       status:
         tool === "rectangle"
@@ -685,6 +689,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   sketchDragMove: (raw) => {
     const s = get();
+    // 자르기 모드: 잘릴 구간 미리보기(빨강)
+    if (s.sketchTool === "trim") {
+      const thr = Math.max(0.4, s.camera.radius * 0.06);
+      set({ sketchTrimPreview: trimPreviewAt(s.sketchStrokes, raw, thr), sketchHover: raw });
+      return;
+    }
     // 점 도구로 그리는 중: 보라색 안내선 스냅(수평/수직/끝점)
     if (isPointTool(s.sketchTool) && s.sketchLineDrawing && s.sketchPlane) {
       const tol = Math.max(0.3, s.camera.radius * 0.04);
@@ -766,7 +776,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const thr = Math.max(0.4, s.camera.radius * 0.06);
       const res = trimAt(s.sketchStrokes, uv, thr);
       if (!res) return { status: "자르기: 잘릴 선 위를 클릭하세요" };
-      return { sketchStrokes: res, sketchSelectedSeg: null, sketchSelectedPoint: null, status: "선 잘림" };
+      return { sketchStrokes: res, sketchSelectedSeg: null, sketchSelectedPoint: null, sketchTrimPreview: null, status: "선 잘림" };
     }),
 
   deleteSketchStrokeAt: (uv) =>
@@ -879,7 +889,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({ sketchPoints: s.sketchPoints.slice(0, -1), sketchDraft: null, sketchSelectedSeg: null })),
 
   cancelSketch: () =>
-    set({ sketchActive: false, sketchPlane: null, sketchPoints: [], sketchStrokes: [], sketchDraft: null, sketchHover: null, sketchGuides: [], sketchSelectedSeg: null, sketchSelectedPoint: null, sketchDraggingPoint: null, sketchDraggingSeg: null, sketchLineDrawing: false, status: "스케치 취소" }),
+    set({ sketchActive: false, sketchPlane: null, sketchPoints: [], sketchStrokes: [], sketchDraft: null, sketchHover: null, sketchGuides: [], sketchTrimPreview: null, sketchSelectedSeg: null, sketchSelectedPoint: null, sketchDraggingPoint: null, sketchDraggingSeg: null, sketchLineDrawing: false, status: "스케치 취소" }),
 
   // 스케칭 종료 → 그린 획들을 독립 스케치 항목으로 저장 (돌출은 도구에서)
   finishSketch: () => {
@@ -888,7 +898,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const allStrokes = strokeValid(sketchPoints, sketchTool) ? [...sketchStrokes, finalizeStroke(sketchPoints, sketchTool)] : sketchStrokes;
     const base: Partial<AppState> = {
       sketchActive: false, sketchPlane: null, sketchPoints: [], sketchStrokes: [],
-      sketchDraft: null, sketchHover: null, sketchGuides: [], sketchSelectedSeg: null, sketchSelectedPoint: null, sketchDraggingPoint: null, sketchDraggingSeg: null, sketchLineDrawing: false,
+      sketchDraft: null, sketchHover: null, sketchGuides: [], sketchTrimPreview: null, sketchSelectedSeg: null, sketchSelectedPoint: null, sketchDraggingPoint: null, sketchDraggingSeg: null, sketchLineDrawing: false,
     };
     if (sketchPlane && allStrokes.length > 0) {
       const id = `sketch-${++counter}`;

@@ -215,6 +215,7 @@ export function SketchLayer(): JSX.Element | null {
   const moveSegDrag = useAppStore((s) => s.moveSegDrag);
   const endSegDrag = useAppStore((s) => s.endSegDrag);
   const guides = useAppStore((s) => s.sketchGuides);
+  const trimPreview = useAppStore((s) => s.sketchTrimPreview);
   const gridAdaptive = useAppStore((s) => s.snap.gridAdaptive);
   const radius = useAppStore((s) => s.camera.radius);
   const isPointTool = tool === "line" || tool === "spline" || tool === "arc";
@@ -280,6 +281,9 @@ export function SketchLayer(): JSX.Element | null {
       {guides.map((g, i) => (
         <Line key={`g${i}`} points={[toWorld(g.anchor), toWorld(g.to)]} color="#a855f7" lineWidth={1} dashed dashSize={0.25} gapSize={0.18} />
       ))}
+
+      {/* 자르기 미리보기 — 잘릴 구간 빨강 */}
+      {trimPreview && <Line points={[toWorld(trimPreview.a), toWorld(trimPreview.b)]} color="#ef4444" lineWidth={4} />}
 
       {/* 사각형/원 드래그 미리보기 */}
       {draftView && (

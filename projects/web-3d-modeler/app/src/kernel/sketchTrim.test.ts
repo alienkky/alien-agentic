@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { trimAt } from "./sketchTrim";
+import { trimAt, trimPreviewAt } from "./sketchTrim";
 import type { SketchPoint } from "./sketchPlane";
 
 const hLine: SketchPoint[] = [{ u: -2, v: 0 }, { u: 2, v: 0 }];
@@ -21,6 +21,15 @@ describe("스케치 자르기(Trim)", () => {
 
   it("선에서 먼 곳 클릭 → null", () => {
     expect(trimAt([hLine, vLine], { u: 5, v: 5 })).toBeNull();
+  });
+
+  it("미리보기: 잘릴 구간 [교차점, 끝] 반환 (실제로 안 자름)", () => {
+    const prev = trimPreviewAt([hLine, vLine], { u: 1, v: 0 }); // 수평선 오른쪽 절반
+    expect(prev).not.toBeNull();
+    // 잘릴 구간은 (0,0)~(2,0)
+    expect(prev!.a).toEqual({ u: 0, v: 0 });
+    expect(prev!.b).toEqual({ u: 2, v: 0 });
+    expect(trimPreviewAt([hLine], { u: 9, v: 9 })).toBeNull();
   });
 
   it("교차 없는 선 — 전체가 한 구간이라 통째로 제거", () => {
