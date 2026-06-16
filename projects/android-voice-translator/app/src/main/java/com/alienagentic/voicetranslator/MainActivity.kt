@@ -88,6 +88,15 @@ class MainActivity : AppCompatActivity() {
         translator.setFallbackSource(settings.listenLocale)
         updateLangToggleLabel()
         updateModeLabel()
+        updateOverlayButtonLabel()
+    }
+
+    private fun updateOverlayButtonLabel() {
+        binding.overlayButton.text = if (CaptionOverlayService.isRunning) {
+            getString(R.string.overlay_button_stop)
+        } else {
+            getString(R.string.overlay_button)
+        }
     }
 
     private fun ensurePermissionThenListen() {
@@ -171,6 +180,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun launchOverlay() {
+        if (CaptionOverlayService.isRunning) {
+            CaptionOverlayService.stop(this)
+            updateOverlayButtonLabel()
+            toast(getString(R.string.overlay_stopped))
+            return
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
             toast(getString(R.string.overlay_need_permission))
             startActivity(
@@ -190,6 +205,7 @@ class MainActivity : AppCompatActivity() {
         // Stop in-app listening so the two engines don't fight over the mic.
         if (isListening) stopListening()
         CaptionOverlayService.start(this)
+        binding.overlayButton.text = getString(R.string.overlay_button_stop)
         toast(getString(R.string.overlay_started))
     }
 

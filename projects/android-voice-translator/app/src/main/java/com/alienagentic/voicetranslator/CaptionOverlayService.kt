@@ -48,6 +48,11 @@ class CaptionOverlayService : Service() {
         private const val NOTIFICATION_ID = 42
         private const val ACTION_STOP = "com.alienagentic.voicetranslator.STOP_OVERLAY"
 
+        /** True while the overlay is showing, so the UI can offer a stop toggle. */
+        @Volatile
+        var isRunning = false
+            private set
+
         fun start(context: Context) {
             val intent = Intent(context, CaptionOverlayService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -55,6 +60,12 @@ class CaptionOverlayService : Service() {
             } else {
                 context.startService(intent)
             }
+        }
+
+        fun stop(context: Context) {
+            context.startService(
+                Intent(context, CaptionOverlayService::class.java).setAction(ACTION_STOP)
+            )
         }
     }
 
@@ -69,6 +80,7 @@ class CaptionOverlayService : Service() {
         addOverlay()
         speaker = Speaker(this)
         prepareAndListen()
+        isRunning = true
         return START_STICKY
     }
 
@@ -124,8 +136,27 @@ class CaptionOverlayService : Service() {
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.parseColor("#CC0B0E14"))
-            setPadding(36, 28, 36, 28)
+            setPadding(36, 20, 36, 28)
         }
+        // Close button — tapping it dismisses the overlay and stops the service.
+        // This is the reliable way to remove the caption regardless of whether
+        // the foreground notification (with its stop action) is visible.
+        val close = TextView(this).apply {
+            text = getString(R.string.overlay_close)
+            setTextColor(Color.parseColor("#5BC8FF"))
+            textSize = 15f
+            gravity = Gravity.END
+            setPadding(24, 8, 8, 16)
+            isClickable = true
+            setOnClickListener { stopSelf() }
+        }
+        container.addView(
+            close,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
         val src = TextView(this).apply {
             setTextColor(Color.parseColor("#8B93A7"))
             textSize = 16f
@@ -237,6 +268,7 @@ class CaptionOverlayService : Service() {
     }
 
     override fun onDestroy() {
+        isRunning = false
         engine?.destroy()
         translator.close()
         speaker?.shutdown()

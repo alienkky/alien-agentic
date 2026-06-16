@@ -25,9 +25,12 @@
 
     <string name="settings_button">⚙ 설정</string>
     <string name="overlay_button">⧉ 오버레이</string>
+    <string name="overlay_button_stop">⧉ 오버레이 끄기</string>
 
     <string name="overlay_need_permission">다른 앱 위에 표시 권한이 필요합니다</string>
     <string name="overlay_started">오버레이 자막을 시작했습니다</string>
+    <string name="overlay_stopped">오버레이 자막을 껐습니다</string>
+    <string name="overlay_close">✕ 닫기</string>
     <string name="overlay_channel_name">자막 오버레이</string>
     <string name="overlay_notification_title">실시간 번역 자막 실행 중</string>
     <string name="overlay_notification_text">탭하여 멈출 수 있습니다</string>
