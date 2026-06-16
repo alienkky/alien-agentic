@@ -239,6 +239,12 @@ interface AppState {
   trimSketchAt: (uv: SketchPoint) => void;
   /** 삭제: 클릭 지점 근처 획을 통째로 제거 */
   deleteSketchStrokeAt: (uv: SketchPoint) => void;
+  /** 점 편집 — 선택/드래그 이동 */
+  sketchSelectedPoint: { s: number; i: number } | null;
+  sketchDraggingPoint: { s: number; i: number } | null;
+  startPointDrag: (s: number, i: number) => void;
+  movePointDrag: (uv: SketchPoint) => void;
+  endPointDrag: () => void;
   /** 스케치 변형 다이얼로그 모드 (null=닫힘) */
   sketchTransformMode: "mirror" | "pattern" | "offset" | null;
   openSketchTransform: (mode: "mirror" | "pattern" | "offset") => void;
@@ -365,6 +371,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   sketchSelectedSeg: null,
   sketchLineDrawing: false,
   sketchTransformMode: null,
+  sketchSelectedPoint: null,
+  sketchDraggingPoint: null,
   history: [],
   extrudeOpen: false,
   revolveOpen: false,
@@ -719,17 +727,31 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   trimSketchAt: (uv) =>
     set((s) => {
-      const res = trimAt(s.sketchStrokes, uv);
+      // 화면에서 일정한 클릭 반경 (줌에 비례)
+      const thr = Math.max(0.4, s.camera.radius * 0.06);
+      const res = trimAt(s.sketchStrokes, uv, thr);
       if (!res) return { status: "자르기: 잘릴 선 위를 클릭하세요" };
-      return { sketchStrokes: res, sketchSelectedSeg: null, status: "선 잘림" };
+      return { sketchStrokes: res, sketchSelectedSeg: null, sketchSelectedPoint: null, status: "선 잘림" };
     }),
 
   deleteSketchStrokeAt: (uv) =>
     set((s) => {
-      const idx = nearestStrokeIndex(s.sketchStrokes, uv);
+      const thr = Math.max(0.4, s.camera.radius * 0.06);
+      const idx = nearestStrokeIndex(s.sketchStrokes, uv, thr);
       if (idx === null) return { status: "삭제: 지울 선을 클릭하세요" };
-      return { sketchStrokes: s.sketchStrokes.filter((_, i) => i !== idx), sketchSelectedSeg: null, status: "선 삭제" };
+      return { sketchStrokes: s.sketchStrokes.filter((_, i) => i !== idx), sketchSelectedSeg: null, sketchSelectedPoint: null, status: "선 삭제" };
     }),
+
+  startPointDrag: (s, i) => set({ sketchSelectedPoint: { s, i }, sketchDraggingPoint: { s, i }, gizmoDragging: true, status: "점 이동 — 끌어서 옮기기" }),
+  movePointDrag: (uv) =>
+    set((s) => {
+      if (!s.sketchDraggingPoint) return {};
+      const { s: si, i } = s.sketchDraggingPoint;
+      const p: SketchPoint = s.snap.grid ? { u: snap(uv.u), v: snap(uv.v) } : uv;
+      const strokes = s.sketchStrokes.map((st, idx) => (idx === si ? st.map((pt, j) => (j === i ? p : pt)) : st));
+      return { sketchStrokes: strokes };
+    }),
+  endPointDrag: () => set({ sketchDraggingPoint: null, gizmoDragging: false, status: "점 이동 완료" }),
 
   openSketchTransform: (mode) =>
     set((s) => (s.sketchStrokes.length === 0 ? { status: "먼저 스케치 도형을 그리세요" } : { sketchTransformMode: mode })),

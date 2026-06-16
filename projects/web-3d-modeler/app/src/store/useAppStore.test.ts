@@ -329,6 +329,22 @@ describe("useAppStore — 스케치 그리기 도구(호·스플라인·삭제)"
     st.deleteSketchStrokeAt({ u: 0, v: 0 });
     expect(useAppStore.getState().sketchStrokes).toHaveLength(0);
   });
+
+  it("점 드래그: 선택한 점이 이동", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("rectangle");
+    st.sketchDragStart({ u: 0, v: 0 });
+    st.sketchDragMove({ u: 4, v: 4 });
+    st.sketchDragEnd();
+    st.startPointDrag(0, 0);
+    expect(useAppStore.getState().sketchDraggingPoint).toEqual({ s: 0, i: 0 });
+    st.movePointDrag({ u: 1, v: 1 });
+    expect(useAppStore.getState().sketchStrokes[0]![0]).toEqual({ u: 1, v: 1 });
+    st.endPointDrag();
+    expect(useAppStore.getState().sketchDraggingPoint).toBeNull();
+  });
 });
 
 describe("useAppStore — 스케치 변형(미러·패턴·오프셋·투상)", () => {
