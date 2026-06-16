@@ -261,6 +261,140 @@ describe("useAppStore — Shapr3D식 돌출(빼기/합치기/새 바디)", () =>
   });
 });
 
+describe("useAppStore — 회전 모드(새/빼기/합치기)", () => {
+  beforeEach(() => {
+    void useAppStore.getState().clear();
+    useAppStore.getState().cancelSketch();
+  });
+
+  it("회전 새 바디: 스케치를 회전시켜 바디 추가", () => {
+    const st = useAppStore.getState();
+    makeRectSketch();
+    st.revolveSketchAs(360, "v", "new");
+    expect(useAppStore.getState().shapes.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("회전 빼기: 겹치는 바디 없으면 바디 수 유지", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(2, 2, 2, "far"), "박스");
+    st.setTransform("far", [100, 0, 0]);
+    makeRectSketch();
+    st.revolveSketchAs(360, "v", "cut");
+    expect(useAppStore.getState().shapes).toHaveLength(1);
+  });
+});
+
+describe("useAppStore — 스케치 그리기 도구(호·스플라인·삭제)", () => {
+  beforeEach(() => {
+    useAppStore.getState().cancelSketch();
+  });
+
+  it("스플라인: 점 찍고 확정 → 곡선 획(점 증가)", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("spline");
+    st.sketchClickPoint({ u: 0, v: 0 });
+    st.sketchClickPoint({ u: 3, v: 2 });
+    st.sketchClickPoint({ u: 6, v: 0 });
+    st.sketchClickPoint({ u: 6, v: 0 }); // 끝점 재클릭 → 확정
+    const strokes = useAppStore.getState().sketchStrokes;
+    expect(strokes).toHaveLength(1);
+    expect(strokes[0]!.length).toBeGreaterThan(10); // 곡선화
+  });
+
+  it("호: 3점 클릭 → 자동 확정(원호 폴리라인)", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("arc");
+    st.sketchClickPoint({ u: 1, v: 0 });
+    st.sketchClickPoint({ u: 0, v: 1 });
+    st.sketchClickPoint({ u: -1, v: 0 }); // 3점 → 자동 확정
+    const strokes = useAppStore.getState().sketchStrokes;
+    expect(strokes).toHaveLength(1);
+    expect(strokes[0]!.length).toBeGreaterThan(10);
+  });
+
+  it("삭제: 클릭한 획 제거", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("rectangle");
+    st.sketchDragStart({ u: 0, v: 0 });
+    st.sketchDragMove({ u: 4, v: 3 });
+    st.sketchDragEnd();
+    expect(useAppStore.getState().sketchStrokes).toHaveLength(1);
+    st.setSketchTool("delete");
+    st.deleteSketchStrokeAt({ u: 0, v: 0 });
+    expect(useAppStore.getState().sketchStrokes).toHaveLength(0);
+  });
+});
+
+describe("useAppStore — 스케치 변형(미러·패턴·오프셋·투상)", () => {
+  beforeEach(() => {
+    void useAppStore.getState().clear();
+    useAppStore.getState().cancelSketch();
+  });
+
+  function drawRect(): void {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("rectangle");
+    st.sketchDragStart({ u: 2, v: 2 });
+    st.sketchDragMove({ u: 4, v: 4 });
+    st.sketchDragEnd();
+  }
+
+  it("미러: 획이 반사 복제되어 2배", () => {
+    drawRect();
+    expect(useAppStore.getState().sketchStrokes).toHaveLength(1);
+    useAppStore.getState().sketchMirror("v");
+    expect(useAppStore.getState().sketchStrokes).toHaveLength(2);
+  });
+
+  it("선형 패턴: count배 만큼 획 증가", () => {
+    drawRect();
+    useAppStore.getState().sketchPatternLinear("u", 4, 5);
+    expect(useAppStore.getState().sketchStrokes).toHaveLength(4); // 원본1 + 복제3
+  });
+
+  it("오프셋: 각 획마다 오프셋 획 추가", () => {
+    drawRect();
+    useAppStore.getState().sketchOffset(0.5);
+    expect(useAppStore.getState().sketchStrokes).toHaveLength(2);
+  });
+
+  it("투상: 바디 모서리를 평면에 투영해 획 생성", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(4, 4, 4, "box-1"), "박스");
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.sketchProject();
+    // 박스 모서리(12) 가 획으로
+    expect(useAppStore.getState().sketchStrokes.length).toBeGreaterThanOrEqual(12);
+  });
+});
+
+describe("useAppStore — 측정", () => {
+  beforeEach(() => {
+    useAppStore.getState().clearMeasure();
+  });
+
+  it("두 점 클릭 → 거리 계산, 세 번째 클릭은 새 측정 시작", () => {
+    const st = useAppStore.getState();
+    st.toggleMeasure();
+    expect(useAppStore.getState().measureActive).toBe(true);
+    st.addMeasurePoint([0, 0, 0]);
+    st.addMeasurePoint([3, 4, 0]);
+    expect(useAppStore.getState().measurePoints).toHaveLength(2);
+    expect(useAppStore.getState().status).toContain("5.00"); // 3-4-5
+    st.addMeasurePoint([1, 1, 1]); // 새 측정
+    expect(useAppStore.getState().measurePoints).toHaveLength(1);
+  });
+});
+
 describe("useAppStore — 패턴(선형·원형)", () => {
   beforeEach(() => {
     void useAppStore.getState().clear();

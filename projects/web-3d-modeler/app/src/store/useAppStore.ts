@@ -12,7 +12,10 @@ import { revolveProfile, type RevolveAxis } from "../kernel/revolve";
 import { translateMesh, rotateMeshAxis, scaleMesh, mirrorMesh, centroidOf } from "../kernel/transformMesh";
 import { meshAabb, aabbOverlap } from "../kernel/aabb";
 import { parseStl } from "../kernel/stlImport";
-import { SKETCH_PLANES, planeFromFace, type PlaneId, type SketchPoint, type SketchPlaneDef } from "../kernel/sketchPlane";
+import { SKETCH_PLANES, planeFromFace, worldToPlane, type PlaneId, type SketchPoint, type SketchPlaneDef } from "../kernel/sketchPlane";
+import { trimAt, nearestStrokeIndex } from "../kernel/sketchTrim";
+import { catmullRom, arc3 } from "../kernel/sketchCurves";
+import { mirrorStrokes, patternLinearStrokes, patternCircularStrokes, offsetStroke, type UVAxis } from "../kernel/sketchTransform2d";
 import {
   defaultCamera,
   orbit as orbitCam,
@@ -46,7 +49,9 @@ function sameSel(a: SelItem, b: SelItem): boolean {
 }
 
 export type PrimitiveKind = "box" | "cylinder" | "sphere";
-export type SketchTool = "rectangle" | "circle" | "line" | "ellipse" | "polygon";
+export type SketchTool = "rectangle" | "circle" | "line" | "ellipse" | "polygon" | "trim" | "spline" | "arc" | "delete";
+/** 점을 순서대로 찍어 그리는 도구 (선·스플라인·호) */
+const isPointTool = (t: SketchTool): boolean => t === "line" || t === "spline" || t === "arc";
 /** 돌출 방식 (Shapr3D식): 새 바디 / 겹친 바디에서 빼기 / 겹친 바디에 합치기. */
 export type ExtrudeMode = "new" | "cut" | "fuse";
 /** 패턴 축 (선형 방향 / 원형 회전축) */
@@ -100,7 +105,16 @@ const PLANE_VIEW: Record<PlaneId, "top" | "front" | "right"> = { xz: "top", xy: 
 
 /** 획이 유효한가 — 선은 2점 이상, 닫힌 도형은 3점 이상. */
 function strokeValid(pts: SketchPoint[], tool: SketchTool): boolean {
-  return tool === "line" ? pts.length >= 2 : pts.length >= 3;
+  if (tool === "line" || tool === "spline") return pts.length >= 2;
+  if (tool === "arc") return pts.length >= 3;
+  return pts.length >= 3;
+}
+
+/** 찍은 제어점들을 도구에 맞는 최종 폴리라인으로 — 스플라인은 곡선화, 호는 3점 원호. */
+function finalizeStroke(pts: SketchPoint[], tool: SketchTool): SketchPoint[] {
+  if (tool === "spline") return catmullRom(pts);
+  if (tool === "arc" && pts.length >= 3) return arc3(pts[0]!, pts[1]!, pts[2]!);
+  return pts;
 }
 
 export type Vec3 = [number, number, number];
@@ -221,6 +235,21 @@ interface AppState {
   sketchDragMove: (p: SketchPoint) => void;
   sketchDragEnd: () => void;
   sketchClickPoint: (p: SketchPoint) => void;
+  /** 자르기: 클릭 지점 근처 선분을 교차점 기준으로 잘라낸다 */
+  trimSketchAt: (uv: SketchPoint) => void;
+  /** 삭제: 클릭 지점 근처 획을 통째로 제거 */
+  deleteSketchStrokeAt: (uv: SketchPoint) => void;
+  /** 스케치 변형 다이얼로그 모드 (null=닫힘) */
+  sketchTransformMode: "mirror" | "pattern" | "offset" | null;
+  openSketchTransform: (mode: "mirror" | "pattern" | "offset") => void;
+  closeSketchTransform: () => void;
+  /** 스케치 변형 — 모두 확정 획(sketchStrokes)에 적용 */
+  sketchMirror: (axis: UVAxis) => void;
+  sketchPatternLinear: (axis: UVAxis, count: number, spacing: number) => void;
+  sketchPatternCircular: (count: number, angleDeg: number) => void;
+  sketchOffset: (dist: number) => void;
+  /** 투상: 바디 모서리를 현재 스케치 평면에 투영해 획으로 */
+  sketchProject: () => void;
   /** 선분 치수 편집 선택 / 길이 설정 / 해제 */
   selectSketchSegment: (s: number, i: number) => void;
   setSegmentLength: (s: number, i: number, len: number) => void;
@@ -243,8 +272,8 @@ interface AppState {
   setExtrudeDragHeight: (h: number) => void;
   commitExtrudeDrag: () => void;
   cancelExtrudeDrag: () => void;
-  /** 선택된 스케치를 회전체로 (도구→회전) */
-  revolveSketchAs: (angleDeg: number, axis: RevolveAxis) => void;
+  /** 선택된 스케치를 회전체로 (도구→회전). 모드: 새 바디/빼기/합치기 */
+  revolveSketchAs: (angleDeg: number, axis: RevolveAxis, mode: ExtrudeMode) => void;
   /** 회전 다이얼로그 열기/닫기 */
   openRevolve: () => void;
   closeRevolve: () => void;
@@ -264,6 +293,13 @@ interface AppState {
   mirrorBody: (axis: Axis3) => void;
   openTransform: (mode: "rotate" | "scale" | "mirror") => void;
   closeTransform: () => void;
+
+  /** 측정 도구 — 두 점을 클릭하면 거리 표시 */
+  measureActive: boolean;
+  measurePoints: Vec3[];
+  toggleMeasure: () => void;
+  addMeasurePoint: (p: Vec3) => void;
+  clearMeasure: () => void;
 }
 
 let kernel: KernelHandle | null = null;
@@ -274,6 +310,42 @@ const BOOL_LABEL: Record<BooleanOp, string> = {
   cut: "빼기",
   common: "교집합",
 };
+
+/**
+ * 돌출·회전 공통 — 만들어진 공구 솔리드(tools)를 기존 바디에 cut/fuse 한다.
+ * 공구와 AABB 가 겹치는 바디에만 불리언을 건다. 합치기에서 어디와도 안 겹친 공구는 새 바디로.
+ * 반환: 갱신된 shapes·transforms·가공된 곳 수(affected).
+ */
+function combineTools(
+  shapes: TessellatedMesh[],
+  transformsIn: Record<string, Vec3>,
+  tools: TessellatedMesh[],
+  mode: "cut" | "fuse",
+): { shapes: TessellatedMesh[]; transforms: Record<string, Vec3>; affected: number } {
+  const op: BooleanOp = mode === "cut" ? "cut" : "fuse";
+  const toolBoxes = tools.map((t) => ({ t, box: meshAabb(t) }));
+  const consumed = new Set<TessellatedMesh>();
+  const transforms = { ...transformsIn };
+  const nextShapes: TessellatedMesh[] = [];
+  let affected = 0;
+  for (const body of shapes) {
+    let acc = body;
+    let baked = false; // 첫 불리언 후엔 오프셋이 좌표에 구워짐
+    const off = (): Vec3 => (baked ? [0, 0, 0] : transformsIn[body.shapeId] ?? [0, 0, 0]);
+    for (const { t, box } of toolBoxes) {
+      if (mode === "fuse" && consumed.has(t)) continue;
+      if (!aabbOverlap(meshAabb(acc, off()), box)) continue;
+      acc = meshBoolean(acc, t, op, `${mode}-${++counter}`, off(), [0, 0, 0]);
+      baked = true;
+      affected++;
+      if (mode === "fuse") consumed.add(t);
+    }
+    if (baked) delete transforms[body.shapeId];
+    nextShapes.push(acc);
+  }
+  if (mode === "fuse") for (const { t } of toolBoxes) if (!consumed.has(t)) nextShapes.push(t);
+  return { shapes: nextShapes, transforms, affected };
+}
 
 export const useAppStore = create<AppState>((set, get) => ({
   camera: defaultCamera(),
@@ -292,12 +364,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   sketchStrokes: [],
   sketchSelectedSeg: null,
   sketchLineDrawing: false,
+  sketchTransformMode: null,
   history: [],
   extrudeOpen: false,
   revolveOpen: false,
   extrudeDrag: null,
   patternOpen: false,
   transformMode: null,
+  measureActive: false,
+  measurePoints: [],
   displayMode: "shaded",
   panels: { items: true, history: true },
   showEdges: true,
@@ -534,7 +609,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       sketchPoints: [],
       sketchStrokes: [],
       sketchDraft: null,
-      sketchLineDrawing: s.sketchTool === "line",
+      sketchLineDrawing: isPointTool(s.sketchTool),
       camera: viewPreset(s.camera, PLANE_VIEW[id]), // 그 면을 정면으로
       status: `${SKETCH_PLANES[id].label} 위에서 그리세요`,
     })),
@@ -544,10 +619,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({
       sketchTool: tool,
       sketchDraft: null,
-      sketchStrokes: strokeValid(s.sketchPoints, s.sketchTool) ? [...s.sketchStrokes, s.sketchPoints] : s.sketchStrokes,
+      sketchStrokes: strokeValid(s.sketchPoints, s.sketchTool) ? [...s.sketchStrokes, finalizeStroke(s.sketchPoints, s.sketchTool)] : s.sketchStrokes,
       sketchPoints: [],
       sketchSelectedSeg: null,
-      sketchLineDrawing: tool === "line",
+      sketchLineDrawing: isPointTool(tool),
       status:
         tool === "rectangle"
           ? "사각형 — 드래그해 그리기"
@@ -557,12 +632,21 @@ export const useAppStore = create<AppState>((set, get) => ({
               ? "타원 — 중심에서 가로·세로로 드래그"
               : tool === "polygon"
                 ? `다각형 — 중심에서 바깥으로 드래그 (${POLYGON_SIDES}각형)`
-                : "선 — 점을 순서대로 탭 (3개 이상)",
+                : tool === "trim"
+                  ? "자르기 — 지울 선 구간을 클릭"
+                  : tool === "delete"
+                    ? "삭제 — 지울 선을 클릭"
+                    : tool === "spline"
+                      ? "스플라인 — 점을 이어 찍기 (끝점 재클릭/Esc 로 확정)"
+                      : tool === "arc"
+                        ? "호 — 시작·중간·끝 3점을 클릭"
+                        : "선 — 점을 순서대로 탭 (끝점 재클릭/Esc 로 확정)",
     })),
 
   // 사각형·원: 드래그 (좌표는 평면 (u,v))
   sketchDragStart: (raw) => {
-    if (get().sketchTool === "line" || !get().sketchPlane) return;
+    const t = get().sketchTool;
+    if (isPointTool(t) || t === "trim" || t === "delete" || !get().sketchPlane) return;
     const g = get().snap.grid;
     const p: SketchPoint = g ? { u: snap(raw.u), v: snap(raw.v) } : raw;
     set({ sketchDraft: { start: p, current: p }, sketchPoints: [] });
@@ -608,31 +692,89 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  // 선: 점 클릭. 비그리기 상태에서 클릭 → 새 획 시작. 끝점 다시 클릭 → 현재 획 확정.
+  // 점 도구(선·스플라인·호) 클릭. 끝점 재클릭→확정. 호는 3점 모이면 자동 확정.
   sketchClickPoint: (raw) => {
     const s = get();
-    if (s.sketchTool !== "line" || !s.sketchPlane) return;
+    if (!isPointTool(s.sketchTool) || !s.sketchPlane) return;
+    const tool = s.sketchTool;
     const p: SketchPoint = s.snap.grid ? { u: snap(raw.u), v: snap(raw.v) } : raw;
     if (!s.sketchLineDrawing) {
-      // 새 획 시작 (기존 획들은 그대로 유지)
-      set({ sketchLineDrawing: true, sketchPoints: [p], sketchSelectedSeg: null, status: "선 — 점을 이어 찍기 (끝점 다시 클릭/Esc 로 확정)" });
+      set({ sketchLineDrawing: true, sketchPoints: [p], sketchSelectedSeg: null, status: "점을 이어 찍기 (끝점 재클릭/Esc 로 확정)" });
       return;
     }
     const last = s.sketchPoints[s.sketchPoints.length - 1];
-    if (last && Math.hypot(p.u - last.u, p.v - last.v) < 0.4 && s.sketchPoints.length >= 2) {
-      // 끝점 다시 클릭 → 현재 획 확정(누적), 새 획 대기
-      set((st) => ({ sketchStrokes: [...st.sketchStrokes, st.sketchPoints], sketchPoints: [], sketchLineDrawing: false, sketchHover: null, status: "선 확정 — 치수 클릭 편집 / 계속 그리기 / 스케칭 종료" }));
+    // 선·스플라인: 끝점 재클릭 → 확정
+    if (tool !== "arc" && last && Math.hypot(p.u - last.u, p.v - last.v) < 0.4 && s.sketchPoints.length >= 2) {
+      set((st) => ({ sketchStrokes: [...st.sketchStrokes, finalizeStroke(st.sketchPoints, tool)], sketchPoints: [], sketchLineDrawing: false, sketchHover: null, status: "확정 — 계속 그리기 / 스케칭 종료" }));
       return;
     }
-    set({ sketchPoints: [...s.sketchPoints, p], status: `선 — 점 ${s.sketchPoints.length + 1}개` });
+    const next = [...s.sketchPoints, p];
+    // 호: 3점(시작·중간·끝) 모이면 자동 확정
+    if (tool === "arc" && next.length >= 3) {
+      set((st) => ({ sketchStrokes: [...st.sketchStrokes, arc3(next[0]!, next[1]!, next[2]!)], sketchPoints: [], sketchLineDrawing: false, sketchHover: null, status: "호 완성 — 계속 그리기 / 스케칭 종료" }));
+      return;
+    }
+    set({ sketchPoints: next, status: tool === "arc" ? `호 — 점 ${next.length}/3` : `점 ${next.length}개` });
+  },
+
+  trimSketchAt: (uv) =>
+    set((s) => {
+      const res = trimAt(s.sketchStrokes, uv);
+      if (!res) return { status: "자르기: 잘릴 선 위를 클릭하세요" };
+      return { sketchStrokes: res, sketchSelectedSeg: null, status: "선 잘림" };
+    }),
+
+  deleteSketchStrokeAt: (uv) =>
+    set((s) => {
+      const idx = nearestStrokeIndex(s.sketchStrokes, uv);
+      if (idx === null) return { status: "삭제: 지울 선을 클릭하세요" };
+      return { sketchStrokes: s.sketchStrokes.filter((_, i) => i !== idx), sketchSelectedSeg: null, status: "선 삭제" };
+    }),
+
+  openSketchTransform: (mode) =>
+    set((s) => (s.sketchStrokes.length === 0 ? { status: "먼저 스케치 도형을 그리세요" } : { sketchTransformMode: mode })),
+  closeSketchTransform: () => set({ sketchTransformMode: null }),
+  sketchMirror: (axis) =>
+    set((s) => ({ sketchStrokes: [...s.sketchStrokes, ...mirrorStrokes(s.sketchStrokes, axis)], sketchTransformMode: null, status: `스케치 미러 (${axis === "u" ? "가로축" : "세로축"})` })),
+  sketchPatternLinear: (axis, count, spacing) =>
+    set((s) => ({ sketchStrokes: [...s.sketchStrokes, ...patternLinearStrokes(s.sketchStrokes, axis, Math.max(2, count), spacing)], sketchTransformMode: null, status: `스케치 선형 패턴 ${count}개` })),
+  sketchPatternCircular: (count, angleDeg) =>
+    set((s) => ({ sketchStrokes: [...s.sketchStrokes, ...patternCircularStrokes(s.sketchStrokes, Math.max(2, count), angleDeg)], sketchTransformMode: null, status: `스케치 원형 패턴 ${count}개` })),
+  sketchOffset: (dist) =>
+    set((s) => ({ sketchStrokes: [...s.sketchStrokes, ...s.sketchStrokes.filter((st) => st.length >= 2).map((st) => offsetStroke(st, dist))], sketchTransformMode: null, status: `모서리 오프셋 ${dist} mm` })),
+  sketchProject: () => {
+    const st = get();
+    const plane = st.sketchPlane;
+    if (!plane) {
+      set({ status: "투상: 스케치 평면이 없습니다" });
+      return;
+    }
+    const ids = selectionBodyIds(st.selection);
+    const bodies = ids.length ? st.shapes.filter((m) => ids.includes(m.shapeId)) : st.shapes;
+    if (bodies.length === 0) {
+      set({ status: "투상: 투영할 바디가 없습니다" });
+      return;
+    }
+    const newStrokes: SketchPoint[][] = [];
+    for (const body of bodies) {
+      const off = st.transforms[body.shapeId] ?? [0, 0, 0];
+      for (const e of body.edges) {
+        const pts: SketchPoint[] = [];
+        for (let i = 0; i < e.positions.length; i += 3) {
+          pts.push(worldToPlane(plane, e.positions[i]! + off[0], e.positions[i + 1]! + off[1], e.positions[i + 2]! + off[2]));
+        }
+        if (pts.length >= 2) newStrokes.push(pts);
+      }
+    }
+    set((s) => ({ sketchStrokes: [...s.sketchStrokes, ...newStrokes], status: `투상 — 모서리 ${newStrokes.length}개` }));
   },
 
   selectSketchSegment: (st, i) => set({ sketchSelectedSeg: { s: st, i } }),
   clearSketchSegment: () => set({ sketchSelectedSeg: null }),
   finishLine: () =>
     set((s) => {
-      if (strokeValid(s.sketchPoints, "line")) {
-        return { sketchStrokes: [...s.sketchStrokes, s.sketchPoints], sketchPoints: [], sketchLineDrawing: false, sketchHover: null, status: "선 확정 — 치수 편집 / 계속 / 종료" };
+      if (strokeValid(s.sketchPoints, s.sketchTool)) {
+        return { sketchStrokes: [...s.sketchStrokes, finalizeStroke(s.sketchPoints, s.sketchTool)], sketchPoints: [], sketchLineDrawing: false, sketchHover: null, status: "확정 — 계속 / 종료" };
       }
       return { sketchPoints: [], sketchLineDrawing: false, sketchHover: null };
     }),
@@ -667,7 +809,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   finishSketch: () => {
     const { sketchActive, sketchPlane, sketchPoints, sketchTool, sketchStrokes } = get();
     if (!sketchActive) return;
-    const allStrokes = strokeValid(sketchPoints, sketchTool) ? [...sketchStrokes, sketchPoints] : sketchStrokes;
+    const allStrokes = strokeValid(sketchPoints, sketchTool) ? [...sketchStrokes, finalizeStroke(sketchPoints, sketchTool)] : sketchStrokes;
     const base: Partial<AppState> = {
       sketchActive: false, sketchPlane: null, sketchPoints: [], sketchStrokes: [],
       sketchDraft: null, sketchHover: null, sketchSelectedSeg: null, sketchLineDrawing: false,
@@ -718,31 +860,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         return;
       }
 
-      const op: BooleanOp = mode === "cut" ? "cut" : "fuse";
-      const toolBoxes = tools.map((t) => ({ t, box: meshAabb(t) }));
-      const consumed = new Set<TessellatedMesh>();
-      const transforms = { ...st.transforms };
-      const nextShapes: TessellatedMesh[] = [];
-      let affected = 0;
-
-      for (const body of st.shapes) {
-        let acc = body;
-        let baked = false; // 첫 불리언 후엔 오프셋이 좌표에 구워짐
-        const off = (): Vec3 => (baked ? [0, 0, 0] : st.transforms[body.shapeId] ?? [0, 0, 0]);
-        for (const { t, box } of toolBoxes) {
-          if (mode === "fuse" && consumed.has(t)) continue;
-          if (!aabbOverlap(meshAabb(acc, off()), box)) continue;
-          acc = meshBoolean(acc, t, op, `${mode}-${++counter}`, off(), [0, 0, 0]);
-          baked = true;
-          affected++;
-          if (mode === "fuse") consumed.add(t);
-        }
-        if (baked) delete transforms[body.shapeId];
-        nextShapes.push(acc);
-      }
-      // 합치기: 어떤 바디와도 안 겹친 돌출체는 새 바디로 남긴다
-      if (mode === "fuse") for (const { t } of toolBoxes) if (!consumed.has(t)) nextShapes.push(t);
-
+      const { shapes: nextShapes, transforms, affected } = combineTools(st.shapes, st.transforms, tools, mode);
       if (affected === 0) {
         set({ extrudeOpen: false, status: `돌출(${mode === "cut" ? "빼기" : "합치기"}): 겹치는 바디가 없습니다` });
         return;
@@ -792,8 +910,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   cancelExtrudeDrag: () => set({ extrudeDrag: null, gizmoDragging: false, status: "돌출 취소" }),
 
-  // 도구 → 회전: 선택된 스케치의 닫힌 프로파일을 축 둘레로 회전
-  revolveSketchAs: (angleDeg, axis) => {
+  // 도구 → 회전: 선택된 스케치의 닫힌 프로파일을 축 둘레로 회전 (새/빼기/합치기)
+  revolveSketchAs: (angleDeg, axis, mode) => {
     const st = get();
     const sel = st.selection.find((it) => it.kind === "sketch");
     const sketch = sel ? st.sketches.find((sk) => sk.id === sel.shapeId) : undefined;
@@ -808,13 +926,29 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     try {
       const plane = sketch.plane;
-      const made = closed.map((p) => revolveProfile(p, plane, angleDeg, axis, `revolve-${++counter}`));
+      const tools = closed.map((p) => revolveProfile(p, plane, angleDeg, axis, `revolve-${++counter}`));
+      if (mode === "new") {
+        set((s) => ({
+          shapes: [...s.shapes, ...tools],
+          selection: [],
+          revolveOpen: false,
+          history: [...s.history, ...tools.map((m) => ({ id: m.shapeId, label: "회전(새 바디)" }))],
+          status: `회전 — 새 바디 ${tools.length}개 (${angleDeg}°, ${axis === "v" ? "세로축" : "가로축"})`,
+        }));
+        return;
+      }
+      const { shapes: nextShapes, transforms, affected } = combineTools(st.shapes, st.transforms, tools, mode);
+      if (affected === 0) {
+        set({ revolveOpen: false, status: `회전(${mode === "cut" ? "빼기" : "합치기"}): 겹치는 바디가 없습니다` });
+        return;
+      }
       set((s) => ({
-        shapes: [...s.shapes, ...made],
+        shapes: nextShapes,
+        transforms,
         selection: [],
         revolveOpen: false,
-        history: [...s.history, ...made.map((m) => ({ id: m.shapeId, label: "회전" }))],
-        status: `회전 완료 — ${made.length}개 (${angleDeg}°, ${axis === "v" ? "세로축" : "가로축"})`,
+        history: [...s.history, { id: `${mode}-${counter}`, label: mode === "cut" ? "회전(빼기)" : "회전(합치기)" }],
+        status: mode === "cut" ? `회전 빼기 — ${affected}곳 가공` : `회전 합치기 — ${affected}곳 결합`,
       }));
     } catch (err) {
       set({ status: `오류: ${err instanceof Error ? err.message : String(err)}` });
@@ -979,4 +1113,24 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ transformMode: mode });
   },
   closeTransform: () => set({ transformMode: null }),
+
+  toggleMeasure: () =>
+    set((s) => ({
+      measureActive: !s.measureActive,
+      measurePoints: [],
+      selection: s.measureActive ? s.selection : [],
+      status: s.measureActive ? "측정 종료" : "측정: 모델 위 두 점을 클릭하세요",
+    })),
+  addMeasurePoint: (p) =>
+    set((s) => {
+      const pts = s.measurePoints.length >= 2 ? [p] : [...s.measurePoints, p];
+      if (pts.length === 2) {
+        const a = pts[0]!;
+        const b = pts[1]!;
+        const d = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+        return { measurePoints: pts, status: `거리 ${d.toFixed(2)} mm` };
+      }
+      return { measurePoints: pts, status: "측정: 두 번째 점을 클릭하세요" };
+    }),
+  clearMeasure: () => set({ measurePoints: [], measureActive: false }),
 }));

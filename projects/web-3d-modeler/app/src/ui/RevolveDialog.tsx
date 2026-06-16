@@ -3,8 +3,14 @@
  * 도구→회전 에서 열린다. 스케치가 선택돼 있어야 한다(openRevolve 가 보장).
  */
 import { useState } from "react";
-import { useAppStore } from "../store/useAppStore";
+import { useAppStore, type ExtrudeMode } from "../store/useAppStore";
 import type { RevolveAxis } from "../kernel/revolve";
+
+const MODES: { id: ExtrudeMode; label: string }[] = [
+  { id: "new", label: "새 바디" },
+  { id: "cut", label: "빼기" },
+  { id: "fuse", label: "합치기" },
+];
 
 export function RevolveDialog(): JSX.Element | null {
   const open = useAppStore((s) => s.revolveOpen);
@@ -12,11 +18,12 @@ export function RevolveDialog(): JSX.Element | null {
   const revolveAs = useAppStore((s) => s.revolveSketchAs);
   const [angle, setAngle] = useState(360);
   const [axis, setAxis] = useState<RevolveAxis>("v");
+  const [mode, setMode] = useState<ExtrudeMode>("new");
 
   if (!open) return null;
 
   const apply = () => {
-    if (angle > 0) revolveAs(angle, axis);
+    if (angle > 0) revolveAs(angle, axis, mode);
   };
 
   return (
@@ -63,7 +70,17 @@ export function RevolveDialog(): JSX.Element | null {
             </button>
           ))}
         </div>
-        <p className="mb-4 text-[11px] leading-relaxed text-aa-text-dim">프로파일은 회전축 한쪽에 그려야 깔끔합니다 (축을 가로지르면 접힘).</p>
+        <p className="mb-3 text-[11px] leading-relaxed text-aa-text-dim">프로파일은 회전축 한쪽에 그려야 깔끔합니다 (축을 가로지르면 접힘).</p>
+
+        <label className="mb-1 block text-xs text-aa-text-dim">방식</label>
+        <div className="mb-4 grid grid-cols-3 gap-1.5">
+          {MODES.map((m) => (
+            <button key={m.id} type="button" onClick={() => setMode(m.id)}
+              className={["rounded-lg px-2 py-2 text-xs font-medium transition-colors", mode === m.id ? "bg-aa-accent text-aa-bg" : "bg-aa-bg text-aa-text aa-hoverable"].join(" ")}>
+              {m.label}
+            </button>
+          ))}
+        </div>
 
         <div className="flex justify-end gap-2">
           <button type="button" onClick={close} className="rounded-lg px-3 py-2 text-sm text-aa-text aa-hoverable">취소</button>

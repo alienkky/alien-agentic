@@ -89,6 +89,15 @@ export function alignToNormal(
   return { ...state, azimuth, polar, target };
 }
 
+/**
+ * 어댑티브 그리드 셀 크기 — 카메라 거리(radius)에 따라 10의 거듭제곱 단계로.
+ * 확대(거리↓)하면 셀이 잘아진다 (Shapr3D 식). 예: r12→1, r3→0.1, r120→10.
+ */
+export function adaptiveCellSize(radius: number): number {
+  const e = Math.floor(Math.log10(Math.max(radius, 1e-4)));
+  return Math.pow(10, e - 1);
+}
+
 export function toCartesian(state: CameraState): [number, number, number] {
   const { polar, azimuth, radius, target } = state;
   const sinP = Math.sin(polar);

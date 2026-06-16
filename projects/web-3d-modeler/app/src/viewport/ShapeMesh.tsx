@@ -47,6 +47,7 @@ function edgePoints(positions: Float32Array): [number, number, number][] {
 export function ShapeMesh({ mesh }: { mesh: TessellatedMesh }): JSX.Element {
   const setHovered = useAppStore((s) => s.setHovered);
   const selectEntity = useAppStore((s) => s.selectEntity);
+  const addMeasurePoint = useAppStore((s) => s.addMeasurePoint);
   const hovered = useAppStore((s) => s.hovered);
   const selection = useAppStore((s) => s.selection);
   const sketchActive = useAppStore((s) => s.sketchActive);
@@ -99,6 +100,10 @@ export function ShapeMesh({ mesh }: { mesh: TessellatedMesh }): JSX.Element {
             ? undefined
             : (e) => {
                 e.stopPropagation();
+                if (useAppStore.getState().measureActive) {
+                  addMeasurePoint([e.point.x, e.point.y, e.point.z]);
+                  return;
+                }
                 const faceId = faceIdFromEvent(e);
                 if (faceId !== null) selectEntity({ kind: "face", shapeId: mesh.shapeId, index: faceId });
               }

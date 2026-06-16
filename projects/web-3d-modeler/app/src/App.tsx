@@ -13,6 +13,7 @@ import { ExtrudeDialog } from "./ui/ExtrudeDialog";
 import { RevolveDialog } from "./ui/RevolveDialog";
 import { PatternDialog } from "./ui/PatternDialog";
 import { TransformDialog } from "./ui/TransformDialog";
+import { SketchTransformDialog } from "./ui/SketchTransformDialog";
 import { StatusPill } from "./ui/StatusPill";
 import { useAppStore } from "./store/useAppStore";
 import { useResponsiveShell } from "./device/useResponsiveShell";
@@ -41,6 +42,7 @@ export function App(): JSX.Element {
       <RevolveDialog />
       <PatternDialog />
       <TransformDialog />
+      <SketchTransformDialog />
       <StatusPill layout={layout} />
     </div>
   );

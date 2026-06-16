@@ -73,6 +73,8 @@ function SketchPalette(): JSX.Element {
   const finishSketch = useAppStore((s) => s.finishSketch);
   const setStatus = useAppStore((s) => s.setStatus);
   const plane = useAppStore((s) => s.sketchPlane);
+  const openSketchTransform = useAppStore((s) => s.openSketchTransform);
+  const sketchProject = useAppStore((s) => s.sketchProject);
 
   const pick = (t: SketchTool) => setSketchTool(t);
   const soon = (name: string) => setStatus(`${name} — 준비 중`);
@@ -82,20 +84,20 @@ function SketchPalette(): JSX.Element {
       <Row icon={<SearchIcon />} label="검색" shortcut="⌃F" onClick={() => soon("검색")} />
       <Row icon={<CloseIcon />} label="스케칭 종료" sub={plane ? "프로파일 저장" : "활성 평면 없음"} onClick={finishSketch} />
       <Row icon={<LineIcon />} label="선" shortcut="L" active={tool === "line"} onClick={() => pick("line")} />
-      <Row icon={<ArcIcon />} label="호" shortcut="A" onClick={() => soon("호")} />
-      <Row icon={<SplineIcon />} label="스플라인" sub="맞춤 점" shortcut="I" onClick={() => soon("스플라인")} />
+      <Row icon={<ArcIcon />} label="호" shortcut="A" active={tool === "arc"} onClick={() => pick("arc")} />
+      <Row icon={<SplineIcon />} label="스플라인" sub="맞춤 점" shortcut="I" active={tool === "spline"} onClick={() => pick("spline")} />
       <Row icon={<RectIcon />} label="사각형" sub="대각선" shortcut="R" active={tool === "rectangle"} onClick={() => pick("rectangle")} />
       <Row icon={<Circle2DIcon />} label="원" shortcut="C" active={tool === "circle"} onClick={() => pick("circle")} />
       <Row icon={<EllipseIcon />} label="타원" active={tool === "ellipse"} onClick={() => pick("ellipse")} />
       <Row icon={<PolygonIcon />} label="다각형" sub="육각형" shortcut="G" active={tool === "polygon"} onClick={() => pick("polygon")} />
-      <Row icon={<OffsetIcon />} label="모서리 오프셋" sub="체인" shortcut="O" onClick={() => soon("모서리 오프셋")} />
+      <Row icon={<OffsetIcon />} label="모서리 오프셋" sub="체인" shortcut="O" onClick={() => openSketchTransform("offset")} />
       <Row icon={<TransformIcon />} label="이동/회전" shortcut="M" onClick={() => soon("이동/회전")} />
-      <Row icon={<MirrorIcon />} label="미러" onClick={() => soon("미러")} />
-      <Row icon={<PatternIcon />} label="패턴" sub="선형" onClick={() => soon("패턴")} />
-      <Row icon={<ProjectIcon />} label="투상" shortcut="P" onClick={() => soon("투상")} />
+      <Row icon={<MirrorIcon />} label="미러" onClick={() => openSketchTransform("mirror")} />
+      <Row icon={<PatternIcon />} label="패턴" sub="선형/원형" onClick={() => openSketchTransform("pattern")} />
+      <Row icon={<ProjectIcon />} label="투상" shortcut="P" onClick={() => sketchProject()} />
       <Row icon={<TextIcon />} label="텍스트" onClick={() => soon("텍스트")} />
-      <Row icon={<TrimIcon />} label="자르기" shortcut="T" onClick={() => soon("자르기")} />
-      <Row icon={<TrashIcon />} label="삭제" onClick={() => soon("삭제")} />
+      <Row icon={<TrimIcon />} label="자르기" shortcut="T" active={tool === "trim"} onClick={() => pick("trim")} />
+      <Row icon={<TrashIcon />} label="삭제" active={tool === "delete"} onClick={() => pick("delete")} />
     </div>
   );
 }
@@ -110,6 +112,8 @@ export function LeftToolbar(): JSX.Element {
   const openRevolve = useAppStore((s) => s.openRevolve);
   const openPattern = useAppStore((s) => s.openPattern);
   const openTransform = useAppStore((s) => s.openTransform);
+  const toggleMeasure = useAppStore((s) => s.toggleMeasure);
+  const measureActive = useAppStore((s) => s.measureActive);
   const addMesh = useAppStore((s) => s.addMesh);
   const setStatus = useAppStore((s) => s.setStatus);
 
@@ -137,7 +141,7 @@ export function LeftToolbar(): JSX.Element {
         <div className="flex flex-col gap-0.5 border-t border-aa-border pt-1.5">
           {sketchActive && <Row icon={<ConstructIcon />} label="구성" sub="끄기" onClick={() => setStatus("구성 — 준비 중")} />}
           <Row icon={<SectionIcon />} label="단면 뷰" sub="끄기" />
-          <Row icon={<MeasureIcon />} label="측정" />
+          <Row icon={<MeasureIcon />} label="측정" sub={measureActive ? "두 점 클릭" : undefined} active={measureActive} onClick={() => toggleMeasure()} />
         </div>
       </div>
 
