@@ -22,7 +22,7 @@ const PLANE_COLOR: Record<PlaneId, string> = { xz: "#4fd1c5", xy: "#5b9cff", yz:
 const planeColorFor = (plane: SketchPlaneDef): string => PLANE_COLOR[plane.id as PlaneId] ?? "#4fd1c5";
 
 /** Shapr3D 식 스케치 팔레트 — 선=연한 흰파랑, 점=파랑, 면=파랑, 보조=회색. */
-const SK = { line: "#cdd9ee", fill: "#5b9cff", point: "#2f6bff", active: "#5b9cff", guide: "#7d8a9e" };
+const SK = { line: "#cdd9ee", fill: "#5b9cff", point: "#2f6bff", active: "#5b9cff", guide: "#7d8a9e", selected: "#f59e0b" };
 
 /** 스케치 평면 격자 (local XY, 어댑티브 셀). planeMatrix 그룹 안에 두어 그 평면에 눕는다. */
 function SketchGrid({ cell }: { cell: number }): JSX.Element {
@@ -101,12 +101,14 @@ function fillGeometry(plane: SketchPlaneDef, pts: SketchPoint[]): THREE.ShapeGeo
   return geo;
 }
 
-/** 확정된 한 획: 선 + 채움 + 선분별 치수 라벨(클릭 편집). */
-function StrokeView({ plane, pts, strokeIndex }: { plane: SketchPlaneDef; pts: SketchPoint[]; strokeIndex: number }): JSX.Element {
+/** 확정된 한 획: 선 + 채움 + 선분별 치수 라벨(클릭 편집) + 드래그 가능한 점 핸들. */
+function StrokeView({ plane, pts, strokeIndex, ptSize }: { plane: SketchPlaneDef; pts: SketchPoint[]; strokeIndex: number; ptSize: number }): JSX.Element {
   const selectedSeg = useAppStore((s) => s.sketchSelectedSeg);
   const selectSegment = useAppStore((s) => s.selectSketchSegment);
   const setSegmentLength = useAppStore((s) => s.setSegmentLength);
   const clearSeg = useAppStore((s) => s.clearSketchSegment);
+  const startPointDrag = useAppStore((s) => s.startPointDrag);
+  const selectedPoint = useAppStore((s) => s.sketchSelectedPoint);
 
   const toWorld = (p: SketchPoint): [number, number, number] => planeToWorld(plane, p.u, p.v);
   const closed = pts.length >= 3;
@@ -120,12 +122,20 @@ function StrokeView({ plane, pts, strokeIndex }: { plane: SketchPlaneDef; pts: S
       {fill && <mesh geometry={fill}><meshBasicMaterial color={SK.fill} transparent opacity={0.18} side={THREE.DoubleSide} depthWrite={false} /></mesh>}
       {linePts.length >= 2 && <Line points={linePts} color={SK.line} lineWidth={2} />}
       {!isCircleLike &&
-        pts.map((p, i) => (
-          <mesh key={`pt${i}`} position={toWorld(p)} renderOrder={4}>
-            <sphereGeometry args={[0.09, 14, 14]} />
-            <meshBasicMaterial color={SK.point} depthTest={false} />
-          </mesh>
-        ))}
+        pts.map((p, i) => {
+          const selPt = selectedPoint?.s === strokeIndex && selectedPoint?.i === i;
+          return (
+            <mesh
+              key={`pt${i}`}
+              position={toWorld(p)}
+              renderOrder={5}
+              onPointerDown={(e) => { e.stopPropagation(); startPointDrag(strokeIndex, i); }}
+            >
+              <sphereGeometry args={[ptSize, 14, 14]} />
+              <meshBasicMaterial color={selPt ? SK.selected : SK.point} depthTest={false} />
+            </mesh>
+          );
+        })}
       {!isCircleLike &&
         pts.map((a, i) => {
           const b = pts[i + 1];
@@ -180,8 +190,13 @@ export function SketchLayer(): JSX.Element | null {
   const clickPoint = useAppStore((s) => s.sketchClickPoint);
   const trimAtPoint = useAppStore((s) => s.trimSketchAt);
   const deleteAtPoint = useAppStore((s) => s.deleteSketchStrokeAt);
+  const draggingPoint = useAppStore((s) => s.sketchDraggingPoint);
+  const movePointDrag = useAppStore((s) => s.movePointDrag);
+  const endPointDrag = useAppStore((s) => s.endPointDrag);
   const radius = useAppStore((s) => s.camera.radius);
   const isPointTool = tool === "line" || tool === "spline" || tool === "arc";
+  // 점 핸들 크기를 화면에서 일정하게 (줌에 비례) — Shapr3D 식
+  const ptSize = Math.max(0.05, radius * 0.012);
   const cell = useMemo(() => adaptiveCellSize(radius), [radius]);
 
   // 드래그 중 미리보기(사각형/원)
@@ -224,8 +239,8 @@ export function SketchLayer(): JSX.Element | null {
         <SketchGrid cell={cell} />
         <mesh
           onPointerDown={(e) => { e.stopPropagation(); if (tool === "trim") trimAtPoint(onPlane(e)); else if (tool === "delete") deleteAtPoint(onPlane(e)); else if (isPointTool) clickPoint(onPlane(e)); else dragStart(onPlane(e)); }}
-          onPointerMove={(e) => { e.stopPropagation(); dragMove(onPlane(e)); }}
-          onPointerUp={(e) => { e.stopPropagation(); dragEnd(); }}
+          onPointerMove={(e) => { e.stopPropagation(); if (draggingPoint) movePointDrag(onPlane(e)); else dragMove(onPlane(e)); }}
+          onPointerUp={(e) => { e.stopPropagation(); if (draggingPoint) endPointDrag(); else dragEnd(); }}
         >
           <planeGeometry args={[400, 400]} />
           <meshBasicMaterial color={planeColorFor(plane)} transparent opacity={0.04} side={THREE.DoubleSide} />
@@ -234,7 +249,7 @@ export function SketchLayer(): JSX.Element | null {
 
       {/* 누적된 확정 획들 */}
       {strokes.map((stroke, i) => (
-        <StrokeView key={i} plane={plane} pts={stroke} strokeIndex={i} />
+        <StrokeView key={i} plane={plane} pts={stroke} strokeIndex={i} ptSize={ptSize} />
       ))}
 
       {/* 사각형/원 드래그 미리보기 */}
@@ -253,7 +268,7 @@ export function SketchLayer(): JSX.Element | null {
       {/* 현재 그리는 점 체인(선·스플라인·호) + 러버밴드 */}
       {isPointTool && chainLoop.length >= 2 && <Line points={chainLoop} color={SK.active} lineWidth={2} />}
       {isPointTool && points.map((p, i) => (
-        <mesh key={i} position={toWorld(p)} renderOrder={4}><sphereGeometry args={[0.11, 14, 14]} /><meshBasicMaterial color={SK.point} depthTest={false} /></mesh>
+        <mesh key={i} position={toWorld(p)} renderOrder={4}><sphereGeometry args={[ptSize, 14, 14]} /><meshBasicMaterial color={SK.point} depthTest={false} /></mesh>
       ))}
       {lineDrawing && hover && last && (
         <group>
