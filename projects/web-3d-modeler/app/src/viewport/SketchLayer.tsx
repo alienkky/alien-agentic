@@ -109,6 +109,7 @@ function StrokeView({ plane, pts, strokeIndex, ptSize }: { plane: SketchPlaneDef
   const clearSeg = useAppStore((s) => s.clearSketchSegment);
   const startPointDrag = useAppStore((s) => s.startPointDrag);
   const selectedPoint = useAppStore((s) => s.sketchSelectedPoint);
+  const startSegDrag = useAppStore((s) => s.startSegDrag);
 
   const toWorld = (p: SketchPoint): [number, number, number] => planeToWorld(plane, p.u, p.v);
   const closed = pts.length >= 3;
@@ -116,11 +117,28 @@ function StrokeView({ plane, pts, strokeIndex, ptSize }: { plane: SketchPlaneDef
   const linePts = closed ? [...loop, loop[0]!] : loop;
   const fill = useMemo(() => fillGeometry(plane, pts), [plane, pts]);
   const isCircleLike = pts.length > 8;
+  const segCount = closed ? pts.length : pts.length - 1;
 
   return (
     <group>
       {fill && <mesh geometry={fill}><meshBasicMaterial color={SK.fill} transparent opacity={0.18} side={THREE.DoubleSide} depthWrite={false} /></mesh>}
-      {linePts.length >= 2 && <Line points={linePts} color={SK.line} lineWidth={2} />}
+      {/* 원형 등 점 많은 획: 단일 선(드래그 X). 그 외: 선분별 드래그 가능 선 */}
+      {isCircleLike && linePts.length >= 2 && <Line points={linePts} color={SK.line} lineWidth={2} />}
+      {!isCircleLike &&
+        Array.from({ length: segCount }, (_, i) => {
+          const a = pts[i]!;
+          const b = pts[(i + 1) % pts.length]!;
+          const sel = selectedSeg?.s === strokeIndex && selectedSeg?.i === i;
+          return (
+            <Line
+              key={`seg${i}`}
+              points={[toWorld(a), toWorld(b)]}
+              color={sel ? SK.selected : SK.line}
+              lineWidth={sel ? 3 : 2}
+              onPointerDown={(e) => { e.stopPropagation(); startSegDrag(strokeIndex, i, worldToPlane(plane, e.point.x, e.point.y, e.point.z)); }}
+            />
+          );
+        })}
       {!isCircleLike &&
         pts.map((p, i) => {
           const selPt = selectedPoint?.s === strokeIndex && selectedPoint?.i === i;
@@ -193,6 +211,9 @@ export function SketchLayer(): JSX.Element | null {
   const draggingPoint = useAppStore((s) => s.sketchDraggingPoint);
   const movePointDrag = useAppStore((s) => s.movePointDrag);
   const endPointDrag = useAppStore((s) => s.endPointDrag);
+  const draggingSeg = useAppStore((s) => s.sketchDraggingSeg);
+  const moveSegDrag = useAppStore((s) => s.moveSegDrag);
+  const endSegDrag = useAppStore((s) => s.endSegDrag);
   const guides = useAppStore((s) => s.sketchGuides);
   const gridAdaptive = useAppStore((s) => s.snap.gridAdaptive);
   const radius = useAppStore((s) => s.camera.radius);
@@ -242,8 +263,8 @@ export function SketchLayer(): JSX.Element | null {
         <SketchGrid cell={cell} />
         <mesh
           onPointerDown={(e) => { e.stopPropagation(); if (tool === "trim") trimAtPoint(onPlane(e)); else if (tool === "delete") deleteAtPoint(onPlane(e)); else if (isPointTool) clickPoint(onPlane(e)); else dragStart(onPlane(e)); }}
-          onPointerMove={(e) => { e.stopPropagation(); if (draggingPoint) movePointDrag(onPlane(e)); else dragMove(onPlane(e)); }}
-          onPointerUp={(e) => { e.stopPropagation(); if (draggingPoint) endPointDrag(); else dragEnd(); }}
+          onPointerMove={(e) => { e.stopPropagation(); if (draggingPoint) movePointDrag(onPlane(e)); else if (draggingSeg) moveSegDrag(onPlane(e)); else dragMove(onPlane(e)); }}
+          onPointerUp={(e) => { e.stopPropagation(); if (draggingPoint) endPointDrag(); else if (draggingSeg) endSegDrag(); else dragEnd(); }}
         >
           <planeGeometry args={[400, 400]} />
           <meshBasicMaterial color={planeColorFor(plane)} transparent opacity={0.04} side={THREE.DoubleSide} />

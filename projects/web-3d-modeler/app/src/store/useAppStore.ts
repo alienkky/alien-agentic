@@ -255,6 +255,11 @@ interface AppState {
   startPointDrag: (s: number, i: number) => void;
   movePointDrag: (uv: SketchPoint) => void;
   endPointDrag: () => void;
+  /** 선분 편집 — 선분을 통째로 드래그 이동 (두 끝점 평행 이동) */
+  sketchDraggingSeg: { s: number; i: number; last: SketchPoint } | null;
+  startSegDrag: (s: number, i: number, uv: SketchPoint) => void;
+  moveSegDrag: (uv: SketchPoint) => void;
+  endSegDrag: () => void;
   /** 스케치 변형 다이얼로그 모드 (null=닫힘) */
   sketchTransformMode: "mirror" | "pattern" | "offset" | null;
   openSketchTransform: (mode: "mirror" | "pattern" | "offset") => void;
@@ -383,6 +388,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   sketchTransformMode: null,
   sketchSelectedPoint: null,
   sketchDraggingPoint: null,
+  sketchDraggingSeg: null,
   history: [],
   extrudeOpen: false,
   revolveOpen: false,
@@ -780,6 +786,23 @@ export const useAppStore = create<AppState>((set, get) => ({
     }),
   endPointDrag: () => set({ sketchDraggingPoint: null, gizmoDragging: false, status: "점 이동 완료" }),
 
+  startSegDrag: (s, i, uv) => set({ sketchDraggingSeg: { s, i, last: uv }, sketchSelectedSeg: { s, i }, sketchSelectedPoint: null, gizmoDragging: true, status: "선분 이동 — 끌어서 옮기기" }),
+  moveSegDrag: (uv) =>
+    set((st) => {
+      const d = st.sketchDraggingSeg;
+      if (!d) return {};
+      const du = uv.u - d.last.u;
+      const dv = uv.v - d.last.v;
+      const strokes = st.sketchStrokes.map((stroke, si) => {
+        if (si !== d.s) return stroke;
+        const n = stroke.length;
+        const j2 = (d.i + 1) % n; // 닫힌 획의 마지막 선분은 끝점이 0번
+        return stroke.map((p, j) => (j === d.i || j === j2 ? { u: p.u + du, v: p.v + dv } : p));
+      });
+      return { sketchStrokes: strokes, sketchDraggingSeg: { ...d, last: uv } };
+    }),
+  endSegDrag: () => set({ sketchDraggingSeg: null, gizmoDragging: false, status: "선분 이동 완료" }),
+
   openSketchTransform: (mode) =>
     set((s) => (s.sketchStrokes.length === 0 ? { status: "먼저 스케치 도형을 그리세요" } : { sketchTransformMode: mode })),
   closeSketchTransform: () => set({ sketchTransformMode: null }),
@@ -852,7 +875,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({ sketchPoints: s.sketchPoints.slice(0, -1), sketchDraft: null, sketchSelectedSeg: null })),
 
   cancelSketch: () =>
-    set({ sketchActive: false, sketchPlane: null, sketchPoints: [], sketchStrokes: [], sketchDraft: null, sketchHover: null, sketchGuides: [], sketchSelectedSeg: null, sketchSelectedPoint: null, sketchDraggingPoint: null, sketchLineDrawing: false, status: "스케치 취소" }),
+    set({ sketchActive: false, sketchPlane: null, sketchPoints: [], sketchStrokes: [], sketchDraft: null, sketchHover: null, sketchGuides: [], sketchSelectedSeg: null, sketchSelectedPoint: null, sketchDraggingPoint: null, sketchDraggingSeg: null, sketchLineDrawing: false, status: "스케치 취소" }),
 
   // 스케칭 종료 → 그린 획들을 독립 스케치 항목으로 저장 (돌출은 도구에서)
   finishSketch: () => {
@@ -861,7 +884,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const allStrokes = strokeValid(sketchPoints, sketchTool) ? [...sketchStrokes, finalizeStroke(sketchPoints, sketchTool)] : sketchStrokes;
     const base: Partial<AppState> = {
       sketchActive: false, sketchPlane: null, sketchPoints: [], sketchStrokes: [],
-      sketchDraft: null, sketchHover: null, sketchGuides: [], sketchSelectedSeg: null, sketchSelectedPoint: null, sketchDraggingPoint: null, sketchLineDrawing: false,
+      sketchDraft: null, sketchHover: null, sketchGuides: [], sketchSelectedSeg: null, sketchSelectedPoint: null, sketchDraggingPoint: null, sketchDraggingSeg: null, sketchLineDrawing: false,
     };
     if (sketchPlane && allStrokes.length > 0) {
       const id = `sketch-${++counter}`;

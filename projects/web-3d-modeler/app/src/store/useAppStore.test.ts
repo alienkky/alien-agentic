@@ -362,6 +362,25 @@ describe("useAppStore — 스케치 그리기 도구(호·스플라인·삭제)"
     st.endPointDrag();
     expect(useAppStore.getState().sketchDraggingPoint).toBeNull();
   });
+
+  it("선분 드래그: 두 끝점이 함께 평행 이동", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("rectangle");
+    st.sketchDragStart({ u: 0, v: 0 });
+    st.sketchDragMove({ u: 4, v: 4 });
+    st.sketchDragEnd();
+    // 사각형 획 [(0,0),(4,0),(4,4),(0,4)] — 선분 0 = (0,0)-(4,0)
+    st.startSegDrag(0, 0, { u: 2, v: 0 });
+    st.moveSegDrag({ u: 2, v: 3 }); // +v 3
+    const stroke = useAppStore.getState().sketchStrokes[0]!;
+    expect(stroke[0]).toEqual({ u: 0, v: 3 });
+    expect(stroke[1]).toEqual({ u: 4, v: 3 });
+    expect(stroke[2]).toEqual({ u: 4, v: 4 }); // 나머지 점은 그대로
+    st.endSegDrag();
+    expect(useAppStore.getState().sketchDraggingSeg).toBeNull();
+  });
 });
 
 describe("useAppStore — 스케치 변형(미러·패턴·오프셋·투상)", () => {
