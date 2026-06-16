@@ -41,7 +41,6 @@ class CaptionOverlayService : Service() {
     private var sourceView: TextView? = null
     private var translatedView: TextView? = null
 
-    private var modelsReady = false
 
     companion object {
         private const val CHANNEL_ID = "vt_overlay"
@@ -237,14 +236,9 @@ class CaptionOverlayService : Service() {
     private fun prepareAndListen() {
         translator.setTarget(settings.targetLanguage)
         translator.setFallbackSource(settings.listenLocale)
-        translator.prepareModels(
-            requireWifi = false,
-            onReady = {
-                modelsReady = true
-                startEngine()
-            },
-            onError = { startEngine() } // recognition can still run; translation may fail gracefully
-        )
+        // Start listening immediately; the translation model is fetched on demand.
+        startEngine()
+        translator.prepareModels(requireWifi = false, onReady = { }, onError = { })
     }
 
     private fun startEngine() {
@@ -260,7 +254,6 @@ class CaptionOverlayService : Service() {
     }
 
     private fun translate(text: String) {
-        if (!modelsReady) return
         val targetCode = translator.targetCode()
         translator.translateAuto(
             text = text,

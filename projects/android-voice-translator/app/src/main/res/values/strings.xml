@@ -22,6 +22,7 @@
 
     <string name="hint_source">여기에 인식된 음성이 표시됩니다</string>
     <string name="hint_translated">번역 결과</string>
+    <string name="translating">번역 중…</string>
 
     <string name="settings_button">⚙ 설정</string>
     <string name="overlay_button">⧉ 오버레이</string>

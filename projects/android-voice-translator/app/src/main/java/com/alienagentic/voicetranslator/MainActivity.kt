@@ -32,7 +32,6 @@ class MainActivity : AppCompatActivity() {
 
     private var engine: SpeechEngine? = null
     private var isListening = false
-    private var modelsReady = false
 
     private val requestAudioPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -51,24 +50,17 @@ class MainActivity : AppCompatActivity() {
         translator.setTarget(settings.targetLanguage)
         translator.setFallbackSource(settings.listenLocale)
 
-        binding.statusText.text = getString(R.string.status_preparing)
-        binding.micButton.isEnabled = false
+        // Don't block usage on the model download — the mic works immediately and
+        // the translation model is fetched on demand at the first utterance.
+        binding.micButton.isEnabled = true
+        binding.statusText.text = getString(R.string.status_ready)
 
+        // Warm up the model in the background (best effort). Failure is fine:
+        // translateAuto downloads on demand and will retry per utterance.
         translator.prepareModels(
             requireWifi = false,
-            onReady = {
-                runOnUiThread {
-                    modelsReady = true
-                    binding.micButton.isEnabled = true
-                    binding.statusText.text = getString(R.string.status_ready)
-                }
-            },
-            onError = { e ->
-                runOnUiThread {
-                    binding.statusText.text = getString(R.string.error_model_download, e.message)
-                    binding.micButton.isEnabled = true
-                }
-            }
+            onReady = { },
+            onError = { }
         )
 
         binding.micButton.setOnClickListener {
@@ -162,8 +154,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun translate(text: String) {
-        if (!modelsReady) return
         val targetCode = translator.targetCode()
+        // First-time model download over a slow link can take a few seconds.
+        binding.translatedText.text = getString(R.string.translating)
         translator.translateAuto(
             text = text,
             onResult = { sourceCode, translated ->
