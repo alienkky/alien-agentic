@@ -7,7 +7,7 @@
 import { useMemo, useState } from "react";
 import * as THREE from "three";
 import { Line, Html } from "@react-three/drei";
-import { useAppStore } from "../store/useAppStore";
+import { useAppStore, type SketchDimEdit } from "../store/useAppStore";
 import { adaptiveCellSize } from "./cameraMath";
 import {
   planeToWorld, worldToPlane,
@@ -75,6 +75,72 @@ const POLY_SIDES = 6;
 const segLen = (a: SketchPoint, b: SketchPoint) => Math.hypot(b.u - a.u, b.v - a.v);
 const midUV = (a: SketchPoint, b: SketchPoint): SketchPoint => ({ u: (a.u + b.u) / 2, v: (a.v + b.v) / 2 });
 
+/**
+ * 드래그-직후 W×H/⌀ 타이핑 편집 오버레이.
+ *  rectangle/ellipse: 두 칸 (W, H). circle/polygon: 한 칸 (⌀).
+ *  Enter/Tab → 커밋, Esc → 취소, 입력 동안 r3f 카메라/픽킹 입력 차단 (stopPropagation).
+ */
+function DimensionEditor({ edit, plane }: { edit: SketchDimEdit; plane: SketchPlaneDef }): JSX.Element {
+  const commit = useAppStore((s) => s.commitSketchDim);
+  const cancel = useAppStore((s) => s.cancelSketchDim);
+  const dual = edit.kind === "rectangle" || edit.kind === "ellipse";
+  const du = edit.current.u - edit.start.u;
+  const dv = edit.current.v - edit.start.v;
+  const initA =
+    edit.kind === "rectangle" ? Math.abs(du)
+    : edit.kind === "ellipse" ? Math.abs(du) * 2
+    : Math.hypot(du, dv) * 2;
+  const initB = edit.kind === "rectangle" ? Math.abs(dv) : edit.kind === "ellipse" ? Math.abs(dv) * 2 : 0;
+  const [a, setA] = useState(initA.toFixed(2));
+  const [b, setB] = useState(initB.toFixed(2));
+  const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
+  const doCommit = (): void => {
+    const av = parseFloat(a);
+    if (dual) commit([av, parseFloat(b)]);
+    else commit([av]);
+  };
+  return (
+    <Html position={planeToWorld(plane, edit.dimAt.u, edit.dimAt.v)} center zIndexRange={[100, 0]} style={{ pointerEvents: "auto" }}>
+      <div
+        onPointerDown={stop}
+        onPointerUp={stop}
+        onPointerMove={stop}
+        onClick={stop}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.key === "Enter") { e.preventDefault(); doCommit(); }
+          else if (e.key === "Escape") { e.preventDefault(); cancel(); }
+        }}
+        className="flex items-center gap-1 rounded bg-blue-600 px-1.5 py-1 text-sm font-semibold text-white ring-2 ring-blue-300"
+        data-testid="sketch-dim-input"
+      >
+        <input
+          autoFocus type="number" inputMode="decimal" step="0.5" value={a}
+          onChange={(e) => setA(e.target.value)}
+          onFocus={(e) => e.currentTarget.select()}
+          className="w-16 rounded bg-aa-bg px-1 py-0.5 text-center text-aa-text outline-none"
+          aria-label={dual ? "width" : "diameter"}
+          data-testid="sketch-dim-a"
+        />
+        {dual && (
+          <>
+            <span className="opacity-70">×</span>
+            <input
+              type="number" inputMode="decimal" step="0.5" value={b}
+              onChange={(e) => setB(e.target.value)}
+              onFocus={(e) => e.currentTarget.select()}
+              className="w-16 rounded bg-aa-bg px-1 py-0.5 text-center text-aa-text outline-none"
+              aria-label="height"
+              data-testid="sketch-dim-b"
+            />
+          </>
+        )}
+        <span className="text-xs opacity-80">mm</span>
+      </div>
+    </Html>
+  );
+}
+
 function SegmentDimInput({ value, onCommit, onCancel }: { value: number; onCommit: (n: number) => void; onCancel: () => void }): JSX.Element {
   const [text, setText] = useState(value.toFixed(2));
   return (
@@ -102,7 +168,7 @@ function fillGeometry(plane: SketchPlaneDef, pts: SketchPoint[]): THREE.ShapeGeo
 }
 
 /** 확정된 한 획: 선 + 채움 + 선분별 치수 라벨(클릭 편집). */
-function StrokeView({ plane, pts, strokeIndex }: { plane: SketchPlaneDef; pts: SketchPoint[]; strokeIndex: number }): JSX.Element {
+function StrokeView({ plane, pts, strokeIndex, hideSegLabels }: { plane: SketchPlaneDef; pts: SketchPoint[]; strokeIndex: number; hideSegLabels: boolean }): JSX.Element {
   const selectedSeg = useAppStore((s) => s.sketchSelectedSeg);
   const selectSegment = useAppStore((s) => s.selectSketchSegment);
   const setSegmentLength = useAppStore((s) => s.setSegmentLength);
@@ -126,7 +192,7 @@ function StrokeView({ plane, pts, strokeIndex }: { plane: SketchPlaneDef; pts: S
             <meshBasicMaterial color={SK.point} depthTest={false} />
           </mesh>
         ))}
-      {!isCircleLike &&
+      {!isCircleLike && !hideSegLabels &&
         pts.map((a, i) => {
           const b = pts[i + 1];
           if (!b) return null;
@@ -173,6 +239,7 @@ export function SketchLayer(): JSX.Element | null {
   const hover = useAppStore((s) => s.sketchHover);
   const points = useAppStore((s) => s.sketchPoints);
   const strokes = useAppStore((s) => s.sketchStrokes);
+  const dimEdit = useAppStore((s) => s.sketchDimEdit);
   const lineDrawing = useAppStore((s) => s.sketchLineDrawing);
   const dragStart = useAppStore((s) => s.sketchDragStart);
   const dragMove = useAppStore((s) => s.sketchDragMove);
@@ -234,8 +301,11 @@ export function SketchLayer(): JSX.Element | null {
 
       {/* 누적된 확정 획들 */}
       {strokes.map((stroke, i) => (
-        <StrokeView key={i} plane={plane} pts={stroke} strokeIndex={i} />
+        <StrokeView key={i} plane={plane} pts={stroke} strokeIndex={i} hideSegLabels={dimEdit?.strokeIndex === i} />
       ))}
+
+      {/* 드래그 직후 W×H/⌀ 타이핑 편집 */}
+      {dimEdit && <DimensionEditor edit={dimEdit} plane={plane} key={`dim-${dimEdit.strokeIndex}`} />}
 
       {/* 사각형/원 드래그 미리보기 */}
       {draftView && (

@@ -61,6 +61,8 @@ export function useCameraInput(): CameraInputHandlers {
         const st = useAppStore.getState();
         // 이동 기즈모 드래그 중엔 카메라를 멈춘다.
         if (st.gizmoDragging) return;
+        // 치수 타이핑 편집 중엔 카메라 입력 전체 차단 — 포커스를 빼앗기지 않도록.
+        if (st.sketchDimEdit) return;
         // 스케치 중엔 한 손가락 드래그는 '그리기'다 — 카메라 궤도/팬을 막는다(두 손가락 줌은 허용).
         if (st.sketchActive && resolver.current.activeCount < 2) return;
         // 두 손가락 이상: 항상 제스처(핀치/팬)
@@ -89,6 +91,7 @@ export function useCameraInput(): CameraInputHandlers {
         pending.current.delete(e.pointerId);
       },
       onWheel: (e) => {
+        if (useAppStore.getState().sketchDimEdit) return;
         const rect = (e.currentTarget as Element).getBoundingClientRect();
         apply([resolver.current.wheel(e.deltaY, e.clientX - rect.left, e.clientY - rect.top)]);
       },

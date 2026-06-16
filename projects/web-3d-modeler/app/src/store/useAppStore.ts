@@ -100,6 +100,51 @@ export function regularPolygon(center: SketchPoint, radius: number, sides = 6): 
 /** 기본 정다각형 변의 수 (육각형). 향후 도구 옵션으로 조정. */
 export const POLYGON_SIDES = 6;
 
+/** 드래그 직후 치수 타이핑 편집 — 사각형/원/타원/다각형의 W×H 또는 ⌀ 입력 */
+export type SketchDimKind = "rectangle" | "circle" | "ellipse" | "polygon";
+export interface SketchDimEdit {
+  strokeIndex: number;
+  kind: SketchDimKind;
+  start: SketchPoint;
+  current: SketchPoint;
+  dimAt: SketchPoint;
+}
+const midUV = (a: SketchPoint, b: SketchPoint): SketchPoint => ({ u: (a.u + b.u) / 2, v: (a.v + b.v) / 2 });
+
+/**
+ * 사용자가 타이핑한 치수로 드래그-직후 도형 재생성. values 의 의미는 kind 에 따른다:
+ *  - rectangle: [W, H]            전체 폭·높이 (mm)
+ *  - ellipse  : [W, H]            전체 가로·세로 지름 (mm)
+ *  - circle   : [D]               지름 (mm)
+ *  - polygon  : [D]               외접원 지름 (mm)
+ * 잘못된 값(NaN·음수·0) 이 하나라도 있으면 null 을 반환해 거부 — 드래그 결과를 그대로 둔다.
+ */
+export function regenStrokeByDim(edit: SketchDimEdit, values: number[]): SketchPoint[] | null {
+  const need = edit.kind === "rectangle" || edit.kind === "ellipse" ? 2 : 1;
+  if (values.length < need) return null;
+  for (let i = 0; i < need; i++) {
+    const v = values[i];
+    if (v === undefined || !Number.isFinite(v) || v <= 0) return null;
+  }
+  if (edit.kind === "rectangle") {
+    const w = values[0]!;
+    const h = values[1]!;
+    const su = edit.current.u >= edit.start.u ? 1 : -1;
+    const sv = edit.current.v >= edit.start.v ? 1 : -1;
+    const u2 = edit.start.u + su * w;
+    const v2 = edit.start.v + sv * h;
+    return [
+      { u: edit.start.u, v: edit.start.v },
+      { u: u2, v: edit.start.v },
+      { u: u2, v: v2 },
+      { u: edit.start.u, v: v2 },
+    ];
+  }
+  if (edit.kind === "circle") return circlePolygon(edit.start, values[0]! / 2);
+  if (edit.kind === "polygon") return regularPolygon(edit.start, values[0]! / 2, POLYGON_SIDES);
+  return ellipsePolygon(edit.start, values[0]! / 2, values[1]! / 2);
+}
+
 const PLANE_VIEW: Record<PlaneId, "top" | "front" | "right"> = { xz: "top", xy: "front", yz: "right" };
 
 /** 획이 유효한가 — 선은 2점 이상, 닫힌 도형은 3점 이상. */
@@ -146,6 +191,8 @@ interface AppState {
   sketchStrokes: SketchPoint[][];
   /** 치수 편집 중인 선분 (stroke 획 인덱스, seg 선분 인덱스) */
   sketchSelectedSeg: { s: number; i: number } | null;
+  /** 드래그 직후 W×H/⌀ 타이핑 편집 — null 이면 대기 중 아님 */
+  sketchDimEdit: SketchDimEdit | null;
   /** 선을 적극적으로 그리는 중인지 (false 면 선택 모드) */
   sketchLineDrawing: boolean;
   /** 내역(History) — 단계별 작업 로그 (우측 패널). 명세 Module 1.2 토대 */
@@ -242,6 +289,9 @@ interface AppState {
   selectSketchSegment: (s: number, i: number) => void;
   setSegmentLength: (s: number, i: number, len: number) => void;
   clearSketchSegment: () => void;
+  /** 드래그 직후 치수 타이핑: 정상값 → 도형 보정 + 편집 닫기 / 거부값 → 드래그 결과 유지 + 편집 닫기 */
+  commitSketchDim: (values: number[]) => void;
+  cancelSketchDim: () => void;
   /** 선 그리기 종료 → 선택 모드 */
   finishLine: () => void;
   undoSketchPoint: () => void;
@@ -351,6 +401,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   sketchPoints: [],
   sketchStrokes: [],
   sketchSelectedSeg: null,
+  sketchDimEdit: null,
   sketchLineDrawing: false,
   history: [],
   extrudeOpen: false,
@@ -596,6 +647,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       sketchPoints: [],
       sketchStrokes: [],
       sketchDraft: null,
+      sketchDimEdit: null,
       sketchLineDrawing: isPointTool(s.sketchTool),
       camera: viewPreset(s.camera, PLANE_VIEW[id]), // 그 면을 정면으로
       status: `${SKETCH_PLANES[id].label} 위에서 그리세요`,
@@ -609,6 +661,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       sketchStrokes: strokeValid(s.sketchPoints, s.sketchTool) ? [...s.sketchStrokes, finalizeStroke(s.sketchPoints, s.sketchTool)] : s.sketchStrokes,
       sketchPoints: [],
       sketchSelectedSeg: null,
+      sketchDimEdit: null,
       sketchLineDrawing: isPointTool(tool),
       status:
         tool === "rectangle"
@@ -633,6 +686,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   // 사각형·원: 드래그 (좌표는 평면 (u,v))
   sketchDragStart: (raw) => {
     const t = get().sketchTool;
+    // 치수 타이핑 중엔 새 드래그 금지 — 입력 포커스를 빼앗기지 않도록
+    if (get().sketchDimEdit) return;
     if (isPointTool(t) || t === "trim" || t === "delete" || !get().sketchPlane) return;
     const g = get().snap.grid;
     const p: SketchPoint = g ? { u: snap(raw.u), v: snap(raw.v) } : raw;
@@ -645,23 +700,27 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => (s.sketchDraft ? { sketchDraft: { start: s.sketchDraft.start, current: p }, sketchHover: p } : { sketchHover: p }));
   },
 
-  // 사각형·원: 드래그 종료 → 획으로 누적 (기존 획 유지)
+  // 사각형·원: 드래그 종료 → 획으로 누적 (기존 획 유지). 누적 직후 치수 타이핑 편집을 띄운다.
   sketchDragEnd: () => {
     const { sketchDraft, sketchTool } = get();
     if (!sketchDraft) return;
     const { start, current } = sketchDraft;
     let pts: SketchPoint[];
+    let kind: SketchDimKind | null = null;
     if (sketchTool === "circle") {
       const r = Math.hypot(current.u - start.u, current.v - start.v);
       pts = r > 0.01 ? circlePolygon(start, r) : [];
+      kind = "circle";
     } else if (sketchTool === "ellipse") {
       const ru = Math.abs(current.u - start.u);
       const rv = Math.abs(current.v - start.v);
       pts = ru > 0.01 && rv > 0.01 ? ellipsePolygon(start, ru, rv) : [];
+      kind = "ellipse";
     } else if (sketchTool === "polygon") {
       const r = Math.hypot(current.u - start.u, current.v - start.v);
       pts = r > 0.01 ? regularPolygon(start, r, POLYGON_SIDES) : [];
-    } else {
+      kind = "polygon";
+    } else if (sketchTool === "rectangle") {
       pts =
         Math.abs(current.u - start.u) > 0.01 && Math.abs(current.v - start.v) > 0.01
           ? [
@@ -671,9 +730,18 @@ export const useAppStore = create<AppState>((set, get) => ({
               { u: start.u, v: current.v },
             ]
           : [];
+      kind = "rectangle";
+    } else {
+      pts = [];
     }
-    if (pts.length) {
-      set((s) => ({ sketchDraft: null, sketchStrokes: [...s.sketchStrokes, pts], status: "도형 추가됨 — 계속 그리거나 스케칭 종료" }));
+    if (pts.length && kind) {
+      const dimKind = kind;
+      set((s) => ({
+        sketchDraft: null,
+        sketchStrokes: [...s.sketchStrokes, pts],
+        sketchDimEdit: { strokeIndex: s.sketchStrokes.length, kind: dimKind, start, current, dimAt: midUV(start, current) },
+        status: "치수 입력 — Tab/Enter 로 확정, Esc 로 그대로 유지",
+      }));
     } else {
       set({ sketchDraft: null, status: "너무 작아요 — 다시 드래그" });
     }
@@ -718,8 +786,27 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { sketchStrokes: s.sketchStrokes.filter((_, i) => i !== idx), sketchSelectedSeg: null, status: "선 삭제" };
     }),
 
-  selectSketchSegment: (st, i) => set({ sketchSelectedSeg: { s: st, i } }),
+  selectSketchSegment: (st, i) => {
+    if (get().sketchDimEdit) return; // W×H/⌀ 편집 중엔 선분 편집 진입 차단
+    set({ sketchSelectedSeg: { s: st, i } });
+  },
   clearSketchSegment: () => set({ sketchSelectedSeg: null }),
+
+  commitSketchDim: (values) => {
+    const edit = get().sketchDimEdit;
+    if (!edit) return;
+    const next = regenStrokeByDim(edit, values);
+    if (!next) {
+      set({ sketchDimEdit: null, status: "치수 거부됨 (음수·0·NaN) — 드래그 결과 유지" });
+      return;
+    }
+    set((s) => ({
+      sketchStrokes: s.sketchStrokes.map((stroke, i) => (i === edit.strokeIndex ? next : stroke)),
+      sketchDimEdit: null,
+      status: `치수 보정됨 — 계속 그리거나 스케칭 종료`,
+    }));
+  },
+  cancelSketchDim: () => set({ sketchDimEdit: null, status: "치수 입력 닫힘 — 드래그 결과 유지" }),
   finishLine: () =>
     set((s) => {
       if (strokeValid(s.sketchPoints, s.sketchTool)) {
@@ -752,7 +839,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({ sketchPoints: s.sketchPoints.slice(0, -1), sketchDraft: null, sketchSelectedSeg: null })),
 
   cancelSketch: () =>
-    set({ sketchActive: false, sketchPlane: null, sketchPoints: [], sketchStrokes: [], sketchDraft: null, sketchHover: null, sketchSelectedSeg: null, sketchLineDrawing: false, status: "스케치 취소" }),
+    set({ sketchActive: false, sketchPlane: null, sketchPoints: [], sketchStrokes: [], sketchDraft: null, sketchHover: null, sketchSelectedSeg: null, sketchDimEdit: null, sketchLineDrawing: false, status: "스케치 취소" }),
 
   // 스케칭 종료 → 그린 획들을 독립 스케치 항목으로 저장 (돌출은 도구에서)
   finishSketch: () => {
@@ -761,7 +848,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const allStrokes = strokeValid(sketchPoints, sketchTool) ? [...sketchStrokes, finalizeStroke(sketchPoints, sketchTool)] : sketchStrokes;
     const base: Partial<AppState> = {
       sketchActive: false, sketchPlane: null, sketchPoints: [], sketchStrokes: [],
-      sketchDraft: null, sketchHover: null, sketchSelectedSeg: null, sketchLineDrawing: false,
+      sketchDraft: null, sketchHover: null, sketchSelectedSeg: null, sketchDimEdit: null, sketchLineDrawing: false,
     };
     if (sketchPlane && allStrokes.length > 0) {
       const id = `sketch-${++counter}`;

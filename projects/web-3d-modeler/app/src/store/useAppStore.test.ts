@@ -331,6 +331,128 @@ describe("useAppStore — 스케치 그리기 도구(호·스플라인·삭제)"
   });
 });
 
+describe("useAppStore — 드래그 직후 W×H/⌀ 타이핑 입력 (Phase 2 슬라이스 3)", () => {
+  beforeEach(() => {
+    useAppStore.getState().cancelSketch();
+  });
+
+  it("정상값: 사각형 W×H 커밋 → start 코너 고정·방향 유지로 좌표 보정, 편집 닫힘", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("rectangle");
+    st.sketchDragStart({ u: 0, v: 0 });
+    st.sketchDragMove({ u: 3, v: 2 });
+    st.sketchDragEnd();
+    const mid = useAppStore.getState();
+    expect(mid.sketchDimEdit).not.toBeNull();
+    expect(mid.sketchDimEdit!.kind).toBe("rectangle");
+    expect(mid.sketchStrokes).toHaveLength(1);
+
+    st.commitSketchDim([10, 5]);
+    const after = useAppStore.getState();
+    expect(after.sketchDimEdit).toBeNull();
+    const stroke = after.sketchStrokes[0]!;
+    expect(stroke).toHaveLength(4);
+    expect(stroke).toContainEqual({ u: 0, v: 0 });
+    expect(stroke).toContainEqual({ u: 10, v: 0 });
+    expect(stroke).toContainEqual({ u: 10, v: 5 });
+    expect(stroke).toContainEqual({ u: 0, v: 5 });
+  });
+
+  it("정상값: 원 ⌀ 커밋 → start 중심·반경 D/2 로 폴리곤 재생성", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("circle");
+    st.sketchDragStart({ u: 0, v: 0 });
+    st.sketchDragMove({ u: 1, v: 0 });
+    st.sketchDragEnd();
+    expect(useAppStore.getState().sketchDimEdit!.kind).toBe("circle");
+    st.commitSketchDim([8]); // ⌀ 8 → 반경 4
+    const stroke = useAppStore.getState().sketchStrokes[0]!;
+    for (const p of stroke) {
+      expect(Math.hypot(p.u, p.v)).toBeCloseTo(4, 5);
+    }
+    expect(useAppStore.getState().sketchDimEdit).toBeNull();
+  });
+
+  it("거부값: 음수·0·NaN → 도형 그대로, 편집 닫힘", () => {
+    const st = useAppStore.getState();
+    // 음수
+    st.beginSketch(); st.pickPlane("xz"); st.setSketchTool("rectangle");
+    st.sketchDragStart({ u: 0, v: 0 });
+    st.sketchDragMove({ u: 2, v: 2 });
+    st.sketchDragEnd();
+    const ptsA = useAppStore.getState().sketchStrokes[0]!;
+    st.commitSketchDim([-5, 3]);
+    expect(useAppStore.getState().sketchDimEdit).toBeNull();
+    expect(useAppStore.getState().sketchStrokes[0]).toBe(ptsA);
+    expect(useAppStore.getState().status).toContain("거부");
+
+    // 0
+    st.cancelSketch();
+    st.beginSketch(); st.pickPlane("xz"); st.setSketchTool("circle");
+    st.sketchDragStart({ u: 0, v: 0 });
+    st.sketchDragMove({ u: 2, v: 0 });
+    st.sketchDragEnd();
+    const ptsB = useAppStore.getState().sketchStrokes[0]!;
+    st.commitSketchDim([0]);
+    expect(useAppStore.getState().sketchStrokes[0]).toBe(ptsB);
+
+    // NaN
+    st.cancelSketch();
+    st.beginSketch(); st.pickPlane("xz"); st.setSketchTool("ellipse");
+    st.sketchDragStart({ u: 0, v: 0 });
+    st.sketchDragMove({ u: 2, v: 3 });
+    st.sketchDragEnd();
+    const ptsC = useAppStore.getState().sketchStrokes[0]!;
+    st.commitSketchDim([NaN, 5]);
+    expect(useAppStore.getState().sketchStrokes[0]).toBe(ptsC);
+  });
+
+  it("Esc 취소: 편집만 닫히고 드래그 결과 유지", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("polygon");
+    st.sketchDragStart({ u: 0, v: 0 });
+    st.sketchDragMove({ u: 3, v: 0 });
+    st.sketchDragEnd();
+    const before = useAppStore.getState().sketchStrokes[0]!;
+    st.cancelSketchDim();
+    const after = useAppStore.getState();
+    expect(after.sketchDimEdit).toBeNull();
+    expect(after.sketchStrokes[0]).toBe(before);
+  });
+
+  it("포커스 트랩: 치수 편집 중엔 새 드래그가 시작되지 않는다", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("rectangle");
+    st.sketchDragStart({ u: 0, v: 0 });
+    st.sketchDragMove({ u: 2, v: 2 });
+    st.sketchDragEnd();
+    expect(useAppStore.getState().sketchDimEdit).not.toBeNull();
+    st.sketchDragStart({ u: 5, v: 5 });
+    expect(useAppStore.getState().sketchDraft).toBeNull();
+    expect(useAppStore.getState().sketchDimEdit).not.toBeNull();
+  });
+
+  it("포커스 트랩: 치수 편집 중엔 선분 편집(SegmentDimInput) 진입 차단", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("rectangle");
+    st.sketchDragStart({ u: 0, v: 0 });
+    st.sketchDragMove({ u: 2, v: 2 });
+    st.sketchDragEnd();
+    st.selectSketchSegment(0, 0);
+    expect(useAppStore.getState().sketchSelectedSeg).toBeNull();
+  });
+});
+
 describe("useAppStore — 측정", () => {
   beforeEach(() => {
     useAppStore.getState().clearMeasure();
