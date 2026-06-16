@@ -330,6 +330,23 @@ describe("useAppStore — 스케치 그리기 도구(호·스플라인·삭제)"
     expect(useAppStore.getState().sketchStrokes).toHaveLength(0);
   });
 
+  it("안내선 스냅: 두 번째 점이 첫 점과 수직 정렬로 스냅", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz"); // 자동 선 도구
+    st.sketchClickPoint({ u: 2, v: 0 });
+    st.sketchClickPoint({ u: 2.1, v: 5 }); // u≈2 → 수직 정렬 스냅
+    const pts = useAppStore.getState().sketchPoints;
+    expect(pts[1]!.u).toBe(2);
+  });
+
+  it("스케치 진입 시 기본 도구가 선(line)", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    expect(useAppStore.getState().sketchTool).toBe("line");
+  });
+
   it("점 드래그: 선택한 점이 이동", () => {
     const st = useAppStore.getState();
     st.beginSketch();

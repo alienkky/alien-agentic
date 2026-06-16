@@ -193,11 +193,14 @@ export function SketchLayer(): JSX.Element | null {
   const draggingPoint = useAppStore((s) => s.sketchDraggingPoint);
   const movePointDrag = useAppStore((s) => s.movePointDrag);
   const endPointDrag = useAppStore((s) => s.endPointDrag);
+  const guides = useAppStore((s) => s.sketchGuides);
+  const gridAdaptive = useAppStore((s) => s.snap.gridAdaptive);
   const radius = useAppStore((s) => s.camera.radius);
   const isPointTool = tool === "line" || tool === "spline" || tool === "arc";
   // 점 핸들 크기를 화면에서 일정하게 (줌에 비례) — Shapr3D 식
   const ptSize = Math.max(0.05, radius * 0.012);
-  const cell = useMemo(() => adaptiveCellSize(radius), [radius]);
+  // 격자 셀: 적응(잘아짐) 또는 고정 1
+  const cell = gridAdaptive ? adaptiveCellSize(radius) : 1;
 
   // 드래그 중 미리보기(사각형/원)
   const draftView = useMemo(() => {
@@ -250,6 +253,11 @@ export function SketchLayer(): JSX.Element | null {
       {/* 누적된 확정 획들 */}
       {strokes.map((stroke, i) => (
         <StrokeView key={i} plane={plane} pts={stroke} strokeIndex={i} ptSize={ptSize} />
+      ))}
+
+      {/* 보라색 정렬 안내선 (수평/수직/끝점) */}
+      {guides.map((g, i) => (
+        <Line key={`g${i}`} points={[toWorld(g.anchor), toWorld(g.to)]} color="#a855f7" lineWidth={1} dashed dashSize={0.25} gapSize={0.18} />
       ))}
 
       {/* 사각형/원 드래그 미리보기 */}
