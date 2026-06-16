@@ -17,6 +17,8 @@ import com.google.mlkit.nl.translate.TranslatorOptions
 class TranslatorManager {
 
     private val translators = HashMap<String, Translator>()
+    // Source→target pairs whose model is confirmed downloaded.
+    private val readyPairs = HashSet<String>()
     private val languageIdentifier = LanguageIdentification.getClient()
 
     @Volatile private var target: String = TranslateLanguage.KOREAN
@@ -53,7 +55,10 @@ class TranslatorManager {
             if (requireWifi) requireWifi()
         }.build()
         getOrCreate(fallbackSource, target).downloadModelIfNeeded(conditions)
-            .addOnSuccessListener { onReady() }
+            .addOnSuccessListener {
+                readyPairs.add("$fallbackSource->$target")
+                onReady()
+            }
             .addOnFailureListener { e -> onError(e) }
     }
 
@@ -92,10 +97,22 @@ class TranslatorManager {
             onResult(shortCode(source), text)
             return
         }
+        val key = "$source->$target"
         val translator = getOrCreate(source, target)
+
+        // Once a model is confirmed present, skip the download check on every
+        // utterance and translate straight away — saves an async hop per phrase.
+        if (key in readyPairs) {
+            translator.translate(text)
+                .addOnSuccessListener { out -> onResult(shortCode(source), out) }
+                .addOnFailureListener { e -> onError(e) }
+            return
+        }
+
         val conditions = DownloadConditions.Builder().build()
         translator.downloadModelIfNeeded(conditions)
             .addOnSuccessListener {
+                readyPairs.add(key)
                 translator.translate(text)
                     .addOnSuccessListener { out -> onResult(shortCode(source), out) }
                     .addOnFailureListener { e -> onError(e) }
@@ -131,6 +148,7 @@ class TranslatorManager {
     fun close() {
         translators.values.forEach { it.close() }
         translators.clear()
+        readyPairs.clear()
         languageIdentifier.close()
     }
 }

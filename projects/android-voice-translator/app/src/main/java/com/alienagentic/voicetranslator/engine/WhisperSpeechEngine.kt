@@ -11,6 +11,7 @@ import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.Executors
 import kotlin.math.abs
 
 /**
@@ -32,6 +33,9 @@ class WhisperSpeechEngine(
     override var onError: (String) -> Unit = {}
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    // Single worker so network round-trips never block audio capture, while
+    // keeping transcription results in spoken order.
+    private val httpExecutor = Executors.newSingleThreadExecutor()
 
     @Volatile private var running = false
     private var captureThread: Thread? = null
@@ -41,8 +45,9 @@ class WhisperSpeechEngine(
         private const val SAMPLE_RATE = 16_000
         private const val FRAME_SAMPLES = 1_600          // 100 ms frames
         private const val VOICE_AMPLITUDE = 1_500         // |sample| above this = voiced
-        private const val SILENCE_FRAMES_TO_CUT = 8       // ~800 ms pause ends an utterance
+        private const val SILENCE_FRAMES_TO_CUT = 5       // ~500 ms pause ends an utterance
         private const val MIN_UTTERANCE_FRAMES = 3        // ignore <300 ms blips
+        private const val MAX_UTTERANCE_FRAMES = 60       // force-cut long speech every ~6 s
     }
 
     override fun setLanguage(localeTag: String) {
@@ -66,7 +71,10 @@ class WhisperSpeechEngine(
         captureThread = null
     }
 
-    override fun destroy() = stop()
+    override fun destroy() {
+        stop()
+        httpExecutor.shutdown()
+    }
 
     @SuppressLint("MissingPermission")
     private fun captureLoop() {
@@ -109,6 +117,13 @@ class WhisperSpeechEngine(
                     silenceFrames = 0
                     voicedFrames++
                     appendPcm(utterance, frame, read)
+                    // Long monologue: cut periodically so captions appear sooner.
+                    if (voicedFrames >= MAX_UTTERANCE_FRAMES) {
+                        flush(utterance.toByteArray())
+                        utterance.reset()
+                        voicedFrames = 0
+                        silenceFrames = 0
+                    }
                 } else if (voicedFrames > 0) {
                     // Trailing silence after speech: keep a little, then maybe cut.
                     silenceFrames++
@@ -151,14 +166,20 @@ class WhisperSpeechEngine(
         }
     }
 
-    /** Sends one utterance (raw PCM) to the API and emits the transcript. */
+    /**
+     * Queues one utterance for transcription on the worker thread so the capture
+     * loop keeps reading the mic during the network round-trip (no dropped audio).
+     */
     private fun flush(pcm: ByteArray) {
-        val wav = wrapWav(pcm)
-        try {
-            val text = transcribe(wav)
-            if (text.isNotBlank()) mainHandler.post { onFinal(text) }
-        } catch (e: Exception) {
-            postError("전사 실패: ${e.message}")
+        if (httpExecutor.isShutdown) return
+        httpExecutor.execute {
+            val wav = wrapWav(pcm)
+            try {
+                val text = transcribe(wav)
+                if (text.isNotBlank()) mainHandler.post { onFinal(text) }
+            } catch (e: Exception) {
+                postError("전사 실패: ${e.message}")
+            }
         }
     }
 
