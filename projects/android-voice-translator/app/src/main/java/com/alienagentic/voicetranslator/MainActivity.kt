@@ -74,8 +74,12 @@ class MainActivity : AppCompatActivity() {
         // translateAuto downloads on demand and will retry per utterance.
         translator.prepareModels(
             requireWifi = false,
-            onReady = { },
-            onError = { }
+            onReady = { runOnUiThread { binding.statusText.text = getString(R.string.status_ready) } },
+            onError = { e ->
+                runOnUiThread {
+                    binding.statusText.text = getString(R.string.error_model_download, e.message)
+                }
+            }
         )
 
         binding.micButton.setOnClickListener {

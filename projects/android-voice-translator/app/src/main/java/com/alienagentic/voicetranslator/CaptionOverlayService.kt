@@ -312,7 +312,15 @@ class CaptionOverlayService : Service() {
         translator.setFallbackSource(settings.listenLocale)
         // Start listening immediately; the translation model is fetched on demand.
         startEngine(internal)
-        translator.prepareModels(requireWifi = false, onReady = { }, onError = { })
+        translator.prepareModels(
+            requireWifi = false,
+            onReady = { },
+            onError = { e ->
+                mainHandler.post {
+                    translatedView?.text = getString(R.string.error_model_download, e.message)
+                }
+            }
+        )
     }
 
     private fun startEngine(internal: Boolean) {
@@ -344,6 +352,9 @@ class CaptionOverlayService : Service() {
 
     private fun translate(text: String) {
         val targetCode = translator.targetCode()
+        // Visible "working" state so a stuck model download is distinguishable
+        // from "no translation at all".
+        mainHandler.post { translatedView?.text = getString(R.string.translating) }
         translator.translateAuto(
             text = text,
             onResult = { _, translated ->
