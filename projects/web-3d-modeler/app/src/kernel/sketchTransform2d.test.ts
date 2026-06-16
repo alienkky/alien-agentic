@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mirrorStrokes, patternLinearStrokes, patternCircularStrokes, offsetStroke } from "./sketchTransform2d";
+import { mirrorStrokes, patternLinearStrokes, patternCircularStrokes, offsetStroke, transformStrokes, strokesCentroid } from "./sketchTransform2d";
 import type { SketchPoint } from "./sketchPlane";
 
 const tri: SketchPoint[][] = [[{ u: 1, v: 1 }, { u: 3, v: 1 }, { u: 2, v: 3 }]];
@@ -27,6 +27,22 @@ describe("스케치 2D 변형", () => {
     // 90° 회전: (4,0) → (0,4)
     expect(out[0]![0]!.u).toBeCloseTo(0, 5);
     expect(out[0]![0]!.v).toBeCloseTo(4, 5);
+  });
+
+  it("이동/회전: 평행이동만 → 모든 점 +delta", () => {
+    const out = transformStrokes(tri, 3, -2, 0, strokesCentroid(tri));
+    out[0]!.forEach((p, i) => {
+      expect(p.u).toBeCloseTo(tri[0]![i]!.u + 3, 6);
+      expect(p.v).toBeCloseTo(tri[0]![i]!.v - 2, 6);
+    });
+  });
+
+  it("이동/회전: 중심 기준 회전은 중심을 보존", () => {
+    const c = strokesCentroid(tri);
+    const out = transformStrokes(tri, 0, 0, 90, c);
+    const c2 = strokesCentroid(out);
+    expect(c2.u).toBeCloseTo(c.u, 6);
+    expect(c2.v).toBeCloseTo(c.v, 6);
   });
 
   it("오프셋: 모든 정점이 ~거리만큼 평행 이동(부호=방향)", () => {

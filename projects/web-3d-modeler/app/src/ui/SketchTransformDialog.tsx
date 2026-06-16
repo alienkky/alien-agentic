@@ -12,6 +12,7 @@ export function SketchTransformDialog(): JSX.Element | null {
   const patLinear = useAppStore((s) => s.sketchPatternLinear);
   const patCircular = useAppStore((s) => s.sketchPatternCircular);
   const offset = useAppStore((s) => s.sketchOffset);
+  const moveRotate = useAppStore((s) => s.sketchMoveRotate);
 
   const [axis, setAxis] = useState<UVAxis>("v");
   const [patKind, setPatKind] = useState<"linear" | "circular">("linear");
@@ -19,13 +20,17 @@ export function SketchTransformDialog(): JSX.Element | null {
   const [spacing, setSpacing] = useState(5);
   const [angle, setAngle] = useState(360);
   const [dist, setDist] = useState(1);
+  const [du, setDu] = useState(0);
+  const [dv, setDv] = useState(0);
+  const [rot, setRot] = useState(0);
 
   if (!mode) return null;
-  const title = mode === "mirror" ? "미러" : mode === "pattern" ? "패턴" : "모서리 오프셋";
+  const title = mode === "mirror" ? "미러" : mode === "pattern" ? "패턴" : mode === "offset" ? "모서리 오프셋" : "이동/회전";
 
   const apply = () => {
     if (mode === "mirror") mirror(axis);
     else if (mode === "offset") offset(dist);
+    else if (mode === "move") moveRotate(du, dv, rot);
     else if (patKind === "linear") patLinear(axis, count, spacing);
     else patCircular(count, angle);
   };
@@ -62,6 +67,26 @@ export function SketchTransformDialog(): JSX.Element | null {
               onKeyDown={(e) => { if (e.key === "Enter") apply(); else if (e.key === "Escape") close(); }}
               className="mb-4 w-full rounded-lg border border-aa-border bg-aa-bg px-3 py-2 text-sm text-aa-text outline-none focus:border-aa-accent" />
           </>
+        )}
+
+        {mode === "move" && (
+          <div className="mb-4 grid grid-cols-3 gap-2">
+            <div>
+              <label className="mb-1 block text-xs text-aa-text-dim">가로(U)</label>
+              <input autoFocus type="number" step="0.5" value={du} onChange={(e) => setDu(parseFloat(e.target.value) || 0)}
+                className="w-full rounded-lg border border-aa-border bg-aa-bg px-2 py-2 text-sm text-aa-text outline-none focus:border-aa-accent" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-aa-text-dim">세로(V)</label>
+              <input type="number" step="0.5" value={dv} onChange={(e) => setDv(parseFloat(e.target.value) || 0)}
+                className="w-full rounded-lg border border-aa-border bg-aa-bg px-2 py-2 text-sm text-aa-text outline-none focus:border-aa-accent" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-aa-text-dim">회전(°)</label>
+              <input type="number" step="5" value={rot} onChange={(e) => setRot(parseFloat(e.target.value) || 0)}
+                className="w-full rounded-lg border border-aa-border bg-aa-bg px-2 py-2 text-sm text-aa-text outline-none focus:border-aa-accent" />
+            </div>
+          </div>
         )}
 
         {mode === "pattern" && (

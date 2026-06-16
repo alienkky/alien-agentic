@@ -43,6 +43,29 @@ export function patternCircularStrokes(strokes: SketchPoint[][], count: number, 
   return out;
 }
 
+/** 모든 획의 중심(centroid) — 회전 기준점. */
+export function strokesCentroid(strokes: SketchPoint[][]): SketchPoint {
+  let u = 0;
+  let v = 0;
+  let n = 0;
+  for (const st of strokes) for (const p of st) { u += p.u; v += p.v; n++; }
+  return n ? { u: u / n, v: v / n } : { u: 0, v: 0 };
+}
+
+/** 모든 획을 중심 기준 angleDeg 회전 후 (du,dv) 평행이동 — 제자리 이동/회전. */
+export function transformStrokes(strokes: SketchPoint[][], du: number, dv: number, angleDeg: number, center: SketchPoint): SketchPoint[][] {
+  const a = (angleDeg * Math.PI) / 180;
+  const c = Math.cos(a);
+  const s = Math.sin(a);
+  return strokes.map((st) =>
+    st.map((p) => {
+      const ru = p.u - center.u;
+      const rv = p.v - center.v;
+      return { u: center.u + ru * c - rv * s + du, v: center.v + ru * s + rv * c + dv };
+    }),
+  );
+}
+
 /** 폴리라인 오프셋 — 각 정점에서 인접 선분 법선 평균 방향으로 dist 이동. */
 export function offsetStroke(stroke: SketchPoint[], dist: number): SketchPoint[] {
   const n = stroke.length;

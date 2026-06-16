@@ -91,7 +91,7 @@ function SketchPalette(): JSX.Element {
       <Row icon={<EllipseIcon />} label="타원" active={tool === "ellipse"} onClick={() => pick("ellipse")} />
       <Row icon={<PolygonIcon />} label="다각형" sub="육각형" shortcut="G" active={tool === "polygon"} onClick={() => pick("polygon")} />
       <Row icon={<OffsetIcon />} label="모서리 오프셋" sub="체인" shortcut="O" onClick={() => openSketchTransform("offset")} />
-      <Row icon={<TransformIcon />} label="이동/회전" shortcut="M" onClick={() => soon("이동/회전")} />
+      <Row icon={<TransformIcon />} label="이동/회전" shortcut="M" onClick={() => openSketchTransform("move")} />
       <Row icon={<MirrorIcon />} label="미러" onClick={() => openSketchTransform("mirror")} />
       <Row icon={<PatternIcon />} label="패턴" sub="선형/원형" onClick={() => openSketchTransform("pattern")} />
       <Row icon={<ProjectIcon />} label="투상" shortcut="P" onClick={() => sketchProject()} />

@@ -15,7 +15,7 @@ import { parseStl } from "../kernel/stlImport";
 import { SKETCH_PLANES, planeFromFace, worldToPlane, type PlaneId, type SketchPoint, type SketchPlaneDef } from "../kernel/sketchPlane";
 import { trimAt, nearestStrokeIndex } from "../kernel/sketchTrim";
 import { catmullRom, arc3 } from "../kernel/sketchCurves";
-import { mirrorStrokes, patternLinearStrokes, patternCircularStrokes, offsetStroke, type UVAxis } from "../kernel/sketchTransform2d";
+import { mirrorStrokes, patternLinearStrokes, patternCircularStrokes, offsetStroke, transformStrokes, strokesCentroid, type UVAxis } from "../kernel/sketchTransform2d";
 import { snapToGuides, type Guide } from "../kernel/sketchGuides";
 import {
   defaultCamera,
@@ -261,14 +261,16 @@ interface AppState {
   moveSegDrag: (uv: SketchPoint) => void;
   endSegDrag: () => void;
   /** 스케치 변형 다이얼로그 모드 (null=닫힘) */
-  sketchTransformMode: "mirror" | "pattern" | "offset" | null;
-  openSketchTransform: (mode: "mirror" | "pattern" | "offset") => void;
+  sketchTransformMode: "mirror" | "pattern" | "offset" | "move" | null;
+  openSketchTransform: (mode: "mirror" | "pattern" | "offset" | "move") => void;
   closeSketchTransform: () => void;
   /** 스케치 변형 — 모두 확정 획(sketchStrokes)에 적용 */
   sketchMirror: (axis: UVAxis) => void;
   sketchPatternLinear: (axis: UVAxis, count: number, spacing: number) => void;
   sketchPatternCircular: (count: number, angleDeg: number) => void;
   sketchOffset: (dist: number) => void;
+  /** 스케치 이동/회전 — 모든 획을 중심 기준 회전 후 평행이동 */
+  sketchMoveRotate: (du: number, dv: number, angleDeg: number) => void;
   /** 투상: 바디 모서리를 현재 스케치 평면에 투영해 획으로 */
   sketchProject: () => void;
   /** 선분 치수 편집 선택 / 길이 설정 / 해제 */
@@ -814,6 +816,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({ sketchStrokes: [...s.sketchStrokes, ...patternCircularStrokes(s.sketchStrokes, Math.max(2, count), angleDeg)], sketchTransformMode: null, status: `스케치 원형 패턴 ${count}개` })),
   sketchOffset: (dist) =>
     set((s) => ({ sketchStrokes: [...s.sketchStrokes, ...s.sketchStrokes.filter((st) => st.length >= 2).map((st) => offsetStroke(st, dist))], sketchTransformMode: null, status: `모서리 오프셋 ${dist} mm` })),
+  sketchMoveRotate: (du, dv, angleDeg) =>
+    set((s) => ({ sketchStrokes: transformStrokes(s.sketchStrokes, du, dv, angleDeg, strokesCentroid(s.sketchStrokes)), sketchTransformMode: null, status: `스케치 이동(${du},${dv}) 회전 ${angleDeg}°` })),
   sketchProject: () => {
     const st = get();
     const plane = st.sketchPlane;
