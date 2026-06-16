@@ -35,6 +35,11 @@ class AppSettings(context: Context) {
         get() = prefs.getString(KEY_LOCALE, "ja-JP") ?: "ja-JP"
         set(v) = prefs.edit().putString(KEY_LOCALE, v).apply()
 
+    /** Short code of the language to translate into ("ko"/"en"/"ja"). */
+    var targetLanguage: String
+        get() = prefs.getString(KEY_TARGET, "ko") ?: "ko"
+        set(v) = prefs.edit().putString(KEY_TARGET, v).apply()
+
     /** True only if cloud mode is selected AND a key is present. */
     fun cloudReady(): Boolean = useCloud && whisperApiKey.isNotBlank()
 
@@ -48,5 +53,6 @@ class AppSettings(context: Context) {
         private const val KEY_MODEL = "whisper_model"
         private const val KEY_SPEAK = "speak_translation"
         private const val KEY_LOCALE = "listen_locale"
+        private const val KEY_TARGET = "target_language"
     }
 }

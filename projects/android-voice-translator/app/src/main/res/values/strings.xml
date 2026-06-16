@@ -7,6 +7,11 @@
 
     <string name="listening_japanese">🎙 日本語</string>
     <string name="listening_english">🎙 English</string>
+    <string name="listening_korean">🎙 한국어</string>
+
+    <string name="lang_korean">한국어</string>
+    <string name="lang_english">English</string>
+    <string name="lang_japanese">日本語</string>
 
     <string name="status_preparing">번역 모델 준비 중…</string>
     <string name="status_ready">준비됨 — 버튼을 눌러 말하세요</string>
@@ -28,6 +33,7 @@
     <string name="overlay_notification_text">탭하여 멈출 수 있습니다</string>
 
     <string name="settings_title">설정</string>
+    <string name="settings_target">번역 결과 언어</string>
     <string name="settings_speak">번역을 음성으로 읽어주기 (TTS)</string>
     <string name="settings_use_cloud">클라우드 Whisper 사용 (고정밀)</string>
     <string name="settings_cloud_hint">켜면 네트워크와 API 키가 필요합니다. 끄면 온디바이스 오프라인 인식을 씁니다.</string>

@@ -21,6 +21,55 @@
             android:textStyle="bold"
             android:paddingBottom="20dp" />
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_target"
+            android:textColor="@color/fg"
+            android:textSize="16sp" />
+
+        <RadioGroup
+            android:id="@+id/targetGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingTop="8dp"
+            android:paddingBottom="12dp">
+
+            <RadioButton
+                android:id="@+id/targetKo"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:buttonTint="@color/accent"
+                android:textColor="@color/fg"
+                android:text="@string/lang_korean" />
+
+            <RadioButton
+                android:id="@+id/targetEn"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:buttonTint="@color/accent"
+                android:textColor="@color/fg"
+                android:text="@string/lang_english" />
+
+            <RadioButton
+                android:id="@+id/targetJa"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:buttonTint="@color/accent"
+                android:textColor="@color/fg"
+                android:text="@string/lang_japanese" />
+        </RadioGroup>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginVertical="12dp"
+            android:background="@color/divider" />
+
         <com.google.android.material.materialswitch.MaterialSwitch
             android:id="@+id/speakSwitch"
             android:layout_width="match_parent"

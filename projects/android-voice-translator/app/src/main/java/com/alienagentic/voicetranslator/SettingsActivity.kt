@@ -20,6 +20,11 @@ class SettingsActivity : AppCompatActivity() {
         setContentView(binding.root)
         settings = AppSettings(this)
 
+        when (settings.targetLanguage) {
+            "en" -> binding.targetEn.isChecked = true
+            "ja" -> binding.targetJa.isChecked = true
+            else -> binding.targetKo.isChecked = true
+        }
         binding.cloudSwitch.isChecked = settings.useCloud
         binding.speakSwitch.isChecked = settings.speakTranslation
         binding.baseUrlInput.setText(settings.whisperBaseUrl)
@@ -32,6 +37,11 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         binding.saveButton.setOnClickListener {
+            settings.targetLanguage = when (binding.targetGroup.checkedRadioButtonId) {
+                R.id.targetEn -> "en"
+                R.id.targetJa -> "ja"
+                else -> "ko"
+            }
             settings.useCloud = binding.cloudSwitch.isChecked
             settings.speakTranslation = binding.speakSwitch.isChecked
             settings.whisperBaseUrl = binding.baseUrlInput.text.toString().trim()

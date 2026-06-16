@@ -197,6 +197,8 @@ class CaptionOverlayService : Service() {
     }
 
     private fun prepareAndListen() {
+        translator.setTarget(settings.targetLanguage)
+        translator.setFallbackSource(settings.listenLocale)
         translator.prepareModels(
             requireWifi = false,
             onReady = {
@@ -221,12 +223,13 @@ class CaptionOverlayService : Service() {
 
     private fun translate(text: String) {
         if (!modelsReady) return
+        val targetCode = translator.targetCode()
         translator.translateAuto(
             text = text,
-            onResult = { detectedJapanese, translated ->
+            onResult = { _, translated ->
                 mainHandler.post {
                     translatedView?.text = translated
-                    if (settings.speakTranslation) speaker?.speak(translated, detectedJapanese)
+                    if (settings.speakTranslation) speaker?.speak(translated, targetCode)
                 }
             },
             onError = { }

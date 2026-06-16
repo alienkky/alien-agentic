@@ -48,6 +48,9 @@ class MainActivity : AppCompatActivity() {
         settings = AppSettings(this)
         speaker = Speaker(this)
 
+        translator.setTarget(settings.targetLanguage)
+        translator.setFallbackSource(settings.listenLocale)
+
         binding.statusText.text = getString(R.string.status_preparing)
         binding.micButton.isEnabled = false
 
@@ -80,6 +83,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Settings may have changed the target language while we were away.
+        translator.setTarget(settings.targetLanguage)
+        translator.setFallbackSource(settings.listenLocale)
         updateLangToggleLabel()
         updateModeLabel()
     }
@@ -94,16 +100,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun toggleListenLanguage() {
-        settings.listenLocale = if (settings.listenLocale == "ja-JP") "en-US" else "ja-JP"
+        // Cycle through the languages the recognizer can listen for.
+        settings.listenLocale = when (settings.listenLocale) {
+            "ja-JP" -> "en-US"
+            "en-US" -> "ko-KR"
+            else -> "ja-JP"
+        }
         updateLangToggleLabel()
         engine?.setLanguage(settings.listenLocale)
+        translator.setFallbackSource(settings.listenLocale)
     }
 
     private fun updateLangToggleLabel() {
-        binding.langToggle.text = if (settings.listenLocale == "ja-JP") {
-            getString(R.string.listening_japanese)
-        } else {
-            getString(R.string.listening_english)
+        binding.langToggle.text = when (settings.listenLocale) {
+            "ja-JP" -> getString(R.string.listening_japanese)
+            "en-US" -> getString(R.string.listening_english)
+            else -> getString(R.string.listening_korean)
         }
     }
 
@@ -142,14 +154,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun translate(text: String) {
         if (!modelsReady) return
+        val targetCode = translator.targetCode()
         translator.translateAuto(
             text = text,
-            onResult = { detectedJapanese, translated ->
+            onResult = { sourceCode, translated ->
                 runOnUiThread {
                     binding.translatedText.text = translated
-                    binding.directionText.text = if (detectedJapanese) "JA → EN" else "EN → JA"
+                    binding.directionText.text =
+                        "${sourceCode.uppercase()} → ${targetCode.uppercase()}"
                     binding.directionText.visibility = View.VISIBLE
-                    if (settings.speakTranslation) speaker?.speak(translated, detectedJapanese)
+                    if (settings.speakTranslation) speaker?.speak(translated, targetCode)
                 }
             },
             onError = { e -> runOnUiThread { toast(getString(R.string.error_translate, e.message)) } }

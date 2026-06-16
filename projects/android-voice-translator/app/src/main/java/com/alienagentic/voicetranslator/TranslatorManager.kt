@@ -8,77 +8,129 @@ import com.google.mlkit.nl.translate.Translator
 import com.google.mlkit.nl.translate.TranslatorOptions
 
 /**
- * Wraps on-device ML Kit translation for the Japanese <-> English pair plus a
- * language identifier so the translation direction can follow whatever language
- * was actually spoken. Models are downloaded once and then run fully offline.
+ * On-device translation that detects the spoken language and translates it into
+ * a configurable *target* language (Korean / English / Japanese).
+ *
+ * Translators are created and cached per source→target pair, and their models
+ * download once then run fully offline.
  */
 class TranslatorManager {
 
-    private val jaToEn: Translator = Translation.getClient(
-        TranslatorOptions.Builder()
-            .setSourceLanguage(TranslateLanguage.JAPANESE)
-            .setTargetLanguage(TranslateLanguage.ENGLISH)
-            .build()
-    )
-
-    private val enToJa: Translator = Translation.getClient(
-        TranslatorOptions.Builder()
-            .setSourceLanguage(TranslateLanguage.ENGLISH)
-            .setTargetLanguage(TranslateLanguage.JAPANESE)
-            .build()
-    )
-
+    private val translators = HashMap<String, Translator>()
     private val languageIdentifier = LanguageIdentification.getClient()
 
+    @Volatile private var target: String = TranslateLanguage.KOREAN
+    // Used when language identification is uncertain (e.g. short utterances).
+    @Volatile private var fallbackSource: String = TranslateLanguage.JAPANESE
+
+    /** @param tag a BCP-47 tag or short code, e.g. "ko", "en", "ja-JP". */
+    fun setTarget(tag: String) {
+        toTranslate(tag)?.let { target = it }
+    }
+
+    /** Source language assumed when detection fails. Follows the listen locale. */
+    fun setFallbackSource(localeTag: String) {
+        toTranslate(localeTag)?.let { fallbackSource = it }
+    }
+
+    /** Short code ("ja"/"en"/"ko") of the current target, for UI labels. */
+    fun targetCode(): String = shortCode(target)
+
     /**
-     * Ensures both translation models are present on the device.
-     * [requireWifi] keeps the (one-time) download off metered connections.
+     * Ensures the most likely model (fallback source → target) is present.
+     * If source and target are the same there is nothing to download.
      */
     fun prepareModels(
         requireWifi: Boolean,
         onReady: () -> Unit,
         onError: (Exception) -> Unit
     ) {
+        if (fallbackSource == target) {
+            onReady()
+            return
+        }
         val conditions = DownloadConditions.Builder().apply {
             if (requireWifi) requireWifi()
         }.build()
-
-        jaToEn.downloadModelIfNeeded(conditions)
-            .addOnSuccessListener {
-                enToJa.downloadModelIfNeeded(conditions)
-                    .addOnSuccessListener { onReady() }
-                    .addOnFailureListener { e -> onError(e) }
-            }
+        getOrCreate(fallbackSource, target).downloadModelIfNeeded(conditions)
+            .addOnSuccessListener { onReady() }
             .addOnFailureListener { e -> onError(e) }
     }
 
     /**
-     * Identifies the language of [text] and translates it into the other half of
-     * the Japanese/English pair. Anything that is not detected as Japanese is
-     * treated as English so mixed or uncertain input still produces output.
+     * Identifies [text]'s language and translates it into the current target.
+     * Unrecognized input falls back to [fallbackSource]. If the source already
+     * equals the target, the original text is passed through unchanged.
+     *
+     * @param onResult receives the detected source short code and the translation.
      */
     fun translateAuto(
         text: String,
-        onResult: (detectedJapanese: Boolean, translated: String) -> Unit,
+        onResult: (sourceCode: String, translated: String) -> Unit,
         onError: (Exception) -> Unit
     ) {
         if (text.isBlank()) return
 
         languageIdentifier.identifyLanguage(text)
             .addOnSuccessListener { code ->
-                val isJapanese = code == "ja"
-                val translator = if (isJapanese) jaToEn else enToJa
+                val source = toTranslate(code) ?: fallbackSource
+                runTranslation(source, text, onResult, onError)
+            }
+            .addOnFailureListener {
+                // Identification failed — assume the configured source.
+                runTranslation(fallbackSource, text, onResult, onError)
+            }
+    }
+
+    private fun runTranslation(
+        source: String,
+        text: String,
+        onResult: (String, String) -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        if (source == target) {
+            onResult(shortCode(source), text)
+            return
+        }
+        val translator = getOrCreate(source, target)
+        val conditions = DownloadConditions.Builder().build()
+        translator.downloadModelIfNeeded(conditions)
+            .addOnSuccessListener {
                 translator.translate(text)
-                    .addOnSuccessListener { out -> onResult(isJapanese, out) }
+                    .addOnSuccessListener { out -> onResult(shortCode(source), out) }
                     .addOnFailureListener { e -> onError(e) }
             }
             .addOnFailureListener { e -> onError(e) }
     }
 
-    /** Release native resources held by the translators. */
+    private fun getOrCreate(source: String, tgt: String): Translator {
+        return translators.getOrPut("$source->$tgt") {
+            Translation.getClient(
+                TranslatorOptions.Builder()
+                    .setSourceLanguage(source)
+                    .setTargetLanguage(tgt)
+                    .build()
+            )
+        }
+    }
+
+    private fun toTranslate(tag: String): String? = when {
+        tag.startsWith("ja") -> TranslateLanguage.JAPANESE
+        tag.startsWith("en") -> TranslateLanguage.ENGLISH
+        tag.startsWith("ko") -> TranslateLanguage.KOREAN
+        else -> null
+    }
+
+    private fun shortCode(translateLang: String): String = when (translateLang) {
+        TranslateLanguage.JAPANESE -> "ja"
+        TranslateLanguage.ENGLISH -> "en"
+        TranslateLanguage.KOREAN -> "ko"
+        else -> translateLang
+    }
+
     fun close() {
-        jaToEn.close()
-        enToJa.close()
+        translators.values.forEach { it.close() }
+        translators.clear()
         languageIdentifier.close()
     }
 }

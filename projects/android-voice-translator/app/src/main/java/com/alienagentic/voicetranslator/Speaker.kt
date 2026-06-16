@@ -5,9 +5,8 @@ import android.speech.tts.TextToSpeech
 import java.util.Locale
 
 /**
- * Thin wrapper over [TextToSpeech] that speaks the translated caption aloud.
- * The spoken language is the *target* of the translation: Japanese speech is
- * read back in English, English speech in Japanese.
+ * Thin wrapper over [TextToSpeech] that reads the translated caption aloud in
+ * the chosen target language.
  */
 class Speaker(context: Context) {
 
@@ -21,18 +20,22 @@ class Speaker(context: Context) {
     }
 
     /**
-     * @param translatedText the text to speak
-     * @param detectedJapanese true if the *source* was Japanese (so we speak English)
+     * @param text the translated text to speak
+     * @param targetCode short language code of the text ("ko"/"en"/"ja")
      */
-    fun speak(translatedText: String, detectedJapanese: Boolean) {
+    fun speak(text: String, targetCode: String) {
         val engine = tts ?: return
-        if (!ready || translatedText.isBlank()) return
-        val target = if (detectedJapanese) Locale.ENGLISH else Locale.JAPANESE
-        val result = engine.setLanguage(target)
+        if (!ready || text.isBlank()) return
+        val locale = when {
+            targetCode.startsWith("ko") -> Locale.KOREAN
+            targetCode.startsWith("ja") -> Locale.JAPANESE
+            else -> Locale.ENGLISH
+        }
+        val result = engine.setLanguage(locale)
         if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
             return
         }
-        engine.speak(translatedText, TextToSpeech.QUEUE_FLUSH, null, "vt-utterance")
+        engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, "vt-utterance")
     }
 
     fun stop() {
