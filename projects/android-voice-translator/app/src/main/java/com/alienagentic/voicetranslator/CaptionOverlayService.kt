@@ -10,6 +10,8 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.media.projection.MediaProjection
+import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -20,8 +22,12 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
+import androidx.core.content.IntentCompat
+import com.alienagentic.voicetranslator.engine.CaptureSource
 import com.alienagentic.voicetranslator.engine.SpeechEngine
+import com.alienagentic.voicetranslator.engine.WhisperSpeechEngine
 
 /**
  * Foreground service that shows live translation captions floating on top of
@@ -40,20 +46,34 @@ class CaptionOverlayService : Service() {
     private var overlay: View? = null
     private var sourceView: TextView? = null
     private var translatedView: TextView? = null
-
+    private var mediaProjection: MediaProjection? = null
 
     companion object {
         private const val CHANNEL_ID = "vt_overlay"
         private const val NOTIFICATION_ID = 42
         private const val ACTION_STOP = "com.alienagentic.voicetranslator.STOP_OVERLAY"
+        private const val EXTRA_RESULT_CODE = "result_code"
+        private const val EXTRA_DATA = "result_data"
 
         /** True while the overlay is showing, so the UI can offer a stop toggle. */
         @Volatile
         var isRunning = false
             private set
 
+        /** Mic-based overlay captions. */
         fun start(context: Context) {
+            launch(context, Intent(context, CaptionOverlayService::class.java))
+        }
+
+        /** Internal-audio (phone playback) captions via a granted MediaProjection. */
+        fun startInternal(context: Context, resultCode: Int, data: Intent) {
             val intent = Intent(context, CaptionOverlayService::class.java)
+                .putExtra(EXTRA_RESULT_CODE, resultCode)
+                .putExtra(EXTRA_DATA, data)
+            launch(context, intent)
+        }
+
+        private fun launch(context: Context, intent: Intent) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
@@ -75,10 +95,41 @@ class CaptionOverlayService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        startInForeground()
+
+        val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, 0) ?: 0
+        val data = intent?.let { IntentCompat.getParcelableExtra(it, EXTRA_DATA, Intent::class.java) }
+        val internal = resultCode != 0 && data != null &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+
+        if (internal && settings.whisperApiKey.isBlank()) {
+            Toast.makeText(this, getString(R.string.internal_needs_cloud), Toast.LENGTH_LONG).show()
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        val fgType = if (internal) {
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+        } else {
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+        }
+        startInForeground(fgType)
+
+        if (internal) {
+            val mpm = getSystemService(MediaProjectionManager::class.java)
+            mediaProjection = mpm.getMediaProjection(resultCode, data!!)
+            if (mediaProjection == null) {
+                Toast.makeText(this, getString(R.string.internal_failed), Toast.LENGTH_LONG).show()
+                stopSelf()
+                return START_NOT_STICKY
+            }
+            mediaProjection!!.registerCallback(object : MediaProjection.Callback() {
+                override fun onStop() = stopSelf()
+            }, mainHandler)
+        }
+
         addOverlay()
         speaker = Speaker(this)
-        prepareAndListen()
+        prepareAndListen(internal)
         isRunning = true
         // Don't resurrect the overlay if the system kills the service.
         return START_NOT_STICKY
@@ -90,7 +141,7 @@ class CaptionOverlayService : Service() {
         super.onTaskRemoved(rootIntent)
     }
 
-    private fun startInForeground() {
+    private fun startInForeground(foregroundType: Int) {
         val manager = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -117,11 +168,7 @@ class CaptionOverlayService : Service() {
             .build()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-            )
+            startForeground(NOTIFICATION_ID, notification, foregroundType)
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
@@ -260,16 +307,26 @@ class CaptionOverlayService : Service() {
         }
     }
 
-    private fun prepareAndListen() {
+    private fun prepareAndListen(internal: Boolean) {
         translator.setTarget(settings.targetLanguage)
         translator.setFallbackSource(settings.listenLocale)
         // Start listening immediately; the translation model is fetched on demand.
-        startEngine()
+        startEngine(internal)
         translator.prepareModels(requireWifi = false, onReady = { }, onError = { })
     }
 
-    private fun startEngine() {
-        val e = EngineFactory.create(this, settings)
+    private fun startEngine(internal: Boolean) {
+        val projection = mediaProjection
+        val e = if (internal && projection != null) {
+            WhisperSpeechEngine(
+                baseUrl = settings.whisperBaseUrl,
+                apiKey = settings.whisperApiKey,
+                model = settings.whisperModel,
+                source = CaptureSource.Internal(projection)
+            ).also { it.setLanguage(settings.listenLocale) }
+        } else {
+            EngineFactory.create(this, settings)
+        }
         e.onPartial = { text -> mainHandler.post { sourceView?.text = text } }
         e.onFinal = { text ->
             mainHandler.post { sourceView?.text = text }
@@ -299,6 +356,8 @@ class CaptionOverlayService : Service() {
         engine?.destroy()
         translator.close()
         speaker?.shutdown()
+        mediaProjection?.stop()
+        mediaProjection = null
         overlay?.let { windowManager?.removeView(it) }
         overlay = null
         super.onDestroy()

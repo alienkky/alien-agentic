@@ -1,8 +1,10 @@
 package com.alienagentic.voicetranslator
 
 import android.Manifest
+import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -39,6 +41,19 @@ class MainActivity : AppCompatActivity() {
         if (granted) startListening() else toast(getString(R.string.error_no_mic_permission))
     }
 
+    private val mediaProjectionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val data = result.data
+        if (result.resultCode == Activity.RESULT_OK && data != null) {
+            if (isListening) stopListening()
+            CaptionOverlayService.startInternal(this, result.resultCode, data)
+            toast(getString(R.string.internal_started))
+        } else {
+            toast(getString(R.string.internal_cancelled))
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -71,6 +86,38 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
         binding.overlayButton.setOnClickListener { launchOverlay() }
+        binding.internalButton.setOnClickListener { launchInternalCapture() }
+    }
+
+    /** Capture the phone's own playback audio (other apps' sound) → captions. */
+    private fun launchInternalCapture() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            toast(getString(R.string.internal_min_version))
+            return
+        }
+        if (!settings.cloudReady()) {
+            toast(getString(R.string.internal_needs_cloud))
+            startActivity(Intent(this, SettingsActivity::class.java))
+            return
+        }
+        if (!Settings.canDrawOverlays(this)) {
+            toast(getString(R.string.overlay_need_permission))
+            startActivity(
+                Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:$packageName")
+                )
+            )
+            return
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestAudioPermission.launch(Manifest.permission.RECORD_AUDIO)
+            return
+        }
+        val mpm = getSystemService(MediaProjectionManager::class.java)
+        mediaProjectionLauncher.launch(mpm.createScreenCaptureIntent())
     }
 
     override fun onResume() {

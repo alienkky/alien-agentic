@@ -98,8 +98,8 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_marginBottom="12dp"
-        app:layout_constraintBottom_toTopOf="@id/micButton"
+        android:layout_marginBottom="8dp"
+        app:layout_constraintBottom_toTopOf="@id/internalButton"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
@@ -122,6 +122,18 @@
             android:textColor="@color/accent"
             android:text="@string/overlay_button" />
     </LinearLayout>
+
+    <Button
+        android:id="@+id/internalButton"
+        style="@style/Widget.Material3.Button.OutlinedButton"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:textColor="@color/accent"
+        app:layout_constraintBottom_toTopOf="@id/micButton"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:text="@string/internal_button" />
 
     <Button
         android:id="@+id/micButton"

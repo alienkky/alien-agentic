@@ -27,6 +27,13 @@
     <string name="settings_button">⚙ 설정</string>
     <string name="overlay_button">⧉ 오버레이</string>
     <string name="overlay_button_stop">⧉ 오버레이 끄기</string>
+    <string name="internal_button">🔊 폰 내부 소리 자막 (영상·앱)</string>
+
+    <string name="internal_min_version">내부 소리 캡처는 Android 10 이상에서만 가능합니다</string>
+    <string name="internal_needs_cloud">내부 소리 번역은 설정에서 클라우드 Whisper(API 키)가 필요합니다</string>
+    <string name="internal_started">내부 소리 자막을 시작했습니다 (오버레이 ✕ 로 종료)</string>
+    <string name="internal_cancelled">내부 소리 캡처가 취소되었습니다</string>
+    <string name="internal_failed">내부 소리 캡처를 시작할 수 없습니다</string>
 
     <string name="overlay_need_permission">다른 앱 위에 표시 권한이 필요합니다</string>
     <string name="overlay_started">오버레이 자막을 시작했습니다</string>

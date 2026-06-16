@@ -1,9 +1,12 @@
 package com.alienagentic.voicetranslator.engine
 
 import android.annotation.SuppressLint
+import android.media.AudioAttributes
 import android.media.AudioFormat
+import android.media.AudioPlaybackCaptureConfiguration
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.media.projection.MediaProjection
 import android.os.Handler
 import android.os.Looper
 import org.json.JSONObject
@@ -21,11 +24,15 @@ import kotlin.math.abs
  * Records 16 kHz mono PCM, uses a simple energy-based voice-activity detector to
  * cut utterances at pauses, wraps each utterance as a WAV, and POSTs it. Higher
  * accuracy than the on-device engine but needs network and an API key.
+ *
+ * The audio can come from the microphone or, via [CaptureSource.Internal], from
+ * the phone's own playback (other apps' sound) using AudioPlaybackCapture.
  */
 class WhisperSpeechEngine(
     private val baseUrl: String,
     private val apiKey: String,
-    private val model: String
+    private val model: String,
+    private val source: CaptureSource = CaptureSource.Microphone
 ) : SpeechEngine {
 
     override var onPartial: (String) -> Unit = {}
@@ -48,6 +55,34 @@ class WhisperSpeechEngine(
         private const val SILENCE_FRAMES_TO_CUT = 5       // ~500 ms pause ends an utterance
         private const val MIN_UTTERANCE_FRAMES = 3        // ignore <300 ms blips
         private const val MAX_UTTERANCE_FRAMES = 60       // force-cut long speech every ~6 s
+    }
+
+    @SuppressLint("MissingPermission", "NewApi") // RECORD_AUDIO checked by caller; Internal gated to API 29+.
+    private fun buildRecorder(bufferSize: Int): AudioRecord = when (val s = source) {
+        is CaptureSource.Internal -> {
+            val format = AudioFormat.Builder()
+                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                .setSampleRate(SAMPLE_RATE)
+                .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
+                .build()
+            val config = AudioPlaybackCaptureConfiguration.Builder(s.projection)
+                .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
+                .addMatchingUsage(AudioAttributes.USAGE_GAME)
+                .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN)
+                .build()
+            AudioRecord.Builder()
+                .setAudioFormat(format)
+                .setBufferSizeInBytes(bufferSize)
+                .setAudioPlaybackCaptureConfig(config)
+                .build()
+        }
+        CaptureSource.Microphone -> AudioRecord(
+            MediaRecorder.AudioSource.VOICE_RECOGNITION,
+            SAMPLE_RATE,
+            AudioFormat.CHANNEL_IN_MONO,
+            AudioFormat.ENCODING_PCM_16BIT,
+            bufferSize
+        )
     }
 
     override fun setLanguage(localeTag: String) {
@@ -88,16 +123,15 @@ class WhisperSpeechEngine(
             return
         }
 
-        val recorder = AudioRecord(
-            MediaRecorder.AudioSource.VOICE_RECOGNITION,
-            SAMPLE_RATE,
-            AudioFormat.CHANNEL_IN_MONO,
-            AudioFormat.ENCODING_PCM_16BIT,
-            maxOf(minBuffer, FRAME_SAMPLES * 2 * 4)
-        )
+        val recorder = try {
+            buildRecorder(maxOf(minBuffer, FRAME_SAMPLES * 2 * 4))
+        } catch (e: Exception) {
+            postError("오디오 캡처 초기화 실패: ${e.message}")
+            return
+        }
         if (recorder.state != AudioRecord.STATE_INITIALIZED) {
             recorder.release()
-            postError("마이크를 열 수 없습니다")
+            postError("오디오 입력을 열 수 없습니다")
             return
         }
 
