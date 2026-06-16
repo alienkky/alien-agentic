@@ -55,6 +55,8 @@ class WhisperSpeechEngine(
         private const val SILENCE_FRAMES_TO_CUT = 5       // ~500 ms pause ends an utterance
         private const val MIN_UTTERANCE_FRAMES = 3        // ignore <300 ms blips
         private const val MAX_UTTERANCE_FRAMES = 60       // force-cut long speech every ~6 s
+        private const val CHUNK_FRAMES = 40               // internal audio: send every ~4 s
+        private const val INTERNAL_SOUND_FLOOR = 250      // skip near-silent chunks
     }
 
     @SuppressLint("MissingPermission", "NewApi") // RECORD_AUDIO checked by caller; Internal gated to API 29+.
@@ -135,42 +137,13 @@ class WhisperSpeechEngine(
             return
         }
 
-        val frame = ShortArray(FRAME_SAMPLES)
-        val utterance = ByteArrayOutputStream()
-        var voicedFrames = 0
-        var silenceFrames = 0
-
         try {
             recorder.startRecording()
-            while (running) {
-                val read = recorder.read(frame, 0, frame.size)
-                if (read <= 0) continue
-
-                val voiced = isVoiced(frame, read)
-                if (voiced) {
-                    silenceFrames = 0
-                    voicedFrames++
-                    appendPcm(utterance, frame, read)
-                    // Long monologue: cut periodically so captions appear sooner.
-                    if (voicedFrames >= MAX_UTTERANCE_FRAMES) {
-                        flush(utterance.toByteArray())
-                        utterance.reset()
-                        voicedFrames = 0
-                        silenceFrames = 0
-                    }
-                } else if (voicedFrames > 0) {
-                    // Trailing silence after speech: keep a little, then maybe cut.
-                    silenceFrames++
-                    appendPcm(utterance, frame, read)
-                    if (silenceFrames >= SILENCE_FRAMES_TO_CUT) {
-                        if (voicedFrames >= MIN_UTTERANCE_FRAMES) {
-                            flush(utterance.toByteArray())
-                        }
-                        utterance.reset()
-                        voicedFrames = 0
-                        silenceFrames = 0
-                    }
-                }
+            if (source is CaptureSource.Internal) {
+                // Media/internal audio rarely has clean pauses → fixed-interval send.
+                chunkedCaptureLoop(recorder)
+            } else {
+                vadCaptureLoop(recorder)
             }
         } catch (e: Exception) {
             postError("녹음 오류: ${e.message}")
@@ -183,13 +156,77 @@ class WhisperSpeechEngine(
         }
     }
 
-    private fun isVoiced(frame: ShortArray, count: Int): Boolean {
+    /** Speech from the mic: cut utterances at ~0.5 s pauses. */
+    private fun vadCaptureLoop(recorder: AudioRecord) {
+        val frame = ShortArray(FRAME_SAMPLES)
+        val utterance = ByteArrayOutputStream()
+        var voicedFrames = 0
+        var silenceFrames = 0
+        while (running) {
+            val read = recorder.read(frame, 0, frame.size)
+            if (read <= 0) continue
+
+            val voiced = isVoiced(frame, read)
+            if (voiced) {
+                silenceFrames = 0
+                voicedFrames++
+                appendPcm(utterance, frame, read)
+                if (voicedFrames >= MAX_UTTERANCE_FRAMES) {
+                    flush(utterance.toByteArray())
+                    utterance.reset()
+                    voicedFrames = 0
+                    silenceFrames = 0
+                }
+            } else if (voicedFrames > 0) {
+                silenceFrames++
+                appendPcm(utterance, frame, read)
+                if (silenceFrames >= SILENCE_FRAMES_TO_CUT) {
+                    if (voicedFrames >= MIN_UTTERANCE_FRAMES) {
+                        flush(utterance.toByteArray())
+                    }
+                    utterance.reset()
+                    voicedFrames = 0
+                    silenceFrames = 0
+                }
+            }
+        }
+    }
+
+    /**
+     * Internal/media audio: accumulate and flush every [CHUNK_FRAMES] (~4 s),
+     * skipping only chunks that are essentially silent. This guarantees regular
+     * transcription even when there are no clear speech pauses (BGM, etc.).
+     */
+    private fun chunkedCaptureLoop(recorder: AudioRecord) {
+        val frame = ShortArray(FRAME_SAMPLES)
+        val chunk = ByteArrayOutputStream()
+        var frames = 0
+        var hasSound = false
+        while (running) {
+            val read = recorder.read(frame, 0, frame.size)
+            if (read <= 0) continue
+            appendPcm(chunk, frame, read)
+            frames++
+            if (peakAmplitude(frame, read) >= INTERNAL_SOUND_FLOOR) hasSound = true
+            if (frames >= CHUNK_FRAMES) {
+                if (hasSound) flush(chunk.toByteArray())
+                chunk.reset()
+                frames = 0
+                hasSound = false
+            }
+        }
+    }
+
+    private fun isVoiced(frame: ShortArray, count: Int): Boolean =
+        peakAmplitude(frame, count) >= VOICE_AMPLITUDE
+
+    private fun peakAmplitude(frame: ShortArray, count: Int): Int {
         var peak = 0
         for (i in 0 until count) {
             val a = abs(frame[i].toInt())
             if (a > peak) peak = a
         }
-        return peak >= VOICE_AMPLITUDE
+        return peak
     }
 
     private fun appendPcm(out: ByteArrayOutputStream, frame: ShortArray, count: Int) {

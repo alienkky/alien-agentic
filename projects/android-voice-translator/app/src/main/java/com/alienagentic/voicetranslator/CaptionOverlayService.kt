@@ -327,12 +327,17 @@ class CaptionOverlayService : Service() {
         } else {
             EngineFactory.create(this, settings)
         }
+        if (internal) {
+            mainHandler.post { sourceView?.text = getString(R.string.internal_listening) }
+        }
         e.onPartial = { text -> mainHandler.post { sourceView?.text = text } }
         e.onFinal = { text ->
             mainHandler.post { sourceView?.text = text }
             translate(text)
         }
-        e.onError = { /* keep captions running; transient errors self-recover */ }
+        // Surface errors on-screen so problems (e.g. bad API key, blocked
+        // capture) are visible instead of failing silently.
+        e.onError = { msg -> mainHandler.post { translatedView?.text = msg } }
         engine = e
         e.start()
     }
@@ -347,7 +352,7 @@ class CaptionOverlayService : Service() {
                     if (settings.speakTranslation) speaker?.speak(translated, targetCode)
                 }
             },
-            onError = { }
+            onError = { e -> mainHandler.post { translatedView?.text = "번역 오류: ${e.message}" } }
         )
     }
 

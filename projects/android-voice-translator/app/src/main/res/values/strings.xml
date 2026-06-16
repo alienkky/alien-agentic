@@ -32,6 +32,7 @@
     <string name="internal_min_version">내부 소리 캡처는 Android 10 이상에서만 가능합니다</string>
     <string name="internal_needs_cloud">내부 소리 번역은 설정에서 클라우드 Whisper(API 키)가 필요합니다</string>
     <string name="internal_started">내부 소리 자막을 시작했습니다 (오버레이 ✕ 로 종료)</string>
+    <string name="internal_listening">내부 소리 듣는 중… (영상을 재생하세요)</string>
     <string name="internal_cancelled">내부 소리 캡처가 취소되었습니다</string>
     <string name="internal_failed">내부 소리 캡처를 시작할 수 없습니다</string>
 
