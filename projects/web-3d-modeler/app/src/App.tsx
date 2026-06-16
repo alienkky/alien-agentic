@@ -17,10 +17,12 @@ import { SketchTransformDialog } from "./ui/SketchTransformDialog";
 import { StatusPill } from "./ui/StatusPill";
 import { useAppStore } from "./store/useAppStore";
 import { useResponsiveShell } from "./device/useResponsiveShell";
+import { useKeyboardShortcuts } from "./input/keyboard";
 
 export function App(): JSX.Element {
   const initKernel = useAppStore((s) => s.initKernel);
   const layout = useResponsiveShell();
+  useKeyboardShortcuts();
 
   useEffect(() => {
     void initKernel();
