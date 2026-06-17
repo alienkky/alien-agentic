@@ -35,7 +35,19 @@ export const CUBE_CORNERS: { id: string; dir: [number, number, number] }[] = (
   ] as [number, number, number][]
 ).map((d) => ({ id: `c${d.map((n) => (n > 0 ? "p" : "n")).join("")}`, dir: d }));
 
-/** 꼭짓점 마커를 모서리에 놓는 CSS transform. */
+/**
+ * 12 모서리 — 클릭 시 두 면 사이 대각(45°) 시점. 정확히 두 축이 ±1, 한 축은 0.
+ * cornerTransform 을 그대로 쓰면 0 축은 0 오프셋이라 모서리 중점에 정확히 놓인다.
+ */
+export const CUBE_EDGES: { id: string; dir: [number, number, number] }[] = (
+  [
+    [1, 1, 0], [1, -1, 0], [-1, 1, 0], [-1, -1, 0],
+    [1, 0, 1], [1, 0, -1], [-1, 0, 1], [-1, 0, -1],
+    [0, 1, 1], [0, 1, -1], [0, -1, 1], [0, -1, -1],
+  ] as [number, number, number][]
+).map((d) => ({ id: `e${d.map((n) => (n > 0 ? "p" : n < 0 ? "n" : "z")).join("")}`, dir: d }));
+
+/** 꼭짓점·모서리 마커를 큐브 표면에 놓는 CSS transform (0 축은 중점). */
 export function cornerTransform(dir: [number, number, number]): string {
   return `translate3d(${dir[0] * HALF}px, ${-dir[1] * HALF}px, ${dir[2] * HALF}px)`;
 }

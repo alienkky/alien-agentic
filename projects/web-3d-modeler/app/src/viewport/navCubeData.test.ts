@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { defaultCamera, viewDirection, spinView, toCartesian } from "./cameraMath";
-import { CUBE_FACES, CUBE_CORNERS, cubeTransform, cornerTransform, HALF } from "./navCubeData";
+import { CUBE_FACES, CUBE_CORNERS, CUBE_EDGES, cubeTransform, cornerTransform, HALF } from "./navCubeData";
 
 describe("네비큐브 — 면 클릭 → 시점 방향", () => {
   it("FRONT(+Z) → 카메라가 +Z 에서 정면을 본다", () => {
@@ -72,5 +72,26 @@ describe("네비큐브 — CSS 변환", () => {
   it("6 면 데이터 무결 + 꼭짓점 변환은 ±HALF 격자", () => {
     expect(CUBE_FACES).toHaveLength(6);
     expect(cornerTransform([1, -1, 1])).toBe(`translate3d(${HALF}px, ${HALF}px, ${HALF}px)`);
+  });
+});
+
+describe("네비큐브 — 12 모서리", () => {
+  it("12개 + 모두 정확히 두 축이 ±1, 한 축 0 + 고유", () => {
+    expect(CUBE_EDGES).toHaveLength(12);
+    expect(new Set(CUBE_EDGES.map((e) => e.id)).size).toBe(12);
+    for (const e of CUBE_EDGES) {
+      const nonzero = e.dir.filter((n) => n !== 0).length;
+      expect(nonzero).toBe(2);
+    }
+  });
+
+  it("모서리 클릭 방향 → 45° 대각 시점 ([1,1,0] → polar 45°, azimuth 90°)", () => {
+    const c = viewDirection(defaultCamera(), [1, 1, 0]);
+    expect(c.polar).toBeCloseTo(Math.PI / 4, 6);
+    expect(c.azimuth).toBeCloseTo(Math.PI / 2, 6);
+  });
+
+  it("모서리 마커는 0 축이 중점(오프셋 0)", () => {
+    expect(cornerTransform([1, 1, 0])).toBe(`translate3d(${HALF}px, ${-HALF}px, 0px)`);
   });
 });

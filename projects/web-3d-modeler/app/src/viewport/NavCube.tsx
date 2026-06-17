@@ -8,7 +8,7 @@
  */
 import { useRef, type PointerEvent as ReactPointerEvent } from "react";
 import { useAppStore } from "../store/useAppStore";
-import { CUBE_FACES, CUBE_CORNERS, cubeTransform, cornerTransform } from "./navCubeData";
+import { CUBE_FACES, CUBE_CORNERS, CUBE_EDGES, cubeTransform, cornerTransform } from "./navCubeData";
 import type { SpinDir } from "./cameraMath";
 
 const DRAG_THRESHOLD_PX = 4;
@@ -91,6 +91,16 @@ export function NavCube(): JSX.Element {
             >
               {f.label}
             </button>
+          ))}
+          {CUBE_EDGES.map((e) => (
+            <button
+              key={e.id}
+              type="button"
+              title="모서리 뷰"
+              onClick={() => { if (!swallowedByDrag()) setViewDir(e.dir); }}
+              className="absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-sm border border-aa-accent/40 bg-aa-accent/15 hover:bg-aa-accent/70"
+              style={{ left: 40, top: 40, transform: cornerTransform(e.dir) }}
+            />
           ))}
           {CUBE_CORNERS.map((c) => (
             <button
