@@ -75,6 +75,45 @@ export function nearestStrokeIndex(strokes: SketchPoint[][], uv: SketchPoint, th
  * 반환: 새 strokes 배열, 자를 게 없으면 null.
  */
 export function trimAt(strokes: SketchPoint[][], uv: SketchPoint, threshold = 0.8): SketchPoint[][] | null {
+  const span = trimSpan(strokes, uv, threshold);
+  if (!span) return null;
+  const { s, i, lo, hi, a, b } = span;
+  const xlo = lerp(a, b, lo);
+  const xhi = lerp(a, b, hi);
+
+  // 획 재구성
+  const stroke = strokes[s]!;
+  const n = stroke.length;
+  const others = strokes.filter((_, idx) => idx !== s);
+
+  if (isClosed(stroke)) {
+    // 루프 → 하나의 열린 획: xhi 부터 한 바퀴 돌아 a 까지, 그 뒤 xlo
+    const pts: SketchPoint[] = [xhi];
+    for (let k = 1; k <= n; k++) pts.push(stroke[(i + k) % n]!);
+    pts.push(xlo);
+    const open = dedupe(pts);
+    return open.length >= 2 ? [...others, open] : others;
+  }
+  // 열린 획 → 두 조각
+  const left = dedupe([...stroke.slice(0, i + 1), xlo]);
+  const right = dedupe([xhi, ...stroke.slice(i + 1)]);
+  const result = [...others];
+  if (left.length >= 2) result.push(left);
+  if (right.length >= 2) result.push(right);
+  return result;
+}
+
+/** 자르기 미리보기 — 클릭 시 제거될 구간 [a,b] (빨강 하이라이트용). 없으면 null. */
+export function trimPreviewAt(strokes: SketchPoint[][], uv: SketchPoint, threshold = 0.8): { a: SketchPoint; b: SketchPoint } | null {
+  const span = trimSpan(strokes, uv, threshold);
+  if (!span) return null;
+  return { a: lerp(span.a, span.b, span.lo), b: lerp(span.a, span.b, span.hi) };
+}
+
+interface TrimSpan { s: number; i: number; lo: number; hi: number; a: SketchPoint; b: SketchPoint }
+
+/** 클릭 근처 선분과 제거 구간(lo,hi) 을 찾는다 — trimAt/trimPreviewAt 공용. */
+function trimSpan(strokes: SketchPoint[][], uv: SketchPoint, threshold: number): TrimSpan | null {
   // 1) 가장 가까운 선분 찾기
   interface Best { s: number; i: number; t: number; dist: number; a: SketchPoint; b: SketchPoint }
   let best: Best | null = null;
@@ -120,27 +159,5 @@ export function trimAt(strokes: SketchPoint[][], uv: SketchPoint, threshold = 0.
     }
   }
   if (hi - lo < 1e-4) return null;
-  const xlo = lerp(a, b, lo);
-  const xhi = lerp(a, b, hi);
-
-  // 4) 획 재구성
-  const stroke = strokes[s]!;
-  const n = stroke.length;
-  const others = strokes.filter((_, idx) => idx !== s);
-
-  if (isClosed(stroke)) {
-    // 루프 → 하나의 열린 획: xhi 부터 한 바퀴 돌아 a 까지, 그 뒤 xlo
-    const pts: SketchPoint[] = [xhi];
-    for (let k = 1; k <= n; k++) pts.push(stroke[(i + k) % n]!);
-    pts.push(xlo);
-    const open = dedupe(pts);
-    return open.length >= 2 ? [...others, open] : others;
-  }
-  // 열린 획 → 두 조각
-  const left = dedupe([...stroke.slice(0, i + 1), xlo]);
-  const right = dedupe([xhi, ...stroke.slice(i + 1)]);
-  const result = [...others];
-  if (left.length >= 2) result.push(left);
-  if (right.length >= 2) result.push(right);
-  return result;
+  return { s, i, lo, hi, a, b };
 }

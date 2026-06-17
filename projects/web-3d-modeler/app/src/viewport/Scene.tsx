@@ -50,9 +50,10 @@ export function Scene(): JSX.Element {
   const showAxes = useAppStore((s) => s.showAxes);
   const hidden = useAppStore((s) => s.hidden);
   const radius = useAppStore((s) => s.camera.radius);
+  const gridAdaptive = useAppStore((s) => s.snap.gridAdaptive);
 
-  // 확대할수록 격자가 잘아지는 어댑티브 그리드
-  const cell = useMemo(() => adaptiveCellSize(radius), [radius]);
+  // 확대할수록 격자가 잘아지는 어댑티브 그리드 (끄면 고정 크기 1)
+  const cell = useMemo(() => (gridAdaptive ? adaptiveCellSize(radius) : 1), [radius, gridAdaptive]);
 
   // 선택이 정확히 한 바디에 속할 때만 이동 기즈모를 보인다.
   const bodyIds = selectionBodyIds(selection);

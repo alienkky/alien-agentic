@@ -330,6 +330,23 @@ describe("useAppStore — 스케치 그리기 도구(호·스플라인·삭제)"
     expect(useAppStore.getState().sketchStrokes).toHaveLength(0);
   });
 
+  it("안내선 스냅: 두 번째 점이 첫 점과 수직 정렬로 스냅", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz"); // 자동 선 도구
+    st.sketchClickPoint({ u: 2, v: 0 });
+    st.sketchClickPoint({ u: 2.1, v: 5 }); // u≈2 → 수직 정렬 스냅
+    const pts = useAppStore.getState().sketchPoints;
+    expect(pts[1]!.u).toBe(2);
+  });
+
+  it("스케치 진입 시 기본 도구가 선(line)", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    expect(useAppStore.getState().sketchTool).toBe("line");
+  });
+
   it("점 드래그: 선택한 점이 이동", () => {
     const st = useAppStore.getState();
     st.beginSketch();
@@ -344,6 +361,25 @@ describe("useAppStore — 스케치 그리기 도구(호·스플라인·삭제)"
     expect(useAppStore.getState().sketchStrokes[0]![0]).toEqual({ u: 1, v: 1 });
     st.endPointDrag();
     expect(useAppStore.getState().sketchDraggingPoint).toBeNull();
+  });
+
+  it("선분 드래그: 두 끝점이 함께 평행 이동", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("rectangle");
+    st.sketchDragStart({ u: 0, v: 0 });
+    st.sketchDragMove({ u: 4, v: 4 });
+    st.sketchDragEnd();
+    // 사각형 획 [(0,0),(4,0),(4,4),(0,4)] — 선분 0 = (0,0)-(4,0)
+    st.startSegDrag(0, 0, { u: 2, v: 0 });
+    st.moveSegDrag({ u: 2, v: 3 }); // +v 3
+    const stroke = useAppStore.getState().sketchStrokes[0]!;
+    expect(stroke[0]).toEqual({ u: 0, v: 3 });
+    expect(stroke[1]).toEqual({ u: 4, v: 3 });
+    expect(stroke[2]).toEqual({ u: 4, v: 4 }); // 나머지 점은 그대로
+    st.endSegDrag();
+    expect(useAppStore.getState().sketchDraggingSeg).toBeNull();
   });
 });
 
@@ -390,6 +426,30 @@ describe("useAppStore — 스케치 변형(미러·패턴·오프셋·투상)", 
     st.sketchProject();
     // 박스 모서리(12) 가 획으로
     expect(useAppStore.getState().sketchStrokes.length).toBeGreaterThanOrEqual(12);
+  });
+});
+
+describe("useAppStore — 단면 보기", () => {
+  beforeEach(() => {
+    void useAppStore.getState().clear();
+    if (useAppStore.getState().sectionActive) useAppStore.getState().toggleSection();
+  });
+
+  it("선택 면 없으면 기본 XZ(y=0) 평면으로 단면 켜기/끄기", () => {
+    const st = useAppStore.getState();
+    st.toggleSection();
+    expect(useAppStore.getState().sectionActive).toBe(true);
+    expect(useAppStore.getState().sectionPlane).toEqual({ normal: [0, 1, 0], point: [0, 0, 0] });
+    st.toggleSection();
+    expect(useAppStore.getState().sectionActive).toBe(false);
+  });
+
+  it("선택한 면의 법선을 단면 평면으로", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(4, 4, 4, "box-1"), "박스"); // 면2 = +Y
+    st.selectEntity({ kind: "face", shapeId: "box-1", index: 2 });
+    st.toggleSection();
+    expect(useAppStore.getState().sectionPlane!.normal[1]).toBeCloseTo(1, 5);
   });
 });
 

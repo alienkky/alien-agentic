@@ -91,7 +91,7 @@ function SketchPalette(): JSX.Element {
       <Row icon={<EllipseIcon />} label="타원" active={tool === "ellipse"} onClick={() => pick("ellipse")} />
       <Row icon={<PolygonIcon />} label="다각형" sub="육각형" shortcut="G" active={tool === "polygon"} onClick={() => pick("polygon")} />
       <Row icon={<OffsetIcon />} label="모서리 오프셋" sub="체인" shortcut="O" onClick={() => openSketchTransform("offset")} />
-      <Row icon={<TransformIcon />} label="이동/회전" shortcut="M" onClick={() => soon("이동/회전")} />
+      <Row icon={<TransformIcon />} label="이동/회전" shortcut="M" onClick={() => openSketchTransform("move")} />
       <Row icon={<MirrorIcon />} label="미러" onClick={() => openSketchTransform("mirror")} />
       <Row icon={<PatternIcon />} label="패턴" sub="선형/원형" onClick={() => openSketchTransform("pattern")} />
       <Row icon={<ProjectIcon />} label="투상" shortcut="P" onClick={() => sketchProject()} />
@@ -114,6 +114,8 @@ export function LeftToolbar(): JSX.Element {
   const openTransform = useAppStore((s) => s.openTransform);
   const toggleMeasure = useAppStore((s) => s.toggleMeasure);
   const measureActive = useAppStore((s) => s.measureActive);
+  const toggleSection = useAppStore((s) => s.toggleSection);
+  const sectionActive = useAppStore((s) => s.sectionActive);
   const addMesh = useAppStore((s) => s.addMesh);
   const setStatus = useAppStore((s) => s.setStatus);
 
@@ -140,7 +142,7 @@ export function LeftToolbar(): JSX.Element {
 
         <div className="flex flex-col gap-0.5 border-t border-aa-border pt-1.5">
           {sketchActive && <Row icon={<ConstructIcon />} label="구성" sub="끄기" onClick={() => setStatus("구성 — 준비 중")} />}
-          <Row icon={<SectionIcon />} label="단면 뷰" sub="끄기" />
+          <Row icon={<SectionIcon />} label="단면 뷰" sub={sectionActive ? "켜짐" : "끄기"} active={sectionActive} onClick={() => toggleSection()} />
           <Row icon={<MeasureIcon />} label="측정" sub={measureActive ? "두 점 클릭" : undefined} active={measureActive} onClick={() => toggleMeasure()} />
         </div>
       </div>
