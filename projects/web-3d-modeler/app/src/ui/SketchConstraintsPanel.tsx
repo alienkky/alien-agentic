@@ -64,7 +64,13 @@ const CONSTRAINTS: { label: string; shortcut?: string }[] = [
 export function SketchConstraintsPanel(): JSX.Element | null {
   const sketchActive = useAppStore((s) => s.sketchActive);
   const setStatus = useAppStore((s) => s.setStatus);
+  const applyConstraint = useAppStore((s) => s.applySketchConstraint);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // 자체 솔버로 실제 동작하는 구속 (현재: 선택 세그먼트 수평/수직). 나머지는 다음 슬라이스.
+  const handlers: Record<string, () => void> = {
+    "수평/수직": () => applyConstraint("auto"),
+  };
 
   if (!sketchActive) return null;
 
@@ -89,17 +95,23 @@ export function SketchConstraintsPanel(): JSX.Element | null {
           {settingsOpen && <ConstraintSettingsPopup onClose={() => setSettingsOpen(false)} />}
         </div>
         <div className="my-1 h-px bg-aa-border" />
-        {CONSTRAINTS.map((c) => (
-          <button
-            key={c.label}
-            type="button"
-            onClick={() => setStatus(`구속: ${c.label} — 준비 중`)}
-            className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-sm text-aa-text aa-hoverable"
-          >
-            <span>{c.label}</span>
-            {c.shortcut && <span className="text-[10px] text-aa-text-dim">{c.shortcut}</span>}
-          </button>
-        ))}
+        {CONSTRAINTS.map((c) => {
+          const wired = handlers[c.label];
+          return (
+            <button
+              key={c.label}
+              type="button"
+              onClick={wired ?? (() => setStatus(`구속: ${c.label} — 준비 중`))}
+              className={[
+                "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-sm aa-hoverable",
+                wired ? "text-aa-text" : "text-aa-text-dim",
+              ].join(" ")}
+            >
+              <span>{c.label}</span>
+              {c.shortcut && <span className="text-[10px] text-aa-text-dim">{c.shortcut}</span>}
+            </button>
+          );
+        })}
       </div>
     </DraggablePanel>
   );

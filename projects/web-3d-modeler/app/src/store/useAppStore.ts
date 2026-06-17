@@ -16,6 +16,8 @@ import { SKETCH_PLANES, planeFromFace, type PlaneId, type SketchPoint, type Sket
 import { trimAt, nearestStrokeIndex } from "../kernel/sketchTrim";
 import { catmullRom, arc3 } from "../kernel/sketchCurves";
 import { collectSnapPoints, resolveSnap } from "../kernel/sketchSnap";
+import { solveConstraints } from "../kernel/constraintSolver";
+import { extractVertices, applyToStrokes, buildSegmentSolve, autoSegKind, type SegConstraintKind } from "../kernel/sketchConstraints";
 import {
   defaultCamera,
   orbit as orbitCam,
@@ -341,6 +343,8 @@ interface AppState {
   selectSketchSegment: (s: number, i: number) => void;
   setSegmentLength: (s: number, i: number, len: number) => void;
   clearSketchSegment: () => void;
+  /** 선택 세그먼트에 수평/수직 구속 적용 (자체 솔버, 공유 코너 동반). "auto"=각도로 H/V 자동. */
+  applySketchConstraint: (kind: SegConstraintKind | "auto") => void;
   /** 드래그 직후 치수 타이핑: 정상값 → 도형 보정 + 편집 닫기 / 거부값 → 드래그 결과 유지 + 편집 닫기 */
   commitSketchDim: (values: number[]) => void;
   cancelSketchDim: () => void;
@@ -908,6 +912,29 @@ export const useAppStore = create<AppState>((set, get) => ({
       const newStroke = stroke.map((p, idx) => (idx > i ? { u: p.u + deltaU, v: p.v + deltaV } : p));
       const strokes = s.sketchStrokes.map((st2, idx) => (idx === st ? newStroke : st2));
       return { sketchStrokes: strokes, sketchSelectedSeg: null, status: `선 길이 ${len} mm` };
+    }),
+
+  // 선택 세그먼트에 수평/수직 구속 — 공유 정점으로 묶어 자체 솔버로 재해(코너 동반 이동).
+  applySketchConstraint: (kind) =>
+    set((s) => {
+      const sel = s.sketchSelectedSeg;
+      if (!sel) return { status: "구속할 선분을 먼저 선택하세요" };
+      const stroke = s.sketchStrokes[sel.s];
+      const pa = stroke?.[sel.i];
+      const pb = stroke?.[sel.i + 1];
+      if (!pa || !pb) return { sketchSelectedSeg: null, status: "구속 적용 실패: 잘못된 선분" };
+      const resolved: SegConstraintKind = kind === "auto" ? autoSegKind(pa, pb) : kind;
+      const model = extractVertices(s.sketchStrokes);
+      const built = buildSegmentSolve(model, sel.s, sel.i, resolved);
+      if (!built) return { sketchSelectedSeg: null, status: "구속 적용 실패" };
+      const pts = model.pts.map((p, i) => (i === built.anchor ? { ...p, fixed: true } : p));
+      const res = solveConstraints(pts, built.constraints);
+      const strokes = applyToStrokes(s.sketchStrokes, model, res.points);
+      return {
+        sketchStrokes: strokes,
+        sketchSelectedSeg: null,
+        status: resolved === "horizontal" ? "수평 구속 적용" : "수직 구속 적용",
+      };
     }),
 
   undoSketchPoint: () =>
