@@ -17,13 +17,24 @@ test("단위 토글 → 치수 입력 박스 단위 표기 변경 (mm → in)", 
 
   // 사각형 그려 치수 편집 박스 띄우기
   await page.evaluate(() => {
-    const s = (window as unknown as { __alienStore: { getState: () => Record<string, (...a: unknown[]) => void> } }).__alienStore.getState();
+    const s = (window as unknown as {
+      __alienStore: {
+        getState: () => {
+          beginSketch: () => void;
+          pickPlane: (id: string) => void;
+          setSketchTool: (t: string) => void;
+          sketchDragStart: (p: { u: number; v: number }) => void;
+          sketchDragMove: (p: { u: number; v: number }) => void;
+          sketchDragEnd: () => void;
+        };
+      };
+    }).__alienStore.getState();
     s.beginSketch();
-    (s.pickPlane as (id: string) => void)("xz");
-    (s.setSketchTool as (t: string) => void)("rectangle");
-    (s.sketchDragStart as (p: unknown) => void)({ u: 0, v: 0 });
-    (s.sketchDragMove as (p: unknown) => void)({ u: 25.4, v: 25.4 });
-    (s.sketchDragEnd as () => void)();
+    s.pickPlane("xz");
+    s.setSketchTool("rectangle");
+    s.sketchDragStart({ u: 0, v: 0 });
+    s.sketchDragMove({ u: 25.4, v: 25.4 });
+    s.sketchDragEnd();
   });
 
   const dimBox = page.getByTestId("sketch-dim-input");

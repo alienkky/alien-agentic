@@ -7,7 +7,7 @@
 import { useMemo, useState } from "react";
 import * as THREE from "three";
 import { Line, Html } from "@react-three/drei";
-import { useAppStore, type SketchDimEdit } from "../store/useAppStore";
+import { useAppStore, type SketchDimEdit, type SketchSnapHint } from "../store/useAppStore";
 import { gridCellSize } from "./cameraMath";
 import { formatLength, unitSuffix, convertLength, toMm, type LengthUnit } from "../kernel/units";
 import {
@@ -164,6 +164,36 @@ function SegmentDimInput({ value, unit, onCommit, onCancel }: { value: number; u
   );
 }
 
+const SNAP_GUIDE = "#b06cff"; // Shapr3D 식 보라 가이드
+const SNAP_ENDPOINT = "#ffd24a";
+const SNAP_MIDPOINT = "#4fd1c5";
+
+/** 그리기 중 스냅 표시 — 끝점/중점 마커 + 수평/수직 보라 가이드 선. */
+function SnapHintView({ hint, plane }: { hint: SketchSnapHint; plane: SketchPlaneDef }): JSX.Element {
+  const w = (u: number, v: number): [number, number, number] => planeToWorld(plane, u, v);
+  if (hint.kind === "axis-h" || hint.kind === "axis-v") {
+    const L = 1000; // 평면을 가로지르는 충분히 긴 가이드
+    const a = hint.kind === "axis-h" ? w(hint.at.u - L, hint.at.v) : w(hint.at.u, hint.at.v - L);
+    const b = hint.kind === "axis-h" ? w(hint.at.u + L, hint.at.v) : w(hint.at.u, hint.at.v + L);
+    return (
+      <group>
+        <Line points={[a, b]} color={SNAP_GUIDE} lineWidth={1} dashed dashSize={0.4} gapSize={0.25} />
+        <mesh position={w(hint.at.u, hint.at.v)} renderOrder={6}>
+          <sphereGeometry args={[0.12, 12, 12]} />
+          <meshBasicMaterial color={SNAP_GUIDE} depthTest={false} />
+        </mesh>
+      </group>
+    );
+  }
+  // 끝점=주황 구, 중점=청록 옥타헤드론 (마커로 종류 구분)
+  return (
+    <mesh position={w(hint.at.u, hint.at.v)} renderOrder={6}>
+      {hint.kind === "endpoint" ? <sphereGeometry args={[0.15, 14, 14]} /> : <octahedronGeometry args={[0.16]} />}
+      <meshBasicMaterial color={hint.kind === "endpoint" ? SNAP_ENDPOINT : SNAP_MIDPOINT} depthTest={false} />
+    </mesh>
+  );
+}
+
 function fillGeometry(plane: SketchPlaneDef, pts: SketchPoint[]): THREE.ShapeGeometry | null {
   const first = pts[0];
   if (pts.length < 3 || !first) return null;
@@ -250,6 +280,8 @@ export function SketchLayer(): JSX.Element | null {
   const points = useAppStore((s) => s.sketchPoints);
   const strokes = useAppStore((s) => s.sketchStrokes);
   const dimEdit = useAppStore((s) => s.sketchDimEdit);
+  const snapHint = useAppStore((s) => s.sketchSnapHint);
+  const showSnapHint = useAppStore((s) => s.snap.snapHint);
   const lineDrawing = useAppStore((s) => s.sketchLineDrawing);
   const dragStart = useAppStore((s) => s.sketchDragStart);
   const dragMove = useAppStore((s) => s.sketchDragMove);
@@ -320,6 +352,9 @@ export function SketchLayer(): JSX.Element | null {
 
       {/* 드래그 직후 W×H/⌀ 타이핑 편집 */}
       {dimEdit && <DimensionEditor edit={dimEdit} plane={plane} unit={unit} key={`dim-${dimEdit.strokeIndex}`} />}
+
+      {/* 그리기 중 스냅 표시 (끝점/중점/축 보라 가이드) */}
+      {showSnapHint && snapHint && <SnapHintView hint={snapHint} plane={plane} />}
 
       {/* 사각형/원 드래그 미리보기 */}
       {draftView && (

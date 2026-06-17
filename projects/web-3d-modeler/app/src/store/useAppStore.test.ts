@@ -474,6 +474,70 @@ describe("useAppStore — 뷰 설정 (그리드 잠금·투영)", () => {
   });
 });
 
+describe("useAppStore — 그리기 스냅 (끝점/중점/축)", () => {
+  beforeEach(() => {
+    const st = useAppStore.getState();
+    st.cancelSketch();
+    if (!st.snap.grid) st.toggleSnap("grid"); // 다음 테스트가 끄고 켜므로 기본 켜짐 보장
+  });
+
+  it("끝점 스냅: 비격자 좌표의 기존 끝점에 클릭이 흡착", () => {
+    const st = useAppStore.getState();
+    st.toggleSnap("grid"); // 격자 끔 — 격자 반올림과 끝점 스냅을 구분하려고
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("line");
+    st.sketchClickPoint({ u: 0, v: 0 });
+    st.sketchClickPoint({ u: 4.3, v: 0 });
+    st.sketchClickPoint({ u: 4.3, v: 0 }); // 끝점 재클릭 → 확정
+    expect(useAppStore.getState().sketchStrokes).toHaveLength(1);
+    // 새 선: 끝점(4.3,0) 근처를 클릭 → 흡착
+    st.sketchClickPoint({ u: 4.4, v: 0.2 });
+    expect(useAppStore.getState().sketchPoints[0]).toEqual({ u: 4.3, v: 0 });
+    st.toggleSnap("grid"); // 원복
+  });
+
+  it("축 스냅: 거의 수평인 호버를 정확히 수평으로 + axis-h 힌트", () => {
+    const st = useAppStore.getState();
+    st.toggleSnap("grid");
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("line");
+    st.sketchClickPoint({ u: 0, v: 0 }); // anchor
+    st.sketchDragMove({ u: 5, v: 0.1 }); // 점 도구 호버
+    expect(useAppStore.getState().sketchHover).toEqual({ u: 5, v: 0 });
+    expect(useAppStore.getState().sketchSnapHint?.kind).toBe("axis-h");
+    st.toggleSnap("grid");
+  });
+
+  it("스냅 비활성(sketchPoint off): 끝점 흡착 안 함", () => {
+    const st = useAppStore.getState();
+    st.toggleSnap("grid");
+    st.toggleSnap("sketchPoint");
+    st.toggleSnap("sketchLine"); // 축 스냅도 꺼서 raw 유지 확인
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("line");
+    st.sketchClickPoint({ u: 4.4, v: 0.2 }); // 첫 점 — 후보 없어도 raw 유지
+    expect(useAppStore.getState().sketchPoints[0]).toEqual({ u: 4.4, v: 0.2 });
+    st.toggleSnap("sketchPoint");
+    st.toggleSnap("sketchLine");
+    st.toggleSnap("grid");
+  });
+
+  it("확정·취소 시 스냅 힌트 정리", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("line");
+    st.sketchClickPoint({ u: 0, v: 0 });
+    st.sketchDragMove({ u: 5, v: 0.1 });
+    expect(useAppStore.getState().sketchSnapHint).not.toBeNull();
+    st.cancelSketch();
+    expect(useAppStore.getState().sketchSnapHint).toBeNull();
+  });
+});
+
 describe("useAppStore — 측정", () => {
   beforeEach(() => {
     useAppStore.getState().clearMeasure();
