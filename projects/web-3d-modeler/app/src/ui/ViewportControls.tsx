@@ -83,7 +83,7 @@ export function ViewportControls(): JSX.Element {
           {UNITS.map((u) => <Row key={u.id} label={u.label} on={s.unit === u.id} onClick={run(() => s.setUnit(u.id))} />)}
           <div className="my-1 h-px bg-aa-border" />
           <Section title="그리드" />
-          <Row label="그리드 크기 잠금" right={<Toggle on={s.snap.grid} />} onClick={() => s.toggleSnap("grid")} />
+          <Row label="확대 시 격자 잘게 나눔" right={<Toggle on={s.snap.gridAdaptive} />} onClick={() => s.toggleSnap("gridAdaptive")} />
           <div className="my-1 h-px bg-aa-border" />
           <Section title="각도 포맷" />
           <Row label="십진법 (예: 27.15°)" on onClick={close} />

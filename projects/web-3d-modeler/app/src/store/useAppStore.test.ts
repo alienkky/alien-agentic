@@ -329,6 +329,104 @@ describe("useAppStore — 스케치 그리기 도구(호·스플라인·삭제)"
     st.deleteSketchStrokeAt({ u: 0, v: 0 });
     expect(useAppStore.getState().sketchStrokes).toHaveLength(0);
   });
+
+  it("안내선 스냅: 두 번째 점이 첫 점과 수직 정렬로 스냅", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz"); // 자동 선 도구
+    st.sketchClickPoint({ u: 2, v: 0 });
+    st.sketchClickPoint({ u: 2.1, v: 5 }); // u≈2 → 수직 정렬 스냅
+    const pts = useAppStore.getState().sketchPoints;
+    expect(pts[1]!.u).toBe(2);
+  });
+
+  it("스케치 진입 시 기본 도구가 선(line)", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    expect(useAppStore.getState().sketchTool).toBe("line");
+  });
+
+  it("점 드래그: 선택한 점이 이동", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("rectangle");
+    st.sketchDragStart({ u: 0, v: 0 });
+    st.sketchDragMove({ u: 4, v: 4 });
+    st.sketchDragEnd();
+    st.startPointDrag(0, 0);
+    expect(useAppStore.getState().sketchDraggingPoint).toEqual({ s: 0, i: 0 });
+    st.movePointDrag({ u: 1, v: 1 });
+    expect(useAppStore.getState().sketchStrokes[0]![0]).toEqual({ u: 1, v: 1 });
+    st.endPointDrag();
+    expect(useAppStore.getState().sketchDraggingPoint).toBeNull();
+  });
+
+  it("선분 드래그: 두 끝점이 함께 평행 이동", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("rectangle");
+    st.sketchDragStart({ u: 0, v: 0 });
+    st.sketchDragMove({ u: 4, v: 4 });
+    st.sketchDragEnd();
+    // 사각형 획 [(0,0),(4,0),(4,4),(0,4)] — 선분 0 = (0,0)-(4,0)
+    st.startSegDrag(0, 0, { u: 2, v: 0 });
+    st.moveSegDrag({ u: 2, v: 3 }); // +v 3
+    const stroke = useAppStore.getState().sketchStrokes[0]!;
+    expect(stroke[0]).toEqual({ u: 0, v: 3 });
+    expect(stroke[1]).toEqual({ u: 4, v: 3 });
+    expect(stroke[2]).toEqual({ u: 4, v: 4 }); // 나머지 점은 그대로
+    st.endSegDrag();
+    expect(useAppStore.getState().sketchDraggingSeg).toBeNull();
+  });
+});
+
+describe("useAppStore — 스케치 변형(미러·패턴·오프셋·투상)", () => {
+  beforeEach(() => {
+    void useAppStore.getState().clear();
+    useAppStore.getState().cancelSketch();
+  });
+
+  function drawRect(): void {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("rectangle");
+    st.sketchDragStart({ u: 2, v: 2 });
+    st.sketchDragMove({ u: 4, v: 4 });
+    st.sketchDragEnd();
+  }
+
+  it("미러: 획이 반사 복제되어 2배", () => {
+    drawRect();
+    expect(useAppStore.getState().sketchStrokes).toHaveLength(1);
+    useAppStore.getState().sketchMirror("v");
+    expect(useAppStore.getState().sketchStrokes).toHaveLength(2);
+  });
+
+  it("선형 패턴: count배 만큼 획 증가", () => {
+    drawRect();
+    useAppStore.getState().sketchPatternLinear("u", 4, 5);
+    expect(useAppStore.getState().sketchStrokes).toHaveLength(4); // 원본1 + 복제3
+  });
+
+  it("오프셋: 각 획마다 오프셋 획 추가", () => {
+    drawRect();
+    useAppStore.getState().sketchOffset(0.5);
+    expect(useAppStore.getState().sketchStrokes).toHaveLength(2);
+  });
+
+  it("투상: 바디 모서리를 평면에 투영해 획 생성", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(4, 4, 4, "box-1"), "박스");
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.sketchProject();
+    // 박스 모서리(12) 가 획으로
+    expect(useAppStore.getState().sketchStrokes.length).toBeGreaterThanOrEqual(12);
+  });
 });
 
 describe("useAppStore — 측정", () => {

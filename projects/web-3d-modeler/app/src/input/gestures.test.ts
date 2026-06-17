@@ -21,11 +21,18 @@ describe("GestureResolver — 입력 역할 분리", () => {
     expect(cmds[0]?.type).toBe("orbit");
   });
 
-  it("마우스 우버튼 드래그 → 팬", () => {
+  it("마우스 가운데버튼 드래그 → 팬", () => {
+    const g = new GestureResolver();
+    g.down(s({ pointerId: 1, x: 0, y: 0, pointerType: "mouse", buttons: 4 }));
+    const cmds = g.move(s({ pointerId: 1, x: 10, y: 0, pointerType: "mouse", buttons: 4 }));
+    expect(cmds[0]?.type).toBe("pan");
+  });
+
+  it("마우스 우버튼 드래그 → 궤도(회전)", () => {
     const g = new GestureResolver();
     g.down(s({ pointerId: 1, x: 0, y: 0, pointerType: "mouse", buttons: 2 }));
     const cmds = g.move(s({ pointerId: 1, x: 10, y: 0, pointerType: "mouse", buttons: 2 }));
-    expect(cmds[0]?.type).toBe("pan");
+    expect(cmds[0]?.type).toBe("orbit");
   });
 
   it("마우스 좌버튼 드래그 → 궤도", () => {

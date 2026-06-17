@@ -73,6 +73,8 @@ function SketchPalette(): JSX.Element {
   const finishSketch = useAppStore((s) => s.finishSketch);
   const setStatus = useAppStore((s) => s.setStatus);
   const plane = useAppStore((s) => s.sketchPlane);
+  const openSketchTransform = useAppStore((s) => s.openSketchTransform);
+  const sketchProject = useAppStore((s) => s.sketchProject);
 
   const pick = (t: SketchTool) => setSketchTool(t);
   const soon = (name: string) => setStatus(`${name} — 준비 중`);
@@ -88,11 +90,11 @@ function SketchPalette(): JSX.Element {
       <Row icon={<Circle2DIcon />} label="원" shortcut="C" active={tool === "circle"} onClick={() => pick("circle")} />
       <Row icon={<EllipseIcon />} label="타원" active={tool === "ellipse"} onClick={() => pick("ellipse")} />
       <Row icon={<PolygonIcon />} label="다각형" sub="육각형" shortcut="G" active={tool === "polygon"} onClick={() => pick("polygon")} />
-      <Row icon={<OffsetIcon />} label="모서리 오프셋" sub="체인" shortcut="O" onClick={() => soon("모서리 오프셋")} />
-      <Row icon={<TransformIcon />} label="이동/회전" shortcut="M" onClick={() => soon("이동/회전")} />
-      <Row icon={<MirrorIcon />} label="미러" onClick={() => soon("미러")} />
-      <Row icon={<PatternIcon />} label="패턴" sub="선형" onClick={() => soon("패턴")} />
-      <Row icon={<ProjectIcon />} label="투상" shortcut="P" onClick={() => soon("투상")} />
+      <Row icon={<OffsetIcon />} label="모서리 오프셋" sub="체인" shortcut="O" onClick={() => openSketchTransform("offset")} />
+      <Row icon={<TransformIcon />} label="이동/회전" shortcut="M" onClick={() => openSketchTransform("move")} />
+      <Row icon={<MirrorIcon />} label="미러" onClick={() => openSketchTransform("mirror")} />
+      <Row icon={<PatternIcon />} label="패턴" sub="선형/원형" onClick={() => openSketchTransform("pattern")} />
+      <Row icon={<ProjectIcon />} label="투상" shortcut="P" onClick={() => sketchProject()} />
       <Row icon={<TextIcon />} label="텍스트" onClick={() => soon("텍스트")} />
       <Row icon={<TrimIcon />} label="자르기" shortcut="T" active={tool === "trim"} onClick={() => pick("trim")} />
       <Row icon={<TrashIcon />} label="삭제" active={tool === "delete"} onClick={() => pick("delete")} />

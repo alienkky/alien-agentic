@@ -89,11 +89,11 @@ export class GestureResolver {
     }
 
     // 단일 포인터
-    if (prev.kind === "mouse" && (s.buttons & 0b110) !== 0) {
-      // 마우스 우/중 버튼 → 팬
+    if (prev.kind === "mouse" && (s.buttons & 0b100) !== 0) {
+      // 마우스 가운데 버튼 → 팬 (Shapr3D: 중버튼=이동, 우버튼=회전)
       return [{ type: "pan", dxPx: dx, dyPx: dy }];
     }
-    // 펜/마우스좌/손가락 → 궤도
+    // 펜/마우스 좌·우버튼/손가락 → 궤도(회전)
     return [{ type: "orbit", dxPx: dx, dyPx: dy }];
   }
 

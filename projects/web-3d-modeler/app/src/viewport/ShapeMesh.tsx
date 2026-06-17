@@ -108,6 +108,16 @@ export function ShapeMesh({ mesh }: { mesh: TessellatedMesh }): JSX.Element {
                 if (faceId !== null) selectEntity({ kind: "face", shapeId: mesh.shapeId, index: faceId });
               }
         }
+        onDoubleClick={
+          sketchActive
+            ? undefined
+            : (e) => {
+                e.stopPropagation();
+                // Shapr3D: 면 더블탭 → 바디 전체 선택. (앞선 단일탭 2회가 면 토글을 상쇄)
+                if (useAppStore.getState().measureActive) return;
+                selectEntity({ kind: "body", shapeId: mesh.shapeId, index: -1 });
+              }
+        }
       >
         <meshStandardMaterial
           color={bodySelected ? "#4fd1c5" : "#9aa7bd"}
