@@ -8,7 +8,8 @@ import { useMemo, useState } from "react";
 import * as THREE from "three";
 import { Line, Html } from "@react-three/drei";
 import { useAppStore, type SketchDimEdit } from "../store/useAppStore";
-import { adaptiveCellSize } from "./cameraMath";
+import { gridCellSize } from "./cameraMath";
+import { formatLength, unitSuffix, convertLength, toMm, type LengthUnit } from "../kernel/units";
 import {
   planeToWorld, worldToPlane,
   type PlaneId, type SketchPlaneDef, type SketchPoint,
@@ -80,23 +81,24 @@ const midUV = (a: SketchPoint, b: SketchPoint): SketchPoint => ({ u: (a.u + b.u)
  *  rectangle/ellipse: 두 칸 (W, H). circle/polygon: 한 칸 (⌀).
  *  Enter/Tab → 커밋, Esc → 취소, 입력 동안 r3f 카메라/픽킹 입력 차단 (stopPropagation).
  */
-function DimensionEditor({ edit, plane }: { edit: SketchDimEdit; plane: SketchPlaneDef }): JSX.Element {
+function DimensionEditor({ edit, plane, unit }: { edit: SketchDimEdit; plane: SketchPlaneDef; unit: LengthUnit }): JSX.Element {
   const commit = useAppStore((s) => s.commitSketchDim);
   const cancel = useAppStore((s) => s.cancelSketchDim);
   const dual = edit.kind === "rectangle" || edit.kind === "ellipse";
   const du = edit.current.u - edit.start.u;
   const dv = edit.current.v - edit.start.v;
-  const initA =
+  // 입력은 현재 단위로 표시·편집하고, 커밋 시 내부 mm 로 되돌린다.
+  const initAmm =
     edit.kind === "rectangle" ? Math.abs(du)
     : edit.kind === "ellipse" ? Math.abs(du) * 2
     : Math.hypot(du, dv) * 2;
-  const initB = edit.kind === "rectangle" ? Math.abs(dv) : edit.kind === "ellipse" ? Math.abs(dv) * 2 : 0;
-  const [a, setA] = useState(initA.toFixed(2));
-  const [b, setB] = useState(initB.toFixed(2));
+  const initBmm = edit.kind === "rectangle" ? Math.abs(dv) : edit.kind === "ellipse" ? Math.abs(dv) * 2 : 0;
+  const [a, setA] = useState(convertLength(initAmm, unit).toFixed(2));
+  const [b, setB] = useState(convertLength(initBmm, unit).toFixed(2));
   const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
   const doCommit = (): void => {
-    const av = parseFloat(a);
-    if (dual) commit([av, parseFloat(b)]);
+    const av = toMm(parseFloat(a), unit);
+    if (dual) commit([av, toMm(parseFloat(b), unit)]);
     else commit([av]);
   };
   return (
@@ -135,21 +137,28 @@ function DimensionEditor({ edit, plane }: { edit: SketchDimEdit; plane: SketchPl
             />
           </>
         )}
-        <span className="text-xs opacity-80">mm</span>
+        <span className="text-xs opacity-80">{unitSuffix(unit)}</span>
       </div>
     </Html>
   );
 }
 
-function SegmentDimInput({ value, onCommit, onCancel }: { value: number; onCommit: (n: number) => void; onCancel: () => void }): JSX.Element {
-  const [text, setText] = useState(value.toFixed(2));
+/** value 는 내부 mm. 표시·편집은 unit 으로, 커밋은 다시 mm 로 되돌린다. */
+function SegmentDimInput({ value, unit, onCommit, onCancel }: { value: number; unit: LengthUnit; onCommit: (mm: number) => void; onCancel: () => void }): JSX.Element {
+  const shown = convertLength(value, unit);
+  const [text, setText] = useState(shown.toFixed(2));
+  const commitText = (): void => {
+    const n = parseFloat(text);
+    if (!Number.isNaN(n) && Math.abs(n - shown) > 1e-6) onCommit(toMm(n, unit));
+    else onCancel();
+  };
   return (
     <input
       autoFocus type="number" inputMode="decimal" step="0.5" value={text}
       onChange={(e) => setText(e.target.value)}
       onPointerDown={(e) => e.stopPropagation()}
-      onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") { const n = parseFloat(text); if (!Number.isNaN(n)) onCommit(n); } else if (e.key === "Escape") onCancel(); }}
-      onBlur={() => { const n = parseFloat(text); if (!Number.isNaN(n) && Math.abs(n - value) > 1e-6) onCommit(n); else onCancel(); }}
+      onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") { const n = parseFloat(text); if (!Number.isNaN(n)) onCommit(toMm(n, unit)); } else if (e.key === "Escape") onCancel(); }}
+      onBlur={commitText}
       className="w-20 rounded bg-blue-600 px-1.5 py-1 text-center text-sm font-semibold text-white outline-none ring-2 ring-blue-300"
     />
   );
@@ -173,6 +182,7 @@ function StrokeView({ plane, pts, strokeIndex, hideSegLabels }: { plane: SketchP
   const selectSegment = useAppStore((s) => s.selectSketchSegment);
   const setSegmentLength = useAppStore((s) => s.setSegmentLength);
   const clearSeg = useAppStore((s) => s.clearSketchSegment);
+  const unit = useAppStore((s) => s.unit);
 
   const toWorld = (p: SketchPoint): [number, number, number] => planeToWorld(plane, p.u, p.v);
   const closed = pts.length >= 3;
@@ -200,10 +210,10 @@ function StrokeView({ plane, pts, strokeIndex, hideSegLabels }: { plane: SketchP
           return (
             <Html key={i} position={toWorld(midUV(a, b))} center style={{ pointerEvents: "auto" }}>
               {sel ? (
-                <SegmentDimInput value={segLen(a, b)} onCommit={(n) => setSegmentLength(strokeIndex, i, n)} onCancel={clearSeg} />
+                <SegmentDimInput value={segLen(a, b)} unit={unit} onCommit={(mm) => setSegmentLength(strokeIndex, i, mm)} onCancel={clearSeg} />
               ) : (
                 <button type="button" className={DIM_LABEL} onClick={(e) => { e.stopPropagation(); selectSegment(strokeIndex, i); }}>
-                  {segLen(a, b).toFixed(2)} mm
+                  {formatLength(segLen(a, b), unit)}
                 </button>
               )}
             </Html>
@@ -248,32 +258,36 @@ export function SketchLayer(): JSX.Element | null {
   const trimAtPoint = useAppStore((s) => s.trimSketchAt);
   const deleteAtPoint = useAppStore((s) => s.deleteSketchStrokeAt);
   const radius = useAppStore((s) => s.camera.radius);
+  const gridLock = useAppStore((s) => s.gridLock);
+  const unit = useAppStore((s) => s.unit);
   const isPointTool = tool === "line" || tool === "spline" || tool === "arc";
-  const cell = useMemo(() => adaptiveCellSize(radius), [radius]);
+  const cell = useMemo(() => gridCellSize(radius, gridLock), [radius, gridLock]);
 
-  // 드래그 중 미리보기(사각형/원)
+  // 드래그 중 미리보기(사각형/원) — 치수는 현재 단위로 표기
   const draftView = useMemo(() => {
     if (!draft) return null;
     const { start, current } = draft;
+    const fmt = (mm: number): string => formatLength(mm, unit, { suffix: false });
+    const su = unitSuffix(unit);
     if (tool === "circle") {
       const r = Math.hypot(current.u - start.u, current.v - start.v);
-      return { pts: circlePts(start, r), dim: `⌀ ${(r * 2).toFixed(2)} mm`, dimAt: midUV(start, current) };
+      return { pts: circlePts(start, r), dim: `${formatLength(r * 2, unit, { prefix: "⌀ " })}`, dimAt: midUV(start, current) };
     }
     if (tool === "ellipse") {
       const ru = Math.abs(current.u - start.u);
       const rv = Math.abs(current.v - start.v);
-      return { pts: ellipsePts(start, ru, rv), dim: `${(ru * 2).toFixed(2)} × ${(rv * 2).toFixed(2)} mm`, dimAt: midUV(start, current) };
+      return { pts: ellipsePts(start, ru, rv), dim: `${fmt(ru * 2)} × ${fmt(rv * 2)} ${su}`, dimAt: midUV(start, current) };
     }
     if (tool === "polygon") {
       const r = Math.hypot(current.u - start.u, current.v - start.v);
-      return { pts: polygonPts(start, r, POLY_SIDES), dim: `${POLY_SIDES}각 ⌀ ${(r * 2).toFixed(2)} mm`, dimAt: midUV(start, current) };
+      return { pts: polygonPts(start, r, POLY_SIDES), dim: `${POLY_SIDES}각 ${formatLength(r * 2, unit, { prefix: "⌀ " })}`, dimAt: midUV(start, current) };
     }
     return {
       pts: rectPts(start, current),
-      dim: `${Math.abs(current.u - start.u).toFixed(2)} × ${Math.abs(current.v - start.v).toFixed(2)} mm`,
+      dim: `${fmt(Math.abs(current.u - start.u))} × ${fmt(Math.abs(current.v - start.v))} ${su}`,
       dimAt: { u: (start.u + current.u) / 2, v: (start.v + current.v) / 2 },
     };
-  }, [draft, tool]);
+  }, [draft, tool, unit]);
 
   if (!active) return null;
   if (!plane) return <PlanePicker />;
@@ -305,7 +319,7 @@ export function SketchLayer(): JSX.Element | null {
       ))}
 
       {/* 드래그 직후 W×H/⌀ 타이핑 편집 */}
-      {dimEdit && <DimensionEditor edit={dimEdit} plane={plane} key={`dim-${dimEdit.strokeIndex}`} />}
+      {dimEdit && <DimensionEditor edit={dimEdit} plane={plane} unit={unit} key={`dim-${dimEdit.strokeIndex}`} />}
 
       {/* 사각형/원 드래그 미리보기 */}
       {draftView && (
@@ -329,7 +343,7 @@ export function SketchLayer(): JSX.Element | null {
         <group>
           <Line points={[toWorld(last), toWorld(hover)]} color={SK.guide} lineWidth={1.5} />
           <Html position={toWorld(midUV(last, hover))} center style={{ pointerEvents: "none" }}>
-            <div className={DIM_ACTIVE}>{segLen(last, hover).toFixed(2)} mm</div>
+            <div className={DIM_ACTIVE}>{formatLength(segLen(last, hover), unit)}</div>
           </Html>
         </group>
       )}

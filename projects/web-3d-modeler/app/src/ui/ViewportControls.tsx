@@ -83,7 +83,7 @@ export function ViewportControls(): JSX.Element {
           {UNITS.map((u) => <Row key={u.id} label={u.label} on={s.unit === u.id} onClick={run(() => s.setUnit(u.id))} />)}
           <div className="my-1 h-px bg-aa-border" />
           <Section title="그리드" />
-          <Row label="그리드 크기 잠금" right={<Toggle on={s.snap.grid} />} onClick={() => s.toggleSnap("grid")} />
+          <Row label="그리드 크기 잠금" right={<Toggle on={s.gridLock} />} onClick={() => s.toggleGridLock()} />
           <div className="my-1 h-px bg-aa-border" />
           <Section title="각도 포맷" />
           <Row label="십진법 (예: 27.15°)" on onClick={close} />
@@ -106,6 +106,10 @@ export function ViewportControls(): JSX.Element {
           <Row label="와이어프레임" on={s.displayMode === "wireframe"} onClick={run(() => s.setDisplayMode("wireframe"))} />
           <Row label="X-Ray" on={s.displayMode === "xray"} onClick={run(() => s.setDisplayMode("xray"))} />
           <Row label="음영" on={s.displayMode === "shaded"} onClick={run(() => s.setDisplayMode("shaded"))} />
+          <div className="my-1 h-px bg-aa-border" />
+          <Section title="투영" />
+          <Row label="원근 (Perspective)" on={s.projection === "perspective"} onClick={run(() => s.setProjection("perspective"))} />
+          <Row label="직교 (Orthographic)" on={s.projection === "orthographic"} onClick={run(() => s.setProjection("orthographic"))} />
           <div className="my-1 h-px bg-aa-border" />
           <Section title="옵션" />
           <Row label="에지 표시" right={<Toggle on={s.showEdges} />} onClick={() => s.toggleEdges()} />

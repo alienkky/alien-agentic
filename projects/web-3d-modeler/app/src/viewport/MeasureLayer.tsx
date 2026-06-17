@@ -4,10 +4,12 @@
 import * as THREE from "three";
 import { Line, Html } from "@react-three/drei";
 import { useAppStore } from "../store/useAppStore";
+import { formatLength } from "../kernel/units";
 
 export function MeasureLayer(): JSX.Element | null {
   const active = useAppStore((s) => s.measureActive);
   const pts = useAppStore((s) => s.measurePoints);
+  const unit = useAppStore((s) => s.unit);
   if (!active && pts.length === 0) return null;
 
   const a = pts[0];
@@ -27,7 +29,7 @@ export function MeasureLayer(): JSX.Element | null {
       {mid && (
         <Html position={mid} center style={{ pointerEvents: "none" }}>
           <div className="whitespace-nowrap rounded bg-amber-500 px-1.5 py-0.5 text-xs font-semibold text-black ring-1 ring-amber-300">
-            {dist.toFixed(2)} mm
+            {formatLength(dist, unit)}
           </div>
         </Html>
       )}

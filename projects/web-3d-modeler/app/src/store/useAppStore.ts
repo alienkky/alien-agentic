@@ -242,6 +242,13 @@ interface AppState {
   showAxes: boolean;
   toggleGrid: () => void;
   toggleAxes: () => void;
+  /** 그리드 크기 잠금 — 켜면 줌과 무관하게 셀 크기 고정 (Shapr3D) */
+  gridLock: boolean;
+  toggleGridLock: () => void;
+  /** 카메라 투영 — 원근(perspective) / 직교(orthographic) */
+  projection: "perspective" | "orthographic";
+  setProjection: (p: "perspective" | "orthographic") => void;
+  toggleProjection: () => void;
   /** 숨겨진 바디 id 목록 + 가시성 제어 */
   hidden: string[];
   hideSelectedBodies: () => void;
@@ -416,6 +423,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   showEdges: true,
   showGrid: true,
   showAxes: true,
+  gridLock: false,
+  projection: "perspective",
   hidden: [],
   snap: { grid: true, sketchLine: true, sketchPoint: true, guide3d: true, farEdge: true, guidePoint: true, snapHint: true },
   unit: "mm",
@@ -564,6 +573,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   toggleEdges: () => set((s) => ({ showEdges: !s.showEdges, status: `에지 표시: ${!s.showEdges ? "켜짐" : "꺼짐"}` })),
   toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
   toggleAxes: () => set((s) => ({ showAxes: !s.showAxes })),
+  toggleGridLock: () => set((s) => ({ gridLock: !s.gridLock, status: `그리드 크기 잠금: ${!s.gridLock ? "켜짐" : "꺼짐"}` })),
+  setProjection: (p) => set({ projection: p, status: `투영: ${p === "orthographic" ? "직교" : "원근"}` }),
+  toggleProjection: () => set((s) => ({ projection: s.projection === "perspective" ? "orthographic" : "perspective", status: `투영: ${s.projection === "perspective" ? "직교" : "원근"}` })),
   hideSelectedBodies: () =>
     set((s) => {
       const ids = selectionBodyIds(s.selection);

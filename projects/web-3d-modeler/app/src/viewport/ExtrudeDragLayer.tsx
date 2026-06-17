@@ -9,6 +9,7 @@ import { Line, Html } from "@react-three/drei";
 import { useAppStore } from "../store/useAppStore";
 import type { TessellatedMesh } from "../kernel/types";
 import { extrudeProfile } from "../kernel/extrude";
+import { formatLength } from "../kernel/units";
 
 function PreviewSolid({ mesh }: { mesh: TessellatedMesh }): JSX.Element {
   const geo = useMemo(() => {
@@ -29,6 +30,7 @@ export function ExtrudeDragLayer(): JSX.Element | null {
   const selection = useAppStore((s) => s.selection);
   const sketches = useAppStore((s) => s.sketches);
   const drag = useAppStore((s) => s.extrudeDrag);
+  const unit = useAppStore((s) => s.unit);
   const pressing = useRef(false);
 
   const single = selection.length === 1 && selection[0]!.kind === "sketch" ? selection[0]! : null;
@@ -87,7 +89,7 @@ export function ExtrudeDragLayer(): JSX.Element | null {
       {active && (
         <Html position={hp} center style={{ pointerEvents: "none" }}>
           <div className="whitespace-nowrap rounded bg-blue-600 px-1.5 py-0.5 text-xs font-semibold text-white ring-1 ring-blue-300">
-            {height.toFixed(1)} mm
+            {formatLength(height, unit)}
           </div>
         </Html>
       )}

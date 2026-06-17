@@ -129,6 +129,9 @@ export function TopMenuBar(): JSX.Element {
     { label: "와이어프레임", shortcut: "Alt+W", divider: true, checked: s.displayMode === "wireframe", onClick: () => s.setDisplayMode(s.displayMode === "wireframe" ? "shaded" : "wireframe") },
     { label: "X-Ray", shortcut: "Alt+X", checked: s.displayMode === "xray", onClick: () => s.setDisplayMode(s.displayMode === "xray" ? "shaded" : "xray") },
     { label: "음영", shortcut: "Alt+S", checked: s.displayMode === "shaded", onClick: () => s.setDisplayMode("shaded") },
+    { label: "원근 투영", divider: true, checked: s.projection === "perspective", onClick: () => s.setProjection("perspective") },
+    { label: "직교 투영", checked: s.projection === "orthographic", onClick: () => s.setProjection("orthographic") },
+    { label: "그리드 크기 잠금", checked: s.gridLock, onClick: () => s.toggleGridLock() },
   ];
 
   const helpItems: MenuItem[] = [

@@ -1,10 +1,10 @@
 /** 씬 구성 — 조명, 그리드, 기준 축, 셰이프들(+ 1개 선택 시 이동 기즈모). */
 import { useState, useMemo } from "react";
 import * as THREE from "three";
-import { Grid, TransformControls } from "@react-three/drei";
+import { Grid, TransformControls, OrthographicCamera } from "@react-three/drei";
 import { useAppStore, selectionBodyIds, type Vec3 } from "../store/useAppStore";
 import type { TessellatedMesh } from "../kernel/types";
-import { adaptiveCellSize } from "./cameraMath";
+import { gridCellSize } from "./cameraMath";
 import { CameraRig } from "./CameraRig";
 import { ShapeMesh } from "./ShapeMesh";
 import { SketchLayer } from "./SketchLayer";
@@ -50,9 +50,11 @@ export function Scene(): JSX.Element {
   const showAxes = useAppStore((s) => s.showAxes);
   const hidden = useAppStore((s) => s.hidden);
   const radius = useAppStore((s) => s.camera.radius);
+  const gridLock = useAppStore((s) => s.gridLock);
+  const projection = useAppStore((s) => s.projection);
 
-  // 확대할수록 격자가 잘아지는 어댑티브 그리드
-  const cell = useMemo(() => adaptiveCellSize(radius), [radius]);
+  // 잠금 시 고정 셀, 아니면 확대할수록 잘아지는 어댑티브 그리드
+  const cell = useMemo(() => gridCellSize(radius, gridLock), [radius, gridLock]);
 
   // 선택이 정확히 한 바디에 속할 때만 이동 기즈모를 보인다.
   const bodyIds = selectionBodyIds(selection);
@@ -61,6 +63,10 @@ export function Scene(): JSX.Element {
   return (
     <>
       <CameraRig />
+      {/* 직교 투영일 때만 ortho 카메라를 makeDefault 로 — 언마운트되면 drei 가 Canvas 의 원근 카메라로 복원 */}
+      {projection === "orthographic" && (
+        <OrthographicCamera makeDefault near={0.1} far={5000} position={[8, 8, 8]} />
+      )}
 
       <ambientLight intensity={0.4} />
       <directionalLight position={[8, 12, 6]} intensity={1.1} />

@@ -453,6 +453,27 @@ describe("useAppStore — 드래그 직후 W×H/⌀ 타이핑 입력 (Phase 2 �
   });
 });
 
+describe("useAppStore — 뷰 설정 (그리드 잠금·투영)", () => {
+  it("그리드 크기 잠금 토글", () => {
+    const st = useAppStore.getState();
+    const before = useAppStore.getState().gridLock;
+    st.toggleGridLock();
+    expect(useAppStore.getState().gridLock).toBe(!before);
+    st.toggleGridLock();
+    expect(useAppStore.getState().gridLock).toBe(before);
+  });
+
+  it("투영 set/toggle: 원근 ↔ 직교", () => {
+    const st = useAppStore.getState();
+    st.setProjection("perspective");
+    expect(useAppStore.getState().projection).toBe("perspective");
+    st.toggleProjection();
+    expect(useAppStore.getState().projection).toBe("orthographic");
+    st.toggleProjection();
+    expect(useAppStore.getState().projection).toBe("perspective");
+  });
+});
+
 describe("useAppStore — 측정", () => {
   beforeEach(() => {
     useAppStore.getState().clearMeasure();

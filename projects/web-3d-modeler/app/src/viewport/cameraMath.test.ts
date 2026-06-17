@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { defaultCamera, orbit, zoom, pan, toCartesian, viewPreset, type CameraState } from "./cameraMath";
+import { defaultCamera, orbit, zoom, pan, toCartesian, viewPreset, gridCellSize, adaptiveCellSize, orthoZoom, type CameraState } from "./cameraMath";
 
 describe("cameraMath", () => {
   it("toCartesian: 기본 카메라는 타깃에서 radius 만큼 떨어져 있다", () => {
@@ -47,5 +47,20 @@ describe("cameraMath", () => {
     expect(top.target).toEqual([1, 2, 3]);
     // top view: 거의 수직 위에서 내려다봄 → 카메라 Y 가 타깃보다 위
     expect(toCartesian(top)[1]).toBeGreaterThan(c.target[1]);
+  });
+
+  it("gridCellSize: 잠금이면 고정 1, 아니면 어댑티브와 동일", () => {
+    expect(gridCellSize(12, true)).toBe(1);
+    expect(gridCellSize(3, true)).toBe(1);
+    expect(gridCellSize(12, false)).toBe(adaptiveCellSize(12));
+    expect(gridCellSize(120, false)).toBe(adaptiveCellSize(120));
+  });
+
+  it("orthoZoom: 거리가 가까울수록(zoom in) 줌 값이 커진다", () => {
+    const near = orthoZoom(900, 6);
+    const far = orthoZoom(900, 24);
+    expect(near).toBeGreaterThan(far);
+    // 같은 radius 에서 뷰포트가 크면 zoom 도 비례해 커진다
+    expect(orthoZoom(1800, 12)).toBeCloseTo(orthoZoom(900, 12) * 2, 5);
   });
 });

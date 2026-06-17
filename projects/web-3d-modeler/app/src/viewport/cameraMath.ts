@@ -98,6 +98,21 @@ export function adaptiveCellSize(radius: number): number {
   return Math.pow(10, e - 1);
 }
 
+/**
+ * 그리드 셀 크기 — 잠금(lock)이면 줌과 무관하게 고정(1 단위), 아니면 어댑티브.
+ * Shapr3D "그리드 크기 잠금": 켜면 화면 줌에 상관없이 셀이 항상 같은 실제 크기를 유지한다.
+ */
+export function gridCellSize(radius: number, lock: boolean): number {
+  return lock ? 1 : adaptiveCellSize(radius);
+}
+
+/** 직교 투영 줌 = perspective 와 타깃 평면에서 보이는 세로 범위를 맞춘다. */
+export const CAMERA_FOV_DEG = 45;
+export function orthoZoom(viewportHeightPx: number, radius: number, fovDeg = CAMERA_FOV_DEG): number {
+  const halfFov = (fovDeg * Math.PI) / 180 / 2;
+  return viewportHeightPx / (2 * Math.max(radius, 1e-4) * Math.tan(halfFov));
+}
+
 export function toCartesian(state: CameraState): [number, number, number] {
   const { polar, azimuth, radius, target } = state;
   const sinP = Math.sin(polar);
