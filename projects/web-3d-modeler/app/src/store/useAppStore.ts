@@ -22,10 +22,13 @@ import {
   pan as panCam,
   zoom as zoomCam,
   viewPreset,
+  viewDirection,
+  spinView as spinViewCam,
   alignToNormal,
   gridCellSize,
   type CameraState,
   type ViewPreset,
+  type SpinDir,
 } from "../viewport/cameraMath";
 
 export interface FaceRef {
@@ -254,6 +257,10 @@ interface AppState {
   zoom: (factor: number) => void;
   resetCamera: () => void;
   setView: (view: ViewPreset) => void;
+  /** 네비큐브 면/모서리/꼭짓점 클릭 — 바깥 방향에서 바라봄. */
+  setViewDir: (dir: [number, number, number]) => void;
+  /** 네비큐브 화살표 — 90° 단위 회전. */
+  spinView: (dir: SpinDir) => void;
 
   initKernel: () => Promise<void>;
   setBackend: (backend: KernelBackend) => Promise<void>;
@@ -477,6 +484,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   zoom: (factor) => set((s) => ({ camera: zoomCam(s.camera, factor) })),
   resetCamera: () => set({ camera: defaultCamera() }),
   setView: (view) => set((s) => ({ camera: viewPreset(s.camera, view) })),
+  setViewDir: (dir) => set((s) => ({ camera: viewDirection(s.camera, dir) })),
+  spinView: (dir) => set((s) => ({ camera: spinViewCam(s.camera, dir) })),
 
   initKernel: async () => {
     if (kernel || typeof Worker === "undefined") return;

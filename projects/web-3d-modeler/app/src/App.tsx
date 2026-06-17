@@ -5,6 +5,7 @@ import { LeftToolbar } from "./ui/LeftToolbar";
 import { ItemsPanel } from "./ui/ItemsPanel";
 import { HistoryPanel } from "./ui/HistoryPanel";
 import { ViewportControls } from "./ui/ViewportControls";
+import { NavCube } from "./viewport/NavCube";
 import { ContextBar } from "./ui/ContextBar";
 import { SketchConstraintsPanel } from "./ui/SketchConstraintsPanel";
 import { SketchContextMenu } from "./ui/SketchContextMenu";
@@ -35,6 +36,7 @@ export function App(): JSX.Element {
       <LeftToolbar />
       <HistoryPanel />
       <ViewportControls />
+      <NavCube />
       <SketchConstraintsPanel />
       <ContextBar />
       <SketchContextMenu />

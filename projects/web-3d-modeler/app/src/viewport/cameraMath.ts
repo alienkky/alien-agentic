@@ -73,6 +73,31 @@ export function viewPreset(state: CameraState, view: ViewPreset): CameraState {
   return { ...state, azimuth: a.azimuth, polar: a.polar };
 }
 
+export type SpinDir = "left" | "right" | "up" | "down";
+
+/**
+ * 임의의 바깥 방향 dir 에서 타깃을 바라보도록 카메라를 정렬.
+ * 네비큐브(View Orientation Cube)의 면(6)·모서리(12)·꼭짓점(8) 클릭에 공통으로 쓴다.
+ * dir 은 정규화 전이어도 됨. polar 가 극(위/아래)에 닿으면 azimuth 는 유지(짐벌락 회피).
+ */
+export function viewDirection(state: CameraState, dir: [number, number, number]): CameraState {
+  const d = normalize(dir);
+  const polar = clamp(Math.acos(clamp(d[1], -1, 1)), POLAR_EPS, Math.PI - POLAR_EPS);
+  // 수평 성분이 0(순수 위/아래)이면 방위각은 짐벌락이므로 현재 회전을 유지한다.
+  const horiz = Math.hypot(d[0], d[2]);
+  const azimuth = horiz < 1e-6 ? state.azimuth : Math.atan2(d[0], d[2]);
+  return { ...state, azimuth, polar };
+}
+
+/** 네비큐브 화살표 — 시점을 90° 단위로 돌린다 (Shapr3D 의 spin arrows). */
+export function spinView(state: CameraState, dir: SpinDir): CameraState {
+  const Q = Math.PI / 2;
+  if (dir === "left") return { ...state, azimuth: state.azimuth - Q };
+  if (dir === "right") return { ...state, azimuth: state.azimuth + Q };
+  if (dir === "up") return { ...state, polar: clamp(state.polar - Q, POLAR_EPS, Math.PI - POLAR_EPS) };
+  return { ...state, polar: clamp(state.polar + Q, POLAR_EPS, Math.PI - POLAR_EPS) };
+}
+
 /**
  * 카메라를 면 법선 정면으로 정렬 — 그 면을 정면으로 바라보게(타깃=면 중심).
  * 면 위 스케치 진입 시 사용. 법선이 수직(위/아래)이면 방위각은 유지.
