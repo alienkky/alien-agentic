@@ -53,6 +53,15 @@ export function ShapeMesh({ mesh }: { mesh: TessellatedMesh }): JSX.Element {
   const sketchActive = useAppStore((s) => s.sketchActive);
   const displayMode = useAppStore((s) => s.displayMode);
   const showEdges = useAppStore((s) => s.showEdges);
+  const sectionActive = useAppStore((s) => s.sectionActive);
+  const sectionPlane = useAppStore((s) => s.sectionPlane);
+
+  const clip = useMemo(() => {
+    if (!sectionActive || !sectionPlane) return [];
+    const n = new THREE.Vector3(...sectionPlane.normal).normalize();
+    const p = new THREE.Vector3(...sectionPlane.point);
+    return [new THREE.Plane().setFromNormalAndCoplanarPoint(n, p)];
+  }, [sectionActive, sectionPlane]);
 
   const geometry = useMemo(() => buildGeometry(mesh), [mesh]);
   const edges = useMemo(
@@ -126,6 +135,7 @@ export function ShapeMesh({ mesh }: { mesh: TessellatedMesh }): JSX.Element {
           roughness={0.6}
           flatShading
           side={THREE.DoubleSide}
+          clippingPlanes={clip}
           wireframe={displayMode === "wireframe"}
           transparent={displayMode === "xray"}
           opacity={displayMode === "xray" ? 0.32 : 1}

@@ -17,6 +17,7 @@ export function Viewport(): JSX.Element {
         camera={{ fov: 45, near: 0.1, far: 5000, position: [8, 8, 8] }}
         dpr={[1, 2]}
         gl={{ antialias: true }}
+        onCreated={({ gl }) => { gl.localClippingEnabled = true; }}
         onPointerMissed={() => {
           // 빈 곳 탭 → 선택 해제 (스케치 중이면 무시)
           if (!useAppStore.getState().sketchActive) clearSelection();

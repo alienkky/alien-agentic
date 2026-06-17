@@ -202,6 +202,10 @@ interface AppState {
   showAxes: boolean;
   toggleGrid: () => void;
   toggleAxes: () => void;
+  /** 단면 보기 — 평면 한쪽을 잘라 속을 본다 */
+  sectionActive: boolean;
+  sectionPlane: { normal: Vec3; point: Vec3 } | null;
+  toggleSection: () => void;
   /** 숨겨진 바디 id 목록 + 가시성 제어 */
   hidden: string[];
   hideSelectedBodies: () => void;
@@ -406,6 +410,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   showEdges: true,
   showGrid: true,
   showAxes: true,
+  sectionActive: false,
+  sectionPlane: null,
   hidden: [],
   snap: { grid: true, sketchLine: true, sketchPoint: true, guide3d: true, farEdge: true, guidePoint: true, snapHint: true, gridAdaptive: true },
   sketchGuides: [],
@@ -556,6 +562,29 @@ export const useAppStore = create<AppState>((set, get) => ({
   toggleEdges: () => set((s) => ({ showEdges: !s.showEdges, status: `에지 표시: ${!s.showEdges ? "켜짐" : "꺼짐"}` })),
   toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
   toggleAxes: () => set((s) => ({ showAxes: !s.showAxes })),
+  toggleSection: () => {
+    const st = get();
+    if (st.sectionActive) {
+      set({ sectionActive: false, status: "단면 보기 끄기" });
+      return;
+    }
+    // 선택한 면이 있으면 그 면 기준, 없으면 기본 XZ(y=0) 평면
+    let normal: Vec3 = [0, 1, 0];
+    let point: Vec3 = [0, 0, 0];
+    const faceSel = st.selection.find((it) => it.kind === "face");
+    if (faceSel) {
+      const mesh = st.shapes.find((m) => m.shapeId === faceSel.shapeId);
+      const range = mesh?.faceRanges.find((r) => r.faceId === faceSel.index);
+      if (mesh && range) {
+        const off = st.transforms[mesh.shapeId] ?? [0, 0, 0];
+        const ni = mesh.indices[range.start]! * 3;
+        normal = [mesh.normals[ni]!, mesh.normals[ni + 1]!, mesh.normals[ni + 2]!];
+        const vi = mesh.indices[range.start]! * 3;
+        point = [mesh.positions[vi]! + off[0], mesh.positions[vi + 1]! + off[1], mesh.positions[vi + 2]! + off[2]];
+      }
+    }
+    set({ sectionActive: true, sectionPlane: { normal, point }, status: "단면 보기 — 선택 면(없으면 바닥) 기준" });
+  },
   hideSelectedBodies: () =>
     set((s) => {
       const ids = selectionBodyIds(s.selection);
