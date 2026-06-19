@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extractVertices, applyToStrokes, buildSegmentSolve, autoSegKind } from "./sketchConstraints";
+import { extractVertices, applyToStrokes, buildSegmentSolve, autoSegKind, nearAxisKind, buildAutoConstraints } from "./sketchConstraints";
 import { solveConstraints } from "./constraintSolver";
 import type { SketchPoint } from "./sketchPlane";
 
@@ -68,5 +68,35 @@ describe("스케치 구속 브릿지 — 세그먼트 H/V 적용", () => {
     const m = extractVertices([L([0, 0], [10, 0])]);
     expect(buildSegmentSolve(m, 0, 5, "horizontal")).toBeNull();
     expect(buildSegmentSolve(m, 9, 0, "horizontal")).toBeNull();
+  });
+});
+
+describe("스케치 구속 브릿지 — 자동 구속 (그릴 때)", () => {
+  it("nearAxisKind: 축 8° 이내만 H/V, 대각은 null", () => {
+    expect(nearAxisKind({ u: 0, v: 0 }, { u: 10, v: 0.5 })).toBe("horizontal"); // ~2.9°
+    expect(nearAxisKind({ u: 0, v: 0 }, { u: 0.5, v: 10 })).toBe("vertical");
+    expect(nearAxisKind({ u: 0, v: 0 }, { u: 10, v: 10 })).toBeNull(); // 45° 대각 유지
+  });
+
+  it("buildAutoConstraints: 거의 수평/수직 변에만 구속, 대각변 제외", () => {
+    // 3점 폴리라인: 거의 수평 → 대각 → 거의 수직
+    const strokes = [L([0, 0], [10, 0.4], [10.3, 8], [5, 5])];
+    const m = extractVertices(strokes);
+    const cons = buildAutoConstraints(strokes, m, 0);
+    // 세그0(수평) + 세그1(수직) 잡히고, 세그2(대각)는 제외 → 2개
+    expect(cons.length).toBe(2);
+    expect(cons[0]!.kind).toBe("horizontal");
+    expect(cons[1]!.kind).toBe("vertical");
+  });
+
+  it("자동 구속 풀이 → 거의 수평인 변이 정확히 수평으로", () => {
+    const strokes = [L([0, 0], [10, 0.4])];
+    const m = extractVertices(strokes);
+    const cons = buildAutoConstraints(strokes, m, 0);
+    const anchor = m.map[0]![0]!;
+    const pts = m.pts.map((p, i) => (i === anchor ? { ...p, fixed: true } : p));
+    const res = solveConstraints(pts, cons);
+    const out = applyToStrokes(strokes, m, res.points);
+    expect(out[0]![1]!.v).toBeCloseTo(0, 4);
   });
 });

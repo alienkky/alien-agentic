@@ -35,3 +35,27 @@ test("선택 세그먼트 수평 구속 → 코너 공유 동반 이동", async 
   // 공유 코너가 오른변 시작점에도 반영
   expect(after[1]![0]!.v).toBeCloseTo(0, 3);
 });
+
+test("자동 구속 — 거의 수평인 선이 그릴 때 정확히 수평으로 정렬", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText(/커널 준비됨/)).toBeVisible({ timeout: 30_000 });
+
+  const after = await page.evaluate(() => {
+    const store = (window as unknown as {
+      __alienStore: {
+        getState: () => { autoConstrainStroke: (i: number) => void; sketchStrokes: { u: number; v: number }[][] };
+        setState: (patch: Record<string, unknown>) => void;
+      };
+    }).__alienStore;
+    store.setState({
+      sketchActive: true,
+      sketchPrefs: { auto: true, showConstraints: false, showDims: true, anchor: "first" },
+      sketchStrokes: [[{ u: 0, v: 0 }, { u: 10, v: 0.4 }]], // ~2.3° 기운 선
+    });
+    store.getState().autoConstrainStroke(0);
+    return store.getState().sketchStrokes;
+  });
+
+  expect(after[0]![0]!.v).toBeCloseTo(0, 3); // 앵커
+  expect(after[0]![1]!.v).toBeCloseTo(0, 3); // 자동 수평
+});

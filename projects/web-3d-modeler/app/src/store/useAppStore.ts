@@ -17,7 +17,7 @@ import { trimAt, nearestStrokeIndex } from "../kernel/sketchTrim";
 import { catmullRom, arc3 } from "../kernel/sketchCurves";
 import { collectSnapPoints, resolveSnap } from "../kernel/sketchSnap";
 import { solveConstraints } from "../kernel/constraintSolver";
-import { extractVertices, applyToStrokes, buildSegmentSolve, autoSegKind, type SegConstraintKind } from "../kernel/sketchConstraints";
+import { extractVertices, applyToStrokes, buildSegmentSolve, buildAutoConstraints, autoSegKind, type SegConstraintKind } from "../kernel/sketchConstraints";
 import {
   defaultCamera,
   orbit as orbitCam,
@@ -345,6 +345,8 @@ interface AppState {
   clearSketchSegment: () => void;
   /** 선택 세그먼트에 수평/수직 구속 적용 (자체 솔버, 공유 코너 동반). "auto"=각도로 H/V 자동. */
   applySketchConstraint: (kind: SegConstraintKind | "auto") => void;
+  /** 갓 확정한 선(line) 스트로크의 축 근접 세그먼트를 H/V 로 자동 정렬. 다른 도형은 고정(불변). */
+  autoConstrainStroke: (strokeIdx: number) => void;
   /** 드래그 직후 치수 타이핑: 정상값 → 도형 보정 + 편집 닫기 / 거부값 → 드래그 결과 유지 + 편집 닫기 */
   commitSketchDim: (values: number[]) => void;
   cancelSketchDim: () => void;
@@ -840,6 +842,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     // 선·스플라인: 끝점 재클릭 → 확정
     if (tool !== "arc" && last && Math.hypot(p.u - last.u, p.v - last.v) < 0.4 && s.sketchPoints.length >= 2) {
       set((st) => ({ sketchStrokes: [...st.sketchStrokes, finalizeStroke(st.sketchPoints, tool)], sketchPoints: [], sketchLineDrawing: false, sketchHover: null, sketchSnapHint: null, status: "확정 — 계속 그리기 / 스케칭 종료" }));
+      if (tool === "line" && get().sketchPrefs.auto) get().autoConstrainStroke(get().sketchStrokes.length - 1);
       return;
     }
     const next = [...s.sketchPoints, p];
@@ -886,13 +889,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     }));
   },
   cancelSketchDim: () => set({ sketchDimEdit: null, status: "치수 입력 닫힘 — 드래그 결과 유지" }),
-  finishLine: () =>
-    set((s) => {
-      if (strokeValid(s.sketchPoints, s.sketchTool)) {
-        return { sketchStrokes: [...s.sketchStrokes, finalizeStroke(s.sketchPoints, s.sketchTool)], sketchPoints: [], sketchLineDrawing: false, sketchHover: null, sketchSnapHint: null, status: "확정 — 계속 / 종료" };
-      }
-      return { sketchPoints: [], sketchLineDrawing: false, sketchHover: null, sketchSnapHint: null };
-    }),
+  finishLine: () => {
+    const s = get();
+    const tool = s.sketchTool;
+    const valid = strokeValid(s.sketchPoints, tool);
+    if (valid) {
+      set((st) => ({ sketchStrokes: [...st.sketchStrokes, finalizeStroke(st.sketchPoints, tool)], sketchPoints: [], sketchLineDrawing: false, sketchHover: null, sketchSnapHint: null, status: "확정 — 계속 / 종료" }));
+      if (tool === "line" && get().sketchPrefs.auto) get().autoConstrainStroke(get().sketchStrokes.length - 1);
+    } else {
+      set({ sketchPoints: [], sketchLineDrawing: false, sketchHover: null, sketchSnapHint: null });
+    }
+  },
 
   // 확정된 획(stroke s)의 선분 i 길이를 변경 (방향 유지, 뒤 점 동반 이동)
   setSegmentLength: (st, i, len) =>
@@ -935,6 +942,23 @@ export const useAppStore = create<AppState>((set, get) => ({
         sketchSelectedSeg: null,
         status: resolved === "horizontal" ? "수평 구속 적용" : "수직 구속 적용",
       };
+    }),
+
+  // 그릴 때 자동 구속 — 갓 확정한 선의 축 근접 세그먼트만 H/V 로 정렬. 다른 도형(곡선 포함) 전부 고정.
+  autoConstrainStroke: (strokeIdx) =>
+    set((s) => {
+      const model = extractVertices(s.sketchStrokes);
+      const cons = buildAutoConstraints(s.sketchStrokes, model, strokeIdx);
+      if (cons.length === 0) return {};
+      // 다른 스트로크가 쓰는 정점 + 이 스트로크 첫 정점(앵커)은 고정 → 기존 도형·곡선 불변.
+      const otherVerts = new Set<number>();
+      model.map.forEach((row, si) => {
+        if (si !== strokeIdx) for (const v of row) otherVerts.add(v);
+      });
+      const anchor = model.map[strokeIdx]?.[0];
+      const pts = model.pts.map((p, i) => (otherVerts.has(i) || i === anchor ? { ...p, fixed: true } : p));
+      const res = solveConstraints(pts, cons);
+      return { sketchStrokes: applyToStrokes(s.sketchStrokes, model, res.points) };
     }),
 
   undoSketchPoint: () =>

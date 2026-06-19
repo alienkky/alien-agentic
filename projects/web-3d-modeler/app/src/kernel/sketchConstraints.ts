@@ -64,6 +64,47 @@ export function autoSegKind(a: SketchPoint, b: SketchPoint): SegConstraintKind {
   return Math.abs(b.v - a.v) <= Math.abs(b.u - a.u) ? "horizontal" : "vertical";
 }
 
+/** 자동 구속이 붙는 축 근접 허용 각도 (도). 대각선(~45°)은 건드리지 않는다. */
+export const AXIS_TOL_DEG = 8;
+
+/**
+ * 세그먼트가 축에 충분히 가까운가 → 'horizontal' | 'vertical' | null.
+ * 수평으로부터의 각도가 tol 이내면 수평, 90°−tol 이상이면 수직, 그 사이면 null(대각 유지).
+ */
+export function nearAxisKind(
+  a: SketchPoint,
+  b: SketchPoint,
+  tolDeg = AXIS_TOL_DEG,
+): SegConstraintKind | null {
+  const du = b.u - a.u;
+  const dv = b.v - a.v;
+  if (Math.hypot(du, dv) < 1e-9) return null;
+  const angH = (Math.atan2(Math.abs(dv), Math.abs(du)) * 180) / Math.PI; // 0=수평, 90=수직
+  if (angH <= tolDeg) return "horizontal";
+  if (angH >= 90 - tolDeg) return "vertical";
+  return null;
+}
+
+/** 한 스트로크의 축 근접 세그먼트들에 H/V 구속 생성 (그릴 때 자동 구속). */
+export function buildAutoConstraints(
+  strokes: SketchPoint[][],
+  model: VertexModel,
+  strokeIdx: number,
+  tolDeg = AXIS_TOL_DEG,
+): Constraint[] {
+  const stroke = strokes[strokeIdx];
+  const row = model.map[strokeIdx];
+  if (!stroke || !row) return [];
+  const cons: Constraint[] = [];
+  for (let i = 0; i + 1 < stroke.length; i++) {
+    const k = nearAxisKind(stroke[i]!, stroke[i + 1]!, tolDeg);
+    const a = row[i]!;
+    const b = row[i + 1]!;
+    if (k && a !== b) cons.push(k === "horizontal" ? { kind: "horizontal", a, b } : { kind: "vertical", a, b });
+  }
+  return cons;
+}
+
 /**
  * 선택 세그먼트(스트로크 strokeIdx 의 점 segIdx → segIdx+1)에 H/V 구속을 건다.
  * 첫 점을 앵커로 고정해 선이 그 점 기준으로 펴지도록(예측 가능). null = 잘못된 선택.
