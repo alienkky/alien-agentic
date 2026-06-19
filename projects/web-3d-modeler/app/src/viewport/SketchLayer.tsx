@@ -14,6 +14,8 @@ import {
   planeToWorld, worldToPlane,
   type PlaneId, type SketchPlaneDef, type SketchPoint,
 } from "../kernel/sketchPlane";
+import { extractVertices } from "../kernel/sketchConstraints";
+import { computeGlyphs } from "./constraintGlyphs";
 
 const PLANE_ROT: Record<PlaneId, [number, number, number]> = {
   xz: [-Math.PI / 2, 0, 0], xy: [0, 0, 0], yz: [0, Math.PI / 2, 0],
@@ -282,6 +284,8 @@ export function SketchLayer(): JSX.Element | null {
   const dimEdit = useAppStore((s) => s.sketchDimEdit);
   const snapHint = useAppStore((s) => s.sketchSnapHint);
   const showSnapHint = useAppStore((s) => s.snap.snapHint);
+  const constraints = useAppStore((s) => s.sketchConstraints);
+  const showConstraints = useAppStore((s) => s.sketchPrefs.showConstraints);
   const lineDrawing = useAppStore((s) => s.sketchLineDrawing);
   const dragStart = useAppStore((s) => s.sketchDragStart);
   const dragMove = useAppStore((s) => s.sketchDragMove);
@@ -355,6 +359,13 @@ export function SketchLayer(): JSX.Element | null {
 
       {/* 그리기 중 스냅 표시 (끝점/중점/축 보라 가이드) */}
       {showSnapHint && snapHint && <SnapHintView hint={snapHint} plane={plane} />}
+
+      {/* 구속 글리프 — 항상 구속 표시 ON 일 때 (Shapr3D 식 배지) */}
+      {showConstraints && computeGlyphs(extractVertices(strokes), constraints).map((g, i) => (
+        <Html key={`g${i}`} position={toWorld(g.at)} center style={{ pointerEvents: "none" }}>
+          <div className="rounded border border-aa-accent/60 bg-aa-bg/80 px-1 text-[10px] leading-tight text-aa-accent">{g.label}</div>
+        </Html>
+      ))}
 
       {/* 사각형/원 드래그 미리보기 */}
       {draftView && (

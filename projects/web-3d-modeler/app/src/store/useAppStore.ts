@@ -16,8 +16,9 @@ import { SKETCH_PLANES, planeFromFace, type PlaneId, type SketchPoint, type Sket
 import { trimAt, nearestStrokeIndex } from "../kernel/sketchTrim";
 import { catmullRom, arc3 } from "../kernel/sketchCurves";
 import { collectSnapPoints, resolveSnap } from "../kernel/sketchSnap";
-import { solveConstraints } from "../kernel/constraintSolver";
+import { solveConstraints, type Constraint } from "../kernel/constraintSolver";
 import { extractVertices, applyToStrokes, buildSegmentSolve, buildAutoConstraints, autoSegKind, type SegConstraintKind } from "../kernel/sketchConstraints";
+import { resolveDrag } from "../kernel/dragResolve";
 import {
   defaultCamera,
   orbit as orbitCam,
@@ -232,6 +233,8 @@ interface AppState {
   sketchStrokes: SketchPoint[][];
   /** 치수 편집 중인 선분 (stroke 획 인덱스, seg 선분 인덱스) */
   sketchSelectedSeg: { s: number; i: number } | null;
+  /** 영구 구속 — 적용된 구속을 보관해 정점 드래그 시 유지·재해(전역 정점 인덱스 기준). */
+  sketchConstraints: Constraint[];
   /** 드래그 직후 W×H/⌀ 타이핑 편집 — null 이면 대기 중 아님 */
   sketchDimEdit: SketchDimEdit | null;
   /** 그리기 중 스냅 표시(끝점/중점/축). null 이면 흡착 없음 */
@@ -347,6 +350,8 @@ interface AppState {
   applySketchConstraint: (kind: SegConstraintKind | "auto") => void;
   /** 갓 확정한 선(line) 스트로크의 축 근접 세그먼트를 H/V 로 자동 정렬. 다른 도형은 고정(불변). */
   autoConstrainStroke: (strokeIdx: number) => void;
+  /** 전역 정점을 target 으로 끌며 영구 구속을 유지·재해 (Shapr3D 식 라이브 드래그). */
+  dragSketchVertex: (vertexIdx: number, target: SketchPoint) => void;
   /** 드래그 직후 치수 타이핑: 정상값 → 도형 보정 + 편집 닫기 / 거부값 → 드래그 결과 유지 + 편집 닫기 */
   commitSketchDim: (values: number[]) => void;
   cancelSketchDim: () => void;
@@ -459,6 +464,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   sketchPoints: [],
   sketchStrokes: [],
   sketchSelectedSeg: null,
+  sketchConstraints: [],
   sketchDimEdit: null,
   sketchSnapHint: null,
   sketchLineDrawing: false,
@@ -698,6 +704,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       camera: plane ? alignToNormal(st.camera, plane.normal, plane.origin) : st.camera,
       sketchPoints: [],
       sketchStrokes: [],
+      sketchConstraints: [],
       sketchDraft: null,
       sketchHover: null,
       sketchSelectedSeg: null,
@@ -713,6 +720,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       sketchPlane: SKETCH_PLANES[id],
       sketchPoints: [],
       sketchStrokes: [],
+      sketchConstraints: [],
       sketchDraft: null,
       sketchDimEdit: null,
       sketchSnapHint: null,
@@ -940,6 +948,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       return {
         sketchStrokes: strokes,
         sketchSelectedSeg: null,
+        // 영구 보관 — 이후 정점 드래그에서 유지된다(구조 불변이면 전역 인덱스 안정).
+        sketchConstraints: [...s.sketchConstraints, ...built.constraints],
         status: resolved === "horizontal" ? "수평 구속 적용" : "수직 구속 적용",
       };
     }),
@@ -958,14 +968,26 @@ export const useAppStore = create<AppState>((set, get) => ({
       const anchor = model.map[strokeIdx]?.[0];
       const pts = model.pts.map((p, i) => (otherVerts.has(i) || i === anchor ? { ...p, fixed: true } : p));
       const res = solveConstraints(pts, cons);
-      return { sketchStrokes: applyToStrokes(s.sketchStrokes, model, res.points) };
+      return {
+        sketchStrokes: applyToStrokes(s.sketchStrokes, model, res.points),
+        sketchConstraints: [...s.sketchConstraints, ...cons],
+      };
+    }),
+
+  // 정점 드래그 라이브 재해 — 잡은 점을 target 에 고정하고 영구 구속을 만족시키며 나머지가 따라온다.
+  dragSketchVertex: (vertexIdx, target) =>
+    set((s) => {
+      const model = extractVertices(s.sketchStrokes);
+      if (vertexIdx < 0 || vertexIdx >= model.pts.length) return {};
+      const strokes = resolveDrag(s.sketchStrokes, model, s.sketchConstraints, vertexIdx, target);
+      return { sketchStrokes: strokes };
     }),
 
   undoSketchPoint: () =>
     set((s) => ({ sketchPoints: s.sketchPoints.slice(0, -1), sketchDraft: null, sketchSelectedSeg: null })),
 
   cancelSketch: () =>
-    set({ sketchActive: false, sketchPlane: null, sketchPoints: [], sketchStrokes: [], sketchDraft: null, sketchHover: null, sketchSelectedSeg: null, sketchDimEdit: null, sketchSnapHint: null, sketchLineDrawing: false, status: "스케치 취소" }),
+    set({ sketchActive: false, sketchPlane: null, sketchPoints: [], sketchStrokes: [], sketchConstraints: [], sketchDraft: null, sketchHover: null, sketchSelectedSeg: null, sketchDimEdit: null, sketchSnapHint: null, sketchLineDrawing: false, status: "스케치 취소" }),
 
   // 스케칭 종료 → 그린 획들을 독립 스케치 항목으로 저장 (돌출은 도구에서)
   finishSketch: () => {
@@ -973,7 +995,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!sketchActive) return;
     const allStrokes = strokeValid(sketchPoints, sketchTool) ? [...sketchStrokes, finalizeStroke(sketchPoints, sketchTool)] : sketchStrokes;
     const base: Partial<AppState> = {
-      sketchActive: false, sketchPlane: null, sketchPoints: [], sketchStrokes: [],
+      sketchActive: false, sketchPlane: null, sketchPoints: [], sketchStrokes: [], sketchConstraints: [],
       sketchDraft: null, sketchHover: null, sketchSelectedSeg: null, sketchDimEdit: null, sketchSnapHint: null, sketchLineDrawing: false,
     };
     if (sketchPlane && allStrokes.length > 0) {

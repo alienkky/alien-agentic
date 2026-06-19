@@ -5,6 +5,7 @@
  */
 import { useEffect } from "react";
 import { useAppStore, type SketchTool } from "../store/useAppStore";
+import { resolveConstraintHotkey } from "./constraintHotkeys";
 
 export interface ShortcutMods {
   ctrl: boolean;
@@ -19,6 +20,8 @@ export interface ShortcutContext {
   dimEditing: boolean;
   /** 입력/텍스트영역에 포커스가 있는지 */
   typing: boolean;
+  /** 선분이 선택돼 있는지 (구속 핫키 조건) */
+  segmentSelected?: boolean;
 }
 
 export type ShortcutAction =
@@ -27,6 +30,7 @@ export type ShortcutAction =
   | { type: "undoSketchPoint" }
   | { type: "selectAll" }
   | { type: "finishLine" }
+  | { type: "applyConstraint"; kind: "auto" }
   | null;
 
 /** 스케치 도구 핫키 맵 (소문자 키 → 도구). 비스케치 모드에선 무시. */
@@ -50,7 +54,13 @@ export function resolveShortcut(key: string, mods: ShortcutMods, ctx: ShortcutCo
     if (k === "a" && !ctx.sketchActive) return { type: "selectAll" };
     return null;
   }
-  if (mods.shift || mods.alt) return null; // Shift 구속 핫키는 솔버 도입 후 (별도 에픽)
+  // 구속 핫키 (Shift+키). 현재 ⇧V(수평/수직)만 연결 — 선분 선택 시 자체 솔버로 H/V 적용.
+  if (ctx.sketchActive && mods.shift && !mods.ctrl && !mods.alt) {
+    if (resolveConstraintHotkey({ key, shiftKey: true }) === "horizontalVertical" && ctx.segmentSelected) {
+      return { type: "applyConstraint", kind: "auto" };
+    }
+  }
+  if (mods.shift || mods.alt) return null; // 그 외 Shift 구속(평행/직각/일치 등)은 다중 선택 슬라이스에서
 
   if (key === "Escape") return ctx.sketchActive && ctx.sketchLineDrawing ? { type: "finishLine" } : null;
 
@@ -72,7 +82,7 @@ export function useKeyboardShortcuts(): void {
       const action = resolveShortcut(
         e.key,
         { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey, alt: e.altKey },
-        { sketchActive: st.sketchActive, sketchLineDrawing: st.sketchLineDrawing, dimEditing: !!st.sketchDimEdit, typing },
+        { sketchActive: st.sketchActive, sketchLineDrawing: st.sketchLineDrawing, dimEditing: !!st.sketchDimEdit, typing, segmentSelected: !!st.sketchSelectedSeg },
       );
       if (!action) return;
       e.preventDefault();
@@ -82,6 +92,7 @@ export function useKeyboardShortcuts(): void {
         case "undoSketchPoint": st.undoSketchPoint(); break;
         case "selectAll": st.selectAll(); break;
         case "finishLine": st.finishLine(); break;
+        case "applyConstraint": st.applySketchConstraint(action.kind); break;
       }
     };
     window.addEventListener("keydown", onKey);
