@@ -17,6 +17,8 @@ import { trimAt, trimPreviewAt, nearestStrokeIndex } from "../kernel/sketchTrim"
 import { catmullRom, arc3 } from "../kernel/sketchCurves";
 import { mirrorStrokes, patternLinearStrokes, patternCircularStrokes, offsetStroke, transformStrokes, strokesCentroid, type UVAxis } from "../kernel/sketchTransform2d";
 import { snapToGuides, type Guide } from "../kernel/sketchGuides";
+import { snapCandidates, pickSnapPoint, snapToleranceWorld, type SnapKind } from "../kernel/sketchSnap";
+import { type InputKind } from "../input/pickTolerance";
 import {
   defaultCamera,
   orbit as orbitCam,
@@ -123,6 +125,26 @@ function sketchAnchors(strokes: SketchPoint[][], points: SketchPoint[]): SketchP
   return [{ u: 0, v: 0 }, ...strokes.flat(), ...points];
 }
 
+/** 스케치 스냅 입력 — 끝점/중점·안내선·격자 우선순위를 한 곳에서 결정. */
+interface SnapInputs {
+  camera: { radius: number };
+  sketchStrokes: SketchPoint[][];
+  sketchPoints: SketchPoint[];
+  snap: { grid: boolean };
+}
+
+/**
+ * 커서(raw)에 적용할 스냅을 결정한다. 우선순위: 끝점/중점 > 수평/수직 안내선 > 격자.
+ * 끝점/중점에 스냅하면 인디케이터용 snap 마커를 함께 돌려준다(안내선 스냅이면 null).
+ */
+function resolveSketchSnap(s: SnapInputs, raw: SketchPoint, kind: InputKind): { snapped: SketchPoint; guides: Guide[]; snap: { u: number; v: number; kind: SnapKind } | null } {
+  const tol = snapToleranceWorld(s.camera.radius, kind);
+  const hit = pickSnapPoint(raw, snapCandidates(s.sketchStrokes, s.sketchPoints), tol);
+  if (hit) return { snapped: { u: hit.u, v: hit.v }, guides: [], snap: { u: hit.u, v: hit.v, kind: hit.kind } };
+  const { snapped, guides } = snapToGuides(raw, sketchAnchors(s.sketchStrokes, s.sketchPoints), tol, s.snap.grid ? SNAP : 0);
+  return { snapped, guides, snap: null };
+}
+
 export type Vec3 = [number, number, number];
 
 interface AppState {
@@ -222,6 +244,8 @@ interface AppState {
   toggleSnap: (key: "grid" | "sketchLine" | "sketchPoint" | "guide3d" | "farEdge" | "guidePoint" | "snapHint" | "gridAdaptive") => void;
   /** 그리는 중 보라색 정렬 안내선 */
   sketchGuides: Guide[];
+  /** 끝점/중점 스냅 인디케이터 — 스냅 활성 시 위치+종류, 아니면 null */
+  sketchSnap: { u: number; v: number; kind: SnapKind } | null;
   /** 자르기 모드에서 마우스 올린 곳의 잘릴 구간 (빨강 미리보기) */
   sketchTrimPreview: { a: SketchPoint; b: SketchPoint } | null;
   /** 모든 바디 선택 */
@@ -244,9 +268,9 @@ interface AppState {
   setSketchTool: (tool: SketchTool) => void;
   /** 사각형·원: 드래그 시작 / 이동 / 종료. 선: 점 클릭 */
   sketchDragStart: (p: SketchPoint) => void;
-  sketchDragMove: (p: SketchPoint) => void;
+  sketchDragMove: (p: SketchPoint, kind?: InputKind) => void;
   sketchDragEnd: () => void;
-  sketchClickPoint: (p: SketchPoint) => void;
+  sketchClickPoint: (p: SketchPoint, kind?: InputKind) => void;
   /** 자르기: 클릭 지점 근처 선분을 교차점 기준으로 잘라낸다 */
   trimSketchAt: (uv: SketchPoint) => void;
   /** 삭제: 클릭 지점 근처 획을 통째로 제거 */
@@ -409,6 +433,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   hidden: [],
   snap: { grid: true, sketchLine: true, sketchPoint: true, guide3d: true, farEdge: true, guidePoint: true, snapHint: true, gridAdaptive: true },
   sketchGuides: [],
+  sketchSnap: null,
   sketchTrimPreview: null,
   unit: "mm",
   sketchPrefs: { auto: true, showConstraints: false, showDims: true, anchor: "first" },
@@ -628,6 +653,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       sketchDraft: null,
       sketchHover: null,
       sketchGuides: [],
+      sketchSnap: null,
       sketchSelectedSeg: null,
       sketchLineDrawing: false,
       selection: [],
@@ -687,25 +713,23 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ sketchDraft: { start: p, current: p }, sketchPoints: [] });
   },
 
-  sketchDragMove: (raw) => {
+  sketchDragMove: (raw, kind = "mouse") => {
     const s = get();
     // 자르기 모드: 잘릴 구간 미리보기(빨강)
     if (s.sketchTool === "trim") {
       const thr = Math.max(0.4, s.camera.radius * 0.06);
-      set({ sketchTrimPreview: trimPreviewAt(s.sketchStrokes, raw, thr), sketchHover: raw });
+      set({ sketchTrimPreview: trimPreviewAt(s.sketchStrokes, raw, thr), sketchHover: raw, sketchSnap: null });
       return;
     }
-    // 점 도구로 그리는 중: 보라색 안내선 스냅(수평/수직/끝점)
+    // 점 도구로 그리는 중: 끝점/중점 스냅 > 안내선(수평/수직) > 격자
     if (isPointTool(s.sketchTool) && s.sketchLineDrawing && s.sketchPlane) {
-      const tol = Math.max(0.3, s.camera.radius * 0.04);
-      const anchors = sketchAnchors(s.sketchStrokes, s.sketchPoints);
-      const { snapped, guides } = snapToGuides(raw, anchors, tol, s.snap.grid ? SNAP : 0);
-      set({ sketchHover: snapped, sketchGuides: guides });
+      const { snapped, guides, snap: snapMarker } = resolveSketchSnap(s, raw, kind);
+      set({ sketchHover: snapped, sketchGuides: guides, sketchSnap: snapMarker });
       return;
     }
     const g = s.snap.grid;
     const p: SketchPoint = g ? { u: snap(raw.u), v: snap(raw.v) } : raw;
-    set((st) => (st.sketchDraft ? { sketchDraft: { start: st.sketchDraft.start, current: p }, sketchHover: p } : { sketchHover: p }));
+    set((st) => (st.sketchDraft ? { sketchDraft: { start: st.sketchDraft.start, current: p }, sketchHover: p, sketchSnap: null } : { sketchHover: p, sketchSnap: null }));
   },
 
   // 사각형·원: 드래그 종료 → 획으로 누적 (기존 획 유지)
@@ -743,31 +767,29 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   // 점 도구(선·스플라인·호) 클릭. 끝점 재클릭→확정. 호는 3점 모이면 자동 확정.
-  sketchClickPoint: (raw) => {
+  sketchClickPoint: (raw, kind = "mouse") => {
     const s = get();
     if (!isPointTool(s.sketchTool) || !s.sketchPlane) return;
     const tool = s.sketchTool;
-    // 안내선 스냅(끝점/수평/수직/격자) 적용
-    const tol = Math.max(0.3, s.camera.radius * 0.04);
-    const anchors = sketchAnchors(s.sketchStrokes, s.sketchPoints);
-    const p = snapToGuides(raw, anchors, tol, s.snap.grid ? SNAP : 0).snapped;
+    // 스냅(끝점/중점 > 안내선 > 격자) 적용
+    const p = resolveSketchSnap(s, raw, kind).snapped;
     if (!s.sketchLineDrawing) {
-      set({ sketchLineDrawing: true, sketchPoints: [p], sketchSelectedSeg: null, sketchGuides: [], status: "점을 이어 찍기 (끝점 재클릭/Esc 로 확정)" });
+      set({ sketchLineDrawing: true, sketchPoints: [p], sketchSelectedSeg: null, sketchGuides: [], sketchSnap: null, status: "점을 이어 찍기 (끝점 재클릭/Esc 로 확정)" });
       return;
     }
     const last = s.sketchPoints[s.sketchPoints.length - 1];
     // 선·스플라인: 끝점 재클릭 → 확정
     if (tool !== "arc" && last && Math.hypot(p.u - last.u, p.v - last.v) < 0.4 && s.sketchPoints.length >= 2) {
-      set((st) => ({ sketchStrokes: [...st.sketchStrokes, finalizeStroke(st.sketchPoints, tool)], sketchPoints: [], sketchLineDrawing: false, sketchHover: null, sketchGuides: [], status: "확정 — 계속 그리기 / 스케칭 종료" }));
+      set((st) => ({ sketchStrokes: [...st.sketchStrokes, finalizeStroke(st.sketchPoints, tool)], sketchPoints: [], sketchLineDrawing: false, sketchHover: null, sketchGuides: [], sketchSnap: null, status: "확정 — 계속 그리기 / 스케칭 종료" }));
       return;
     }
     const next = [...s.sketchPoints, p];
     // 호: 3점(시작·중간·끝) 모이면 자동 확정
     if (tool === "arc" && next.length >= 3) {
-      set((st) => ({ sketchStrokes: [...st.sketchStrokes, arc3(next[0]!, next[1]!, next[2]!)], sketchPoints: [], sketchLineDrawing: false, sketchHover: null, sketchGuides: [], status: "호 완성 — 계속 그리기 / 스케칭 종료" }));
+      set((st) => ({ sketchStrokes: [...st.sketchStrokes, arc3(next[0]!, next[1]!, next[2]!)], sketchPoints: [], sketchLineDrawing: false, sketchHover: null, sketchGuides: [], sketchSnap: null, status: "호 완성 — 계속 그리기 / 스케칭 종료" }));
       return;
     }
-    set({ sketchPoints: next, sketchGuides: [], status: tool === "arc" ? `호 — 점 ${next.length}/3` : `점 ${next.length}개` });
+    set({ sketchPoints: next, sketchGuides: [], sketchSnap: null, status: tool === "arc" ? `호 — 점 ${next.length}/3` : `점 ${next.length}개` });
   },
 
   trimSketchAt: (uv) =>
@@ -889,7 +911,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({ sketchPoints: s.sketchPoints.slice(0, -1), sketchDraft: null, sketchSelectedSeg: null })),
 
   cancelSketch: () =>
-    set({ sketchActive: false, sketchPlane: null, sketchPoints: [], sketchStrokes: [], sketchDraft: null, sketchHover: null, sketchGuides: [], sketchTrimPreview: null, sketchSelectedSeg: null, sketchSelectedPoint: null, sketchDraggingPoint: null, sketchDraggingSeg: null, sketchLineDrawing: false, status: "스케치 취소" }),
+    set({ sketchActive: false, sketchPlane: null, sketchPoints: [], sketchStrokes: [], sketchDraft: null, sketchHover: null, sketchGuides: [], sketchSnap: null, sketchTrimPreview: null, sketchSelectedSeg: null, sketchSelectedPoint: null, sketchDraggingPoint: null, sketchDraggingSeg: null, sketchLineDrawing: false, status: "스케치 취소" }),
 
   // 스케칭 종료 → 그린 획들을 독립 스케치 항목으로 저장 (돌출은 도구에서)
   finishSketch: () => {
@@ -898,7 +920,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const allStrokes = strokeValid(sketchPoints, sketchTool) ? [...sketchStrokes, finalizeStroke(sketchPoints, sketchTool)] : sketchStrokes;
     const base: Partial<AppState> = {
       sketchActive: false, sketchPlane: null, sketchPoints: [], sketchStrokes: [],
-      sketchDraft: null, sketchHover: null, sketchGuides: [], sketchTrimPreview: null, sketchSelectedSeg: null, sketchSelectedPoint: null, sketchDraggingPoint: null, sketchDraggingSeg: null, sketchLineDrawing: false,
+      sketchDraft: null, sketchHover: null, sketchGuides: [], sketchSnap: null, sketchTrimPreview: null, sketchSelectedSeg: null, sketchSelectedPoint: null, sketchDraggingPoint: null, sketchDraggingSeg: null, sketchLineDrawing: false,
     };
     if (sketchPlane && allStrokes.length > 0) {
       const id = `sketch-${++counter}`;

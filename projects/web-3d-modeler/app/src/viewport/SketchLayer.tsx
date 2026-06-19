@@ -8,6 +8,7 @@ import { useMemo, useState } from "react";
 import * as THREE from "three";
 import { Line, Html } from "@react-three/drei";
 import { useAppStore } from "../store/useAppStore";
+import { inputKindFromPointerType } from "../input/pickTolerance";
 import { adaptiveCellSize } from "./cameraMath";
 import {
   planeToWorld, worldToPlane,
@@ -215,6 +216,7 @@ export function SketchLayer(): JSX.Element | null {
   const moveSegDrag = useAppStore((s) => s.moveSegDrag);
   const endSegDrag = useAppStore((s) => s.endSegDrag);
   const guides = useAppStore((s) => s.sketchGuides);
+  const snapMarker = useAppStore((s) => s.sketchSnap);
   const trimPreview = useAppStore((s) => s.sketchTrimPreview);
   const gridAdaptive = useAppStore((s) => s.snap.gridAdaptive);
   const radius = useAppStore((s) => s.camera.radius);
@@ -263,8 +265,8 @@ export function SketchLayer(): JSX.Element | null {
       <group matrixAutoUpdate={false} matrix={planeMatrix(plane)}>
         <SketchGrid cell={cell} />
         <mesh
-          onPointerDown={(e) => { e.stopPropagation(); if (tool === "trim") trimAtPoint(onPlane(e)); else if (tool === "delete") deleteAtPoint(onPlane(e)); else if (isPointTool) clickPoint(onPlane(e)); else dragStart(onPlane(e)); }}
-          onPointerMove={(e) => { e.stopPropagation(); if (draggingPoint) movePointDrag(onPlane(e)); else if (draggingSeg) moveSegDrag(onPlane(e)); else dragMove(onPlane(e)); }}
+          onPointerDown={(e) => { e.stopPropagation(); const k = inputKindFromPointerType(e.nativeEvent.pointerType); if (tool === "trim") trimAtPoint(onPlane(e)); else if (tool === "delete") deleteAtPoint(onPlane(e)); else if (isPointTool) clickPoint(onPlane(e), k); else dragStart(onPlane(e)); }}
+          onPointerMove={(e) => { e.stopPropagation(); const k = inputKindFromPointerType(e.nativeEvent.pointerType); if (draggingPoint) movePointDrag(onPlane(e)); else if (draggingSeg) moveSegDrag(onPlane(e)); else dragMove(onPlane(e), k); }}
           onPointerUp={(e) => { e.stopPropagation(); if (draggingPoint) endPointDrag(); else if (draggingSeg) endSegDrag(); else dragEnd(); }}
         >
           <planeGeometry args={[400, 400]} />
@@ -281,6 +283,17 @@ export function SketchLayer(): JSX.Element | null {
       {guides.map((g, i) => (
         <Line key={`g${i}`} points={[toWorld(g.anchor), toWorld(g.to)]} color="#a855f7" lineWidth={1} dashed dashSize={0.25} gapSize={0.18} />
       ))}
+
+      {/* 끝점/중점 스냅 인디케이터 — 끝점=사각, 중점=삼각 (화면 고정 크기) */}
+      {snapMarker && (
+        <Html position={toWorld(snapMarker)} center style={{ pointerEvents: "none" }}>
+          {snapMarker.kind === "endpoint" ? (
+            <div style={{ width: 11, height: 11, border: `2px solid ${SK.point}`, background: "transparent" }} />
+          ) : (
+            <div style={{ width: 0, height: 0, borderLeft: "7px solid transparent", borderRight: "7px solid transparent", borderBottom: `12px solid ${SK.active}` }} />
+          )}
+        </Html>
+      )}
 
       {/* 자르기 미리보기 — 잘릴 구간 빨강 */}
       {trimPreview && <Line points={[toWorld(trimPreview.a), toWorld(trimPreview.b)]} color="#ef4444" lineWidth={4} />}
