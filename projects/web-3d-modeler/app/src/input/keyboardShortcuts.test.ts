@@ -34,8 +34,18 @@ describe("keyboardShortcuts — resolveShortcut", () => {
     expect(resolveShortcut("Escape", mods(), { ...base, sketchActive: true })).toBeNull();
   });
 
-  it("Shift/Alt 조합은 도구 핫키로 안 먹는다 (구속 핫키는 별도 에픽)", () => {
-    expect(resolveShortcut("p", mods({ shift: true }), { ...base, sketchActive: true })).toBeNull();
+  it("Shift 구속 핫키 — ⇧A/⇧P/⇧N=다중 구속, ⇧V=수평/수직(선분 선택 시)", () => {
+    expect(resolveShortcut("a", mods({ shift: true }), { ...base, sketchActive: true }))
+      .toEqual({ type: "applyMulti", kind: "parallel" });
+    expect(resolveShortcut("p", mods({ shift: true }), { ...base, sketchActive: true }))
+      .toEqual({ type: "applyMulti", kind: "perpendicular" });
+    expect(resolveShortcut("n", mods({ shift: true }), { ...base, sketchActive: true }))
+      .toEqual({ type: "applyMulti", kind: "coincident" });
+    expect(resolveShortcut("v", mods({ shift: true }), { ...base, sketchActive: true, segmentSelected: true }))
+      .toEqual({ type: "applyConstraint", kind: "auto" });
+    // ⇧V 는 선분 선택 없으면 무시, Alt 조합·비구속 Shift 키는 무시
+    expect(resolveShortcut("v", mods({ shift: true }), { ...base, sketchActive: true })).toBeNull();
     expect(resolveShortcut("r", mods({ alt: true }), { ...base, sketchActive: true })).toBeNull();
+    expect(resolveShortcut("r", mods({ shift: true }), { ...base, sketchActive: true })).toBeNull();
   });
 });

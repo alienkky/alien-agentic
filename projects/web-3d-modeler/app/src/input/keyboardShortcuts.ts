@@ -31,6 +31,7 @@ export type ShortcutAction =
   | { type: "selectAll" }
   | { type: "finishLine" }
   | { type: "applyConstraint"; kind: "auto" }
+  | { type: "applyMulti"; kind: "parallel" | "perpendicular" | "coincident" }
   | null;
 
 /** 스케치 도구 핫키 맵 (소문자 키 → 도구). 비스케치 모드에선 무시. */
@@ -54,13 +55,15 @@ export function resolveShortcut(key: string, mods: ShortcutMods, ctx: ShortcutCo
     if (k === "a" && !ctx.sketchActive) return { type: "selectAll" };
     return null;
   }
-  // 구속 핫키 (Shift+키). 현재 ⇧V(수평/수직)만 연결 — 선분 선택 시 자체 솔버로 H/V 적용.
+  // 구속 핫키 (Shift+키). ⇧V=수평/수직(선택 1선분), ⇧A/⇧P/⇧N=평행/직각/일치(최근 2선분).
   if (ctx.sketchActive && mods.shift && !mods.ctrl && !mods.alt) {
-    if (resolveConstraintHotkey({ key, shiftKey: true }) === "horizontalVertical" && ctx.segmentSelected) {
-      return { type: "applyConstraint", kind: "auto" };
-    }
+    const ca = resolveConstraintHotkey({ key, shiftKey: true });
+    if (ca === "horizontalVertical" && ctx.segmentSelected) return { type: "applyConstraint", kind: "auto" };
+    if (ca === "parallel") return { type: "applyMulti", kind: "parallel" };
+    if (ca === "perpendicular") return { type: "applyMulti", kind: "perpendicular" };
+    if (ca === "coincident") return { type: "applyMulti", kind: "coincident" };
   }
-  if (mods.shift || mods.alt) return null; // 그 외 Shift 구속(평행/직각/일치 등)은 다중 선택 슬라이스에서
+  if (mods.shift || mods.alt) return null; // 그 외 Shift 구속(접선/동일/잠금 등)은 다음 슬라이스
 
   if (key === "Escape") return ctx.sketchActive && ctx.sketchLineDrawing ? { type: "finishLine" } : null;
 
@@ -93,6 +96,7 @@ export function useKeyboardShortcuts(): void {
         case "selectAll": st.selectAll(); break;
         case "finishLine": st.finishLine(); break;
         case "applyConstraint": st.applySketchConstraint(action.kind); break;
+        case "applyMulti": st.applyMultiConstraint(action.kind); break;
       }
     };
     window.addEventListener("keydown", onKey);

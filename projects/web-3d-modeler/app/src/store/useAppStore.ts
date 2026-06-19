@@ -19,6 +19,8 @@ import { collectSnapPoints, resolveSnap } from "../kernel/sketchSnap";
 import { solveConstraints, type Constraint } from "../kernel/constraintSolver";
 import { extractVertices, applyToStrokes, buildSegmentSolve, buildAutoConstraints, autoSegKind, type SegConstraintKind } from "../kernel/sketchConstraints";
 import { resolveDrag } from "../kernel/dragResolve";
+import { buildParallel, buildPerpendicular, buildCoincidentStarts, segVerts } from "../kernel/constraintsMulti";
+import { nearestVertex } from "../kernel/vertexPick";
 import {
   defaultCamera,
   orbit as orbitCam,
@@ -235,6 +237,12 @@ interface AppState {
   sketchSelectedSeg: { s: number; i: number } | null;
   /** 영구 구속 — 적용된 구속을 보관해 정점 드래그 시 유지·재해(전역 정점 인덱스 기준). */
   sketchConstraints: Constraint[];
+  /** 다중 구속용 최근 선택 선분 2개 (앵커=[0], 이동=[1]). */
+  sketchSegPair: { s: number; i: number }[];
+  /** 커서가 근접한 기존 정점(전역 인덱스). 핸들 하이라이트용. */
+  sketchHoverVertex: number | null;
+  /** 드래그 중인 정점(전역 인덱스). null 이면 정점 드래그 아님. */
+  sketchDraggingVertex: number | null;
   /** 드래그 직후 W×H/⌀ 타이핑 편집 — null 이면 대기 중 아님 */
   sketchDimEdit: SketchDimEdit | null;
   /** 그리기 중 스냅 표시(끝점/중점/축). null 이면 흡착 없음 */
@@ -352,6 +360,15 @@ interface AppState {
   autoConstrainStroke: (strokeIdx: number) => void;
   /** 전역 정점을 target 으로 끌며 영구 구속을 유지·재해 (Shapr3D 식 라이브 드래그). */
   dragSketchVertex: (vertexIdx: number, target: SketchPoint) => void;
+  /** 최근 선택한 두 선분에 다중 구속(평행/직각/일치) 적용. 앵커=첫 선분 고정. */
+  applyMultiConstraint: (kind: "parallel" | "perpendicular" | "coincident") => void;
+  /** 커서 근접 정점 하이라이트 (null=해제). */
+  setSketchHoverVertex: (vertexIdx: number | null) => void;
+  /** 정점 포인터-그랩 시작/종료. 이동은 dragSketchVertex 로. */
+  beginVertexDrag: (vertexIdx: number) => void;
+  endVertexDrag: () => void;
+  /** 평면 (u,v) 에서 tol 이내 기존 정점 인덱스 (없으면 null). 포인터 픽킹용. */
+  pickSketchVertex: (at: SketchPoint, tol: number) => number | null;
   /** 드래그 직후 치수 타이핑: 정상값 → 도형 보정 + 편집 닫기 / 거부값 → 드래그 결과 유지 + 편집 닫기 */
   commitSketchDim: (values: number[]) => void;
   cancelSketchDim: () => void;
@@ -465,6 +482,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   sketchStrokes: [],
   sketchSelectedSeg: null,
   sketchConstraints: [],
+  sketchSegPair: [],
+  sketchHoverVertex: null,
+  sketchDraggingVertex: null,
   sketchDimEdit: null,
   sketchSnapHint: null,
   sketchLineDrawing: false,
@@ -705,6 +725,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       sketchPoints: [],
       sketchStrokes: [],
       sketchConstraints: [],
+      sketchSegPair: [],
+      sketchHoverVertex: null,
+      sketchDraggingVertex: null,
       sketchDraft: null,
       sketchHover: null,
       sketchSelectedSeg: null,
@@ -721,6 +744,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       sketchPoints: [],
       sketchStrokes: [],
       sketchConstraints: [],
+      sketchSegPair: [],
+      sketchHoverVertex: null,
+      sketchDraggingVertex: null,
       sketchDraft: null,
       sketchDimEdit: null,
       sketchSnapHint: null,
@@ -878,7 +904,13 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   selectSketchSegment: (st, i) => {
     if (get().sketchDimEdit) return; // W×H/⌀ 편집 중엔 선분 편집 진입 차단
-    set({ sketchSelectedSeg: { s: st, i } });
+    set((s) => {
+      // 다중 구속용 — 최근 2개를 링버퍼로 유지(중복 제외).
+      const seg = { s: st, i };
+      const prev = s.sketchSegPair.filter((p) => !(p.s === st && p.i === i));
+      const pair = [...prev, seg].slice(-2);
+      return { sketchSelectedSeg: seg, sketchSegPair: pair };
+    });
   },
   clearSketchSegment: () => set({ sketchSelectedSeg: null }),
 
@@ -983,11 +1015,41 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { sketchStrokes: strokes };
     }),
 
+  // 최근 두 선분에 다중 구속 — 앵커(첫 선분) 두 정점 고정, 둘째가 따라 정렬. 영구 보관.
+  applyMultiConstraint: (kind) =>
+    set((s) => {
+      const pair = s.sketchSegPair;
+      if (pair.length < 2) return { status: "선분 2개를 선택하세요 (평행/직각/일치)" };
+      const segA = pair[0]!;
+      const segB = pair[1]!;
+      const model = extractVertices(s.sketchStrokes);
+      const build = kind === "parallel" ? buildParallel : kind === "perpendicular" ? buildPerpendicular : buildCoincidentStarts;
+      const cons = build(model, segA, segB);
+      const av = segVerts(model, segA);
+      if (!cons || !av) return { status: "다중 구속 적용 실패: 잘못된 선분" };
+      const pts = model.pts.map((p, idx) => (idx === av[0] || idx === av[1] ? { ...p, fixed: true } : p));
+      const res = solveConstraints(pts, cons);
+      const strokes = applyToStrokes(s.sketchStrokes, model, res.points);
+      const label = kind === "parallel" ? "평행" : kind === "perpendicular" ? "직각" : "일치";
+      return {
+        sketchStrokes: strokes,
+        sketchConstraints: [...s.sketchConstraints, ...cons],
+        sketchSelectedSeg: null,
+        sketchSegPair: [],
+        status: `${label} 구속 적용`,
+      };
+    }),
+
+  setSketchHoverVertex: (vertexIdx) => set({ sketchHoverVertex: vertexIdx }),
+  beginVertexDrag: (vertexIdx) => set({ sketchDraggingVertex: vertexIdx, sketchSelectedSeg: null, sketchSegPair: [] }),
+  endVertexDrag: () => set({ sketchDraggingVertex: null }),
+  pickSketchVertex: (at, tol) => nearestVertex(get().sketchStrokes, at, tol),
+
   undoSketchPoint: () =>
     set((s) => ({ sketchPoints: s.sketchPoints.slice(0, -1), sketchDraft: null, sketchSelectedSeg: null })),
 
   cancelSketch: () =>
-    set({ sketchActive: false, sketchPlane: null, sketchPoints: [], sketchStrokes: [], sketchConstraints: [], sketchDraft: null, sketchHover: null, sketchSelectedSeg: null, sketchDimEdit: null, sketchSnapHint: null, sketchLineDrawing: false, status: "스케치 취소" }),
+    set({ sketchActive: false, sketchPlane: null, sketchPoints: [], sketchStrokes: [], sketchConstraints: [], sketchSegPair: [], sketchHoverVertex: null, sketchDraggingVertex: null, sketchDraft: null, sketchHover: null, sketchSelectedSeg: null, sketchDimEdit: null, sketchSnapHint: null, sketchLineDrawing: false, status: "스케치 취소" }),
 
   // 스케칭 종료 → 그린 획들을 독립 스케치 항목으로 저장 (돌출은 도구에서)
   finishSketch: () => {
@@ -995,7 +1057,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!sketchActive) return;
     const allStrokes = strokeValid(sketchPoints, sketchTool) ? [...sketchStrokes, finalizeStroke(sketchPoints, sketchTool)] : sketchStrokes;
     const base: Partial<AppState> = {
-      sketchActive: false, sketchPlane: null, sketchPoints: [], sketchStrokes: [], sketchConstraints: [],
+      sketchActive: false, sketchPlane: null, sketchPoints: [], sketchStrokes: [], sketchConstraints: [], sketchSegPair: [], sketchHoverVertex: null, sketchDraggingVertex: null,
       sketchDraft: null, sketchHover: null, sketchSelectedSeg: null, sketchDimEdit: null, sketchSnapHint: null, sketchLineDrawing: false,
     };
     if (sketchPlane && allStrokes.length > 0) {

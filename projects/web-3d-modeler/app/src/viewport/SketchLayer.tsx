@@ -16,6 +16,7 @@ import {
 } from "../kernel/sketchPlane";
 import { extractVertices } from "../kernel/sketchConstraints";
 import { computeGlyphs } from "./constraintGlyphs";
+import { computeVertexHandles } from "./vertexHandles";
 
 const PLANE_ROT: Record<PlaneId, [number, number, number]> = {
   xz: [-Math.PI / 2, 0, 0], xy: [0, 0, 0], yz: [0, Math.PI / 2, 0],
@@ -286,6 +287,13 @@ export function SketchLayer(): JSX.Element | null {
   const showSnapHint = useAppStore((s) => s.snap.snapHint);
   const constraints = useAppStore((s) => s.sketchConstraints);
   const showConstraints = useAppStore((s) => s.sketchPrefs.showConstraints);
+  const hoverVertex = useAppStore((s) => s.sketchHoverVertex);
+  const draggingVertex = useAppStore((s) => s.sketchDraggingVertex);
+  const pickVertex = useAppStore((s) => s.pickSketchVertex);
+  const setHoverVertex = useAppStore((s) => s.setSketchHoverVertex);
+  const beginVertexDrag = useAppStore((s) => s.beginVertexDrag);
+  const endVertexDrag = useAppStore((s) => s.endVertexDrag);
+  const dragVertex = useAppStore((s) => s.dragSketchVertex);
   const lineDrawing = useAppStore((s) => s.sketchLineDrawing);
   const dragStart = useAppStore((s) => s.sketchDragStart);
   const dragMove = useAppStore((s) => s.sketchDragMove);
@@ -330,6 +338,9 @@ export function SketchLayer(): JSX.Element | null {
 
   const toWorld = (p: SketchPoint): [number, number, number] => planeToWorld(plane, p.u, p.v);
   const onPlane = (e: { point: THREE.Vector3 }) => worldToPlane(plane, e.point.x, e.point.y, e.point.z);
+  // 정점 포인터-그랩 픽킹 반경 — 그리드 셀에 비례(확대할수록 정밀).
+  const pickTol = Math.max(0.3, cell * 0.6);
+  const handles = computeVertexHandles(strokes, hoverVertex, draggingVertex);
   const draftLoop = draftView ? [...draftView.pts.map(toWorld), toWorld(draftView.pts[0]!)] : [];
   const chainLoop = points.map(toWorld);
   const last = points[points.length - 1];
@@ -340,9 +351,26 @@ export function SketchLayer(): JSX.Element | null {
       <group matrixAutoUpdate={false} matrix={planeMatrix(plane)}>
         <SketchGrid cell={cell} />
         <mesh
-          onPointerDown={(e) => { e.stopPropagation(); if (tool === "trim") trimAtPoint(onPlane(e)); else if (tool === "delete") deleteAtPoint(onPlane(e)); else if (isPointTool) clickPoint(onPlane(e)); else dragStart(onPlane(e)); }}
-          onPointerMove={(e) => { e.stopPropagation(); dragMove(onPlane(e)); }}
-          onPointerUp={(e) => { e.stopPropagation(); dragEnd(); }}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            const uv = onPlane(e);
+            // 기존 정점 근처면 포인터-그랩(구속 유지 드래그). 트림/삭제/점도구는 제외.
+            if (tool !== "trim" && tool !== "delete" && !isPointTool) {
+              const v = pickVertex(uv, pickTol);
+              if (v !== null) { beginVertexDrag(v); return; }
+            }
+            if (tool === "trim") trimAtPoint(uv); else if (tool === "delete") deleteAtPoint(uv); else if (isPointTool) clickPoint(uv); else dragStart(uv);
+          }}
+          onPointerMove={(e) => {
+            e.stopPropagation();
+            const uv = onPlane(e);
+            if (draggingVertex !== null) { dragVertex(draggingVertex, uv); return; }
+            // 그리는 중이 아니면 근접 정점 하이라이트, 그리는 중이면 하이라이트 해제(잔상 방지).
+            if (!draft && !lineDrawing) setHoverVertex(pickVertex(uv, pickTol));
+            else if (hoverVertex !== null) setHoverVertex(null);
+            dragMove(uv);
+          }}
+          onPointerUp={(e) => { e.stopPropagation(); if (draggingVertex !== null) endVertexDrag(); else dragEnd(); }}
         >
           <planeGeometry args={[400, 400]} />
           <meshBasicMaterial color={planeColorFor(plane)} transparent opacity={0.04} side={THREE.DoubleSide} />
@@ -352,6 +380,19 @@ export function SketchLayer(): JSX.Element | null {
       {/* 누적된 확정 획들 */}
       {strokes.map((stroke, i) => (
         <StrokeView key={i} plane={plane} pts={stroke} strokeIndex={i} hideSegLabels={dimEdit?.strokeIndex === i} />
+      ))}
+
+      {/* 정점 드래그 핸들 — 호버/드래그 강조 (Shapr3D 식 그랩 포인트) */}
+      {handles.map((h) => (
+        <mesh key={`vh${h.index}`} position={toWorld(h.at)} renderOrder={5}>
+          <sphereGeometry args={[h.dragging ? 0.2 : h.hovered ? 0.16 : 0.09, 12, 12]} />
+          <meshBasicMaterial
+            color={h.dragging ? "#ff6b9d" : h.hovered ? "#ffd166" : SK.point}
+            depthTest={false}
+            transparent
+            opacity={h.dragging || h.hovered ? 1 : 0.45}
+          />
+        </mesh>
       ))}
 
       {/* 드래그 직후 W×H/⌀ 타이핑 편집 */}

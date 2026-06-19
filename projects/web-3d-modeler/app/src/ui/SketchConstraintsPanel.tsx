@@ -65,11 +65,15 @@ export function SketchConstraintsPanel(): JSX.Element | null {
   const sketchActive = useAppStore((s) => s.sketchActive);
   const setStatus = useAppStore((s) => s.setStatus);
   const applyConstraint = useAppStore((s) => s.applySketchConstraint);
+  const applyMulti = useAppStore((s) => s.applyMultiConstraint);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // 자체 솔버로 실제 동작하는 구속 (현재: 선택 세그먼트 수평/수직). 나머지는 다음 슬라이스.
+  // 자체 솔버로 실제 동작하는 구속. 수평/수직=선택 1선분, 평행/수직(직각)/일치=최근 2선분.
   const handlers: Record<string, () => void> = {
     "수평/수직": () => applyConstraint("auto"),
+    "평행": () => applyMulti("parallel"),
+    "수직": () => applyMulti("perpendicular"),
+    "일치": () => applyMulti("coincident"),
   };
 
   if (!sketchActive) return null;
