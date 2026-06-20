@@ -10,19 +10,23 @@ test("박스 − 실린더 빼기까지", async ({ page }) => {
   await expect(page.getByText(/커널 준비됨/)).toBeVisible({ timeout: 30_000 });
   await expect(page.locator("canvas")).toBeVisible();
 
-  await page.getByRole("button", { name: "박스 (Box)" }).click();
+  // 삽입 플라이아웃 → 박스
+  await page.getByRole("button", { name: "삽입" }).click();
+  await page.getByRole("button", { name: "박스", exact: true }).click();
   await expect(page.getByText(/box-1 추가됨/)).toBeVisible({ timeout: 15_000 });
 
-  await page.getByRole("button", { name: "실린더 (Cylinder)" }).click();
+  // 삽입 플라이아웃 → 실린더
+  await page.getByRole("button", { name: "삽입" }).click();
+  await page.getByRole("button", { name: "실린더", exact: true }).click();
   await expect(page.getByText(/cylinder-2 추가됨/)).toBeVisible({ timeout: 15_000 });
 
-  // 우측 바디 패널에서 둘 다 선택
+  // 우측 항목 패널에서 둘 다 선택 → 컨텍스트바에 불리언 액션 노출
   await page.getByRole("button", { name: /box-1/ }).first().click();
   await page.getByRole("button", { name: /cylinder-2/ }).first().click();
-  await expect(page.getByText(/불리언/)).toBeVisible();
 
-  // 빼기 → 결과 바디 생성
+  // 컨텍스트바 빼기 → 결과 바디 생성
   await page.getByRole("button", { name: "빼기 (Subtract)" }).click();
   await expect(page.getByText(/빼기 완료/)).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText(/바디 \(1\)/)).toBeVisible();
+  // 결과는 단일 바디(bool-3) — 항목 패널에 노출
+  await expect(page.getByRole("button", { name: /bool-3/ }).first()).toBeVisible();
 });
