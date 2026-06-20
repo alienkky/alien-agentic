@@ -18,6 +18,15 @@ import { catmullRom, arc3 } from "../kernel/sketchCurves";
 import { mirrorStrokes, patternLinearStrokes, patternCircularStrokes, offsetStroke, transformStrokes, strokesCentroid, type UVAxis } from "../kernel/sketchTransform2d";
 import { snapToGuides, type Guide } from "../kernel/sketchGuides";
 import {
+  applySolo,
+  applyPair,
+  applyCoincident,
+  CONSTRAINT_SPECS,
+  type ConstraintKind,
+  type SegSoloConstraint,
+  type SegPairConstraint,
+} from "../kernel/sketchConstraints";
+import {
   defaultCamera,
   orbit as orbitCam,
   pan as panCam,
@@ -125,6 +134,22 @@ function sketchAnchors(strokes: SketchPoint[][], points: SketchPoint[]): SketchP
 
 export type Vec3 = [number, number, number];
 
+/** 구속 선택 참조 — 선분(seg: 점 i→i+1) 또는 점(point: 점 i). */
+export interface ConstraintRef {
+  type: "seg" | "point";
+  s: number;
+  i: number;
+}
+const sameRef = (a: ConstraintRef, b: ConstraintRef): boolean => a.type === b.type && a.s === b.s && a.i === b.i;
+const CONSTRAINT_LABEL: Record<ConstraintKind, string> = {
+  horizontal: "수평",
+  vertical: "수직",
+  parallel: "평행",
+  perpendicular: "직교",
+  equal: "동일",
+  coincident: "일치",
+};
+
 interface AppState {
   camera: CameraState;
   shapes: TessellatedMesh[];
@@ -155,6 +180,8 @@ interface AppState {
   sketchSelectedSeg: { s: number; i: number } | null;
   /** 선을 적극적으로 그리는 중인지 (false 면 선택 모드) */
   sketchLineDrawing: boolean;
+  /** 구속조건 적용 대상으로 고른 선분/점들 (다중 선택, 순서 보존) */
+  constraintSel: ConstraintRef[];
   /** 내역(History) — 단계별 작업 로그 (우측 패널). 명세 Module 1.2 토대 */
   history: { id: string; label: string }[];
   /** 돌출 다이얼로그 열림 여부 (Shapr3D식 높이·모드 입력) */
@@ -279,6 +306,10 @@ interface AppState {
   selectSketchSegment: (s: number, i: number) => void;
   setSegmentLength: (s: number, i: number, len: number) => void;
   clearSketchSegment: () => void;
+  /** 구속 선택 토글(선분/점) / 비우기 / 적용 */
+  toggleConstraintSel: (ref: ConstraintRef) => void;
+  clearConstraintSel: () => void;
+  applySketchConstraint: (kind: ConstraintKind) => void;
   /** 선 그리기 종료 → 선택 모드 */
   finishLine: () => void;
   undoSketchPoint: () => void;
@@ -389,6 +420,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   sketchStrokes: [],
   sketchSelectedSeg: null,
   sketchLineDrawing: false,
+  constraintSel: [],
   sketchTransformMode: null,
   sketchSelectedPoint: null,
   sketchDraggingPoint: null,
@@ -630,6 +662,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       sketchGuides: [],
       sketchSelectedSeg: null,
       sketchLineDrawing: false,
+      constraintSel: [],
       selection: [],
       status: plane ? "선택한 면 위에 스케치 — 선을 그리세요(L)" : "스케치: 기준면(XY/YZ/XZ)을 선택하세요",
     });
@@ -855,6 +888,51 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({ sketchStrokes: [...s.sketchStrokes, ...newStrokes], status: `투상 — 모서리 ${newStrokes.length}개` }));
   },
 
+  toggleConstraintSel: (ref) =>
+    set((s) => {
+      const exists = s.constraintSel.some((r) => sameRef(r, ref));
+      const next = exists ? s.constraintSel.filter((r) => !sameRef(r, ref)) : [...s.constraintSel, ref];
+      const label = ref.type === "seg" ? "선분" : "점";
+      return { constraintSel: next, status: next.length ? `구속 대상 ${next.length}개 선택 (${label})` : "구속 대상 해제" };
+    }),
+  clearConstraintSel: () => set({ constraintSel: [] }),
+  applySketchConstraint: (kind) => {
+    const st = get();
+    const spec = CONSTRAINT_SPECS[kind];
+    const picked = st.constraintSel.filter((r) => r.type === spec.target);
+    const need = spec.target === "seg" ? "선분" : "점";
+    if (picked.length !== spec.count) {
+      set({ status: `${CONSTRAINT_LABEL[kind]}: ${need} ${spec.count}개를 선택하세요 (현재 ${picked.length}개)` });
+      return;
+    }
+    // 기준 고정 항목: 앵커 설정(first/last)에 따라.
+    const anchorFirst = st.sketchPrefs.anchor === "first";
+    let strokes = st.sketchStrokes;
+    if (spec.target === "seg" && spec.count === 1) {
+      strokes = applySolo(strokes, { s: picked[0]!.s, i: picked[0]!.i }, kind as SegSoloConstraint);
+    } else if (spec.target === "seg" && spec.count === 2) {
+      const fixed = anchorFirst ? picked[0]! : picked[1]!;
+      const target = anchorFirst ? picked[1]! : picked[0]!;
+      strokes = applyPair(strokes, { s: fixed.s, i: fixed.i }, { s: target.s, i: target.i }, kind as SegPairConstraint);
+    } else {
+      // coincident: 두 점
+      const fixed = anchorFirst ? picked[0]! : picked[1]!;
+      const move = anchorFirst ? picked[1]! : picked[0]!;
+      strokes = applyCoincident(strokes, { s: fixed.s, i: fixed.i }, { s: move.s, i: move.i });
+    }
+    if (strokes === st.sketchStrokes) {
+      set({ status: `${CONSTRAINT_LABEL[kind]}: 적용할 수 없는 선택(퇴화 도형)` });
+      return;
+    }
+    set({
+      sketchStrokes: strokes,
+      constraintSel: [],
+      sketchSelectedSeg: null,
+      sketchSelectedPoint: null,
+      status: `구속: ${CONSTRAINT_LABEL[kind]} 적용`,
+    });
+  },
+
   selectSketchSegment: (st, i) => set({ sketchSelectedSeg: { s: st, i } }),
   clearSketchSegment: () => set({ sketchSelectedSeg: null }),
   finishLine: () =>
@@ -889,7 +967,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({ sketchPoints: s.sketchPoints.slice(0, -1), sketchDraft: null, sketchSelectedSeg: null })),
 
   cancelSketch: () =>
-    set({ sketchActive: false, sketchPlane: null, sketchPoints: [], sketchStrokes: [], sketchDraft: null, sketchHover: null, sketchGuides: [], sketchTrimPreview: null, sketchSelectedSeg: null, sketchSelectedPoint: null, sketchDraggingPoint: null, sketchDraggingSeg: null, sketchLineDrawing: false, status: "스케치 취소" }),
+    set({ sketchActive: false, sketchPlane: null, sketchPoints: [], sketchStrokes: [], sketchDraft: null, sketchHover: null, sketchGuides: [], sketchTrimPreview: null, sketchSelectedSeg: null, sketchSelectedPoint: null, sketchDraggingPoint: null, sketchDraggingSeg: null, sketchLineDrawing: false, constraintSel: [], status: "스케치 취소" }),
 
   // 스케칭 종료 → 그린 획들을 독립 스케치 항목으로 저장 (돌출은 도구에서)
   finishSketch: () => {
@@ -898,7 +976,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const allStrokes = strokeValid(sketchPoints, sketchTool) ? [...sketchStrokes, finalizeStroke(sketchPoints, sketchTool)] : sketchStrokes;
     const base: Partial<AppState> = {
       sketchActive: false, sketchPlane: null, sketchPoints: [], sketchStrokes: [],
-      sketchDraft: null, sketchHover: null, sketchGuides: [], sketchTrimPreview: null, sketchSelectedSeg: null, sketchSelectedPoint: null, sketchDraggingPoint: null, sketchDraggingSeg: null, sketchLineDrawing: false,
+      sketchDraft: null, sketchHover: null, sketchGuides: [], sketchTrimPreview: null, sketchSelectedSeg: null, sketchSelectedPoint: null, sketchDraggingPoint: null, sketchDraggingSeg: null, sketchLineDrawing: false, constraintSel: [],
     };
     if (sketchPlane && allStrokes.length > 0) {
       const id = `sketch-${++counter}`;
