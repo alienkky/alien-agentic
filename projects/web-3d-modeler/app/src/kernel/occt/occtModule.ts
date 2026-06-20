@@ -15,7 +15,10 @@ import type {
   FaceRange,
   EdgePolyline,
   BooleanOp,
+  FilletParams,
+  ChamferParams,
 } from "../types";
+import { resolveEdgeIds } from "../edgeFeature";
 
 /* ── facade 타입 (우리가 쓰는 부분만) ─────────────────────────── */
 
@@ -65,6 +68,16 @@ interface OccExplorer extends OccDeletable {
 interface OccShapeMaker extends OccDeletable {
   Shape(): OccShape;
 }
+/** BRepFilletAPI_MakeFillet: Add(반지름, 모서리) 누적 후 Shape() 로 빌드. */
+interface OccFilletMaker extends OccDeletable {
+  Add(radius: number, edge: OccShape): void;
+  Shape(): OccShape;
+}
+/** BRepFilletAPI_MakeChamfer: Add(거리, 모서리) 누적 후 Shape() 로 빌드. */
+interface OccChamferMaker extends OccDeletable {
+  Add(distance: number, edge: OccShape): void;
+  Shape(): OccShape;
+}
 interface OccCurve extends OccDeletable {
   FirstParameter(): number;
   LastParameter(): number;
@@ -78,6 +91,8 @@ interface OccInstance {
   BRepAlgoAPI_Fuse: new (a: OccShape, b: OccShape) => OccShapeMaker;
   BRepAlgoAPI_Cut: new (a: OccShape, b: OccShape) => OccShapeMaker;
   BRepAlgoAPI_Common: new (a: OccShape, b: OccShape) => OccShapeMaker;
+  BRepFilletAPI_MakeFillet: new (shape: OccShape) => OccFilletMaker;
+  BRepFilletAPI_MakeChamfer: new (shape: OccShape) => OccChamferMaker;
   BRepMesh_IncrementalMesh: new (
     shape: OccShape,
     deflection: number,
@@ -180,6 +195,88 @@ export async function occtBoolean(
   occtDeleteShape(idB);
 
   return registerAndTessellate(oc, result, resultId);
+}
+
+/* ── 모서리 피처 (필렛 / 모따기) ────────────────────────────── */
+
+/**
+ * 셰이프의 모서리들을 explorer 순서대로 TopoDS_Edge 배열로 수집한다.
+ * **registerAndTessellate 의 모서리 루프와 동일한 순서**여야 edgeId 가 일치한다
+ * (둘 다 TopExp_Explorer(shape, TopAbs_EDGE) + TopoDS.Edge(Current)).
+ * 반환된 Edge 들은 호출 측이 .delete() 책임을 진다.
+ */
+function collectEdges(oc: OccInstance, shape: OccShape): OccShape[] {
+  const out: OccShape[] = [];
+  const exp = new oc.TopExp_Explorer(shape, oc.TopAbs_EDGE);
+  try {
+    for (; exp.More(); exp.Next()) {
+      out.push(oc.TopoDS.prototype.Edge(exp.Current()));
+    }
+  } finally {
+    exp.delete();
+  }
+  return out;
+}
+
+/**
+ * 필렛/모따기 공통 본체. kind 에 따라 MakeFillet(반지름) / MakeChamfer(거리).
+ * 메모리 규약: maker·수집한 모든 Edge 를 finally 에서 .delete(). 입력 셰이프는 소비.
+ */
+async function occtEdgeFeature(
+  kind: "fillet" | "chamfer",
+  shapeId: string,
+  edgeIds: number[],
+  value: number,
+  resultId: string,
+): Promise<TessellatedMesh> {
+  const oc = await loadOcct();
+  const src = shapeStore.get(shapeId);
+  if (!src) {
+    throw new Error("모서리 피처: 입력 셰이프를 찾을 수 없습니다 (OCCT 셰이프만 가능)");
+  }
+
+  const edges = collectEdges(oc, src);
+  const maker =
+    kind === "fillet"
+      ? new oc.BRepFilletAPI_MakeFillet(src)
+      : new oc.BRepFilletAPI_MakeChamfer(src);
+  let result: OccShape;
+  try {
+    const ids = resolveEdgeIds(edges.length, edgeIds);
+    for (const id of ids) {
+      const edge = edges[id]!;
+      if (kind === "fillet") {
+        (maker as OccFilletMaker).Add(value, edge);
+      } else {
+        (maker as OccChamferMaker).Add(value, edge);
+      }
+    }
+    // Shape() 가 내부적으로 빌드를 수행한다. 기하학적으로 불가능하면 여기서 throw.
+    result = maker.Shape();
+  } finally {
+    maker.delete();
+    for (const edge of edges) edge.delete();
+  }
+
+  // 입력 소비 (불리언과 동일 규약 — 원본은 결과로 대체된다)
+  occtDeleteShape(shapeId);
+  return registerAndTessellate(oc, result, resultId);
+}
+
+export function occtFillet(
+  shapeId: string,
+  params: FilletParams,
+  resultId: string,
+): Promise<TessellatedMesh> {
+  return occtEdgeFeature("fillet", shapeId, params.edgeIds, params.radius, resultId);
+}
+
+export function occtChamfer(
+  shapeId: string,
+  params: ChamferParams,
+  resultId: string,
+): Promise<TessellatedMesh> {
+  return occtEdgeFeature("chamfer", shapeId, params.edgeIds, params.distance, resultId);
 }
 
 /* ── 테셀레이션 (면 + 모서리) ───────────────────────────────── */

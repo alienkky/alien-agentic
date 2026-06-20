@@ -12,6 +12,7 @@ import { SketchContextMenu } from "./ui/SketchContextMenu";
 import { NormalContextMenu } from "./ui/NormalContextMenu";
 import { ExtrudeDialog } from "./ui/ExtrudeDialog";
 import { RevolveDialog } from "./ui/RevolveDialog";
+import { EdgeFeatureDialog } from "./ui/EdgeFeatureDialog";
 import { PatternDialog } from "./ui/PatternDialog";
 import { TransformDialog } from "./ui/TransformDialog";
 import { SketchTransformDialog } from "./ui/SketchTransformDialog";
@@ -44,6 +45,7 @@ export function App(): JSX.Element {
       <NormalContextMenu />
       <ExtrudeDialog />
       <RevolveDialog />
+      <EdgeFeatureDialog />
       <PatternDialog />
       <TransformDialog />
       <SketchTransformDialog />

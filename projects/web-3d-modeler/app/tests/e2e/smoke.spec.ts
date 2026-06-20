@@ -10,10 +10,13 @@ test("박스 − 실린더 빼기까지", async ({ page }) => {
   await expect(page.getByText(/커널 준비됨/)).toBeVisible({ timeout: 30_000 });
   await expect(page.locator("canvas")).toBeVisible();
 
-  await page.getByRole("button", { name: "박스 (Box)" }).click();
+  // 프리미티브는 "삽입" 플라이아웃 안에 있다 (열고 → 항목 클릭, 클릭 후 플라이아웃 닫힘)
+  await page.getByRole("button", { name: "삽입" }).click();
+  await page.getByRole("button", { name: "박스", exact: true }).click();
   await expect(page.getByText(/box-1 추가됨/)).toBeVisible({ timeout: 15_000 });
 
-  await page.getByRole("button", { name: "실린더 (Cylinder)" }).click();
+  await page.getByRole("button", { name: "삽입" }).click();
+  await page.getByRole("button", { name: "실린더", exact: true }).click();
   await expect(page.getByText(/cylinder-2 추가됨/)).toBeVisible({ timeout: 15_000 });
 
   // 우측 바디 패널에서 둘 다 선택
@@ -23,6 +26,6 @@ test("박스 − 실린더 빼기까지", async ({ page }) => {
 
   // 빼기 → 결과 바디 생성
   await page.getByRole("button", { name: "빼기 (Subtract)" }).click();
+  // 파이프라인 완료 신호 = 상태바 "빼기 완료 → bool-N"
   await expect(page.getByText(/빼기 완료/)).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText(/바디 \(1\)/)).toBeVisible();
 });

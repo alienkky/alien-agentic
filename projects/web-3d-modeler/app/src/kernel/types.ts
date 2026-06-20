@@ -52,6 +52,22 @@ export interface MakeSphereParams {
 /** 불리언 연산: 합(fuse)·차(cut)·교(common). */
 export type BooleanOp = "fuse" | "cut" | "common";
 
+/** 모서리 필렛(모깎기): 선택 모서리들에 반지름 둥글리기. */
+export interface FilletParams {
+  /** 대상 모서리 id 목록 (TessellatedMesh.edges 의 edgeId). */
+  edgeIds: number[];
+  /** 필렛 반지름 (mm, > 0). */
+  radius: number;
+}
+
+/** 모서리 모따기(챔퍼): 선택 모서리들에 거리 사선 깎기. */
+export interface ChamferParams {
+  /** 대상 모서리 id 목록 (TessellatedMesh.edges 의 edgeId). */
+  edgeIds: number[];
+  /** 모따기 거리 (mm, > 0). */
+  distance: number;
+}
+
 /** 워커가 expose 하는 커널 API (Comlink 경유). */
 export interface KernelAPI {
   /** WASM 로딩 완료까지 대기. true 면 준비됨. */
@@ -65,6 +81,16 @@ export interface KernelAPI {
    * 입력 셰이프는 소비된다(삭제). OCCT 백엔드 전용 — 결정론적 백엔드는 거부한다.
    */
   boolean(op: BooleanOp, idA: string, idB: string, resultId: string): Promise<TessellatedMesh>;
+  /**
+   * 모서리 필렛(모깎기): shapeId 의 선택 모서리에 반지름 둥글리기 → resultId 새 셰이프.
+   * 입력 셰이프는 소비된다. OCCT 백엔드 전용 — FAST(메시)는 거부한다.
+   */
+  fillet(shapeId: string, params: FilletParams, resultId: string): Promise<TessellatedMesh>;
+  /**
+   * 모서리 모따기(챔퍼): shapeId 의 선택 모서리에 거리 사선 깎기 → resultId 새 셰이프.
+   * 입력 셰이프는 소비된다. OCCT 백엔드 전용 — FAST(메시)는 거부한다.
+   */
+  chamfer(shapeId: string, params: ChamferParams, resultId: string): Promise<TessellatedMesh>;
   /** 셰이프 폐기 (커널 측 메모리 해제). */
   deleteShape(shapeId: string): Promise<void>;
 }

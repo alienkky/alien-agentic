@@ -14,11 +14,14 @@ import type {
   MakeCylinderParams,
   MakeSphereParams,
   BooleanOp,
+  FilletParams,
+  ChamferParams,
   TessellatedMesh,
 } from "./types";
 import { tessellateBox } from "./occt/boxMesh";
 import { tessellateCylinder } from "./occt/cylinderMesh";
 import { tessellateSphere } from "./occt/sphereMesh";
+import { validateEdgeFeature } from "./edgeFeature";
 
 export type KernelBackend = "deterministic" | "occt";
 
@@ -72,6 +75,19 @@ const worker: KernelWorker = {
     }
     const { occtBoolean } = await import("./occt/occtModule");
     return occtBoolean(op, idA, idB, resultId);
+  },
+
+  async fillet(shapeId: string, params: FilletParams, resultId: string): Promise<TessellatedMesh> {
+    // FAST(메시) 거부 — OCCT WASM import 전에 검증한다.
+    validateEdgeFeature(backend, "fillet", params.edgeIds, params.radius);
+    const { occtFillet } = await import("./occt/occtModule");
+    return occtFillet(shapeId, params, resultId);
+  },
+
+  async chamfer(shapeId: string, params: ChamferParams, resultId: string): Promise<TessellatedMesh> {
+    validateEdgeFeature(backend, "chamfer", params.edgeIds, params.distance);
+    const { occtChamfer } = await import("./occt/occtModule");
+    return occtChamfer(shapeId, params, resultId);
   },
 
   async deleteShape(shapeId: string): Promise<void> {

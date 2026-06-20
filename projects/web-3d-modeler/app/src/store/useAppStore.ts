@@ -6,6 +6,7 @@ import { create } from "zustand";
 import { createKernelClient, type KernelHandle } from "../kernel/bridge";
 import type { KernelBackend } from "../kernel/worker";
 import type { TessellatedMesh, BooleanOp } from "../kernel/types";
+import type { EdgeFeatureKind } from "../kernel/edgeFeature";
 import { meshBoolean } from "../kernel/meshBoolean";
 import { extrudeProfile } from "../kernel/extrude";
 import { revolveProfile, type RevolveAxis } from "../kernel/revolve";
@@ -43,6 +44,19 @@ export interface SelItem {
 
 export function selectionBodyIds(sel: SelItem[]): string[] {
   return [...new Set(sel.filter((s) => s.kind !== "sketch").map((s) => s.shapeId))];
+}
+
+/**
+ * 선택된 모서리들을 단일 바디 기준으로 추린다 (필렛/모따기 입력).
+ * 첫 모서리의 shapeId 를 기준으로 같은 바디 모서리만 모은다 — 모서리 피처는 한 바디 대상.
+ * 모서리 선택이 없으면 null.
+ */
+export function selectionEdges(sel: SelItem[]): { shapeId: string; edgeIds: number[] } | null {
+  const edges = sel.filter((s) => s.kind === "edge");
+  if (edges.length === 0) return null;
+  const shapeId = edges[0]!.shapeId;
+  const edgeIds = edges.filter((e) => e.shapeId === shapeId).map((e) => e.index);
+  return { shapeId, edgeIds };
 }
 
 function sameSel(a: SelItem, b: SelItem): boolean {
@@ -161,6 +175,8 @@ interface AppState {
   extrudeOpen: boolean;
   /** 회전 다이얼로그 열림 여부 (각도·축 입력) */
   revolveOpen: boolean;
+  /** 모서리 피처 다이얼로그 (필렛/모따기). null 이면 닫힘 */
+  edgeFeatureOpen: EdgeFeatureKind | null;
   /** 돌출 드래그 세션 (스케치 핸들을 끌어 실시간 높이). null 이면 비활성 */
   extrudeDrag: { sketchId: string; height: number } | null;
   /** 패턴 다이얼로그 열림 여부 */
@@ -302,6 +318,11 @@ interface AppState {
   /** 회전 다이얼로그 열기/닫기 */
   openRevolve: () => void;
   closeRevolve: () => void;
+  /** 모서리 피처 다이얼로그 열기/닫기 (필렛/모따기) */
+  openEdgeFeature: (kind: EdgeFeatureKind) => void;
+  closeEdgeFeature: () => void;
+  /** 선택 모서리에 필렛(반지름)/모따기(거리) 적용. OCCT 전용 — FAST 는 거부 안내 */
+  applyEdgeFeature: (kind: EdgeFeatureKind, value: number) => Promise<void>;
   /** STL 파일 불러오기 → 바디로 추가 */
   importStl: (buffer: ArrayBuffer, name: string) => void;
 
@@ -396,6 +417,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   history: [],
   extrudeOpen: false,
   revolveOpen: false,
+  edgeFeatureOpen: null,
   extrudeDrag: null,
   patternOpen: false,
   transformMode: null,
@@ -1050,6 +1072,68 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ revolveOpen: true, status: "회전 — 각도와 축을 정하세요" });
   },
   closeRevolve: () => set({ revolveOpen: false }),
+
+  openEdgeFeature: (kind) => {
+    const picked = selectionEdges(get().selection);
+    if (!picked) {
+      set({ status: `${kind === "fillet" ? "필렛" : "모따기"}: 먼저 모서리를 선택하세요 (모서리 클릭)` });
+      return;
+    }
+    if (get().backend !== "occt") {
+      set({
+        status:
+          `${kind === "fillet" ? "필렛" : "모따기"}는 OCCT(B-rep) 백엔드 전용입니다 — ` +
+          `상단 OCCT 토글을 켜세요. FAST(메시)는 임의 모서리 둥글리기를 지원하지 않습니다.`,
+      });
+      return;
+    }
+    set({ edgeFeatureOpen: kind, status: `${kind === "fillet" ? "필렛(반지름)" : "모따기(거리)"} — 값을 입력하세요` });
+  },
+  closeEdgeFeature: () => set({ edgeFeatureOpen: null }),
+
+  applyEdgeFeature: async (kind, value) => {
+    const st = get();
+    if (st.busy) return;
+    const picked = selectionEdges(st.selection);
+    if (!picked) {
+      set({ status: `${kind === "fillet" ? "필렛" : "모따기"}: 모서리를 선택하세요`, edgeFeatureOpen: null });
+      return;
+    }
+    if (st.backend !== "occt" || !kernel) {
+      set({
+        status:
+          `${kind === "fillet" ? "필렛" : "모따기"}는 OCCT 백엔드에서만 가능합니다 — 상단 OCCT 토글을 켜세요.`,
+        edgeFeatureOpen: null,
+      });
+      return;
+    }
+    const { shapeId, edgeIds } = picked;
+    const label = kind === "fillet" ? "필렛" : "모따기";
+    set({ busy: true, status: `${label} 중 (${edgeIds.length}개 모서리)…` });
+    try {
+      const resultId = `${kind}-${++counter}`;
+      const mesh =
+        kind === "fillet"
+          ? await kernel.client.fillet(shapeId, { edgeIds, radius: value }, resultId)
+          : await kernel.client.chamfer(shapeId, { edgeIds, distance: value }, resultId);
+      set((s) => {
+        const transforms = { ...s.transforms };
+        delete transforms[shapeId];
+        return {
+          shapes: [...s.shapes.filter((m) => m.shapeId !== shapeId), mesh],
+          transforms,
+          selection: [],
+          edgeFeatureOpen: null,
+          history: [...s.history, { id: resultId, label: `${label} ${kind === "fillet" ? "r" : ""}${value}` }],
+          status: `${label} 완료 → ${resultId}`,
+        };
+      });
+    } catch (err) {
+      set({ status: `오류: ${err instanceof Error ? err.message : String(err)}`, edgeFeatureOpen: null });
+    } finally {
+      set({ busy: false });
+    }
+  },
 
   importStl: (buffer, name) => {
     try {
