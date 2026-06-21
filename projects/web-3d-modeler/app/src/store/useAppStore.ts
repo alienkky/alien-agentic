@@ -249,8 +249,8 @@ interface AppState {
   toggleSnap: (key: "grid" | "sketchLine" | "sketchPoint" | "guide3d" | "farEdge" | "guidePoint" | "snapHint" | "gridAdaptive") => void;
   /** 그리는 중 보라색 정렬 안내선 */
   sketchGuides: Guide[];
-  /** 자르기 모드에서 마우스 올린 곳의 잘릴 구간 (빨강 미리보기) */
-  sketchTrimPreview: { a: SketchPoint; b: SketchPoint } | null;
+  /** 자르기 모드에서 마우스 올린 곳의 잘릴 구간 점들 (빨강 미리보기) */
+  sketchTrimPreview: SketchPoint[] | null;
   /** 모든 바디 선택 */
   selectAll: () => void;
   /** 단위 (단위 팝업) */

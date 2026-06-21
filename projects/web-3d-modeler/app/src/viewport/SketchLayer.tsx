@@ -300,8 +300,10 @@ export function SketchLayer(): JSX.Element | null {
         <Line key={`g${i}`} points={[toWorld(g.anchor), toWorld(g.to)]} color="#a855f7" lineWidth={1} dashed dashSize={0.25} gapSize={0.18} />
       ))}
 
-      {/* 자르기 미리보기 — 잘릴 구간 빨강 */}
-      {trimPreview && <Line points={[toWorld(trimPreview.a), toWorld(trimPreview.b)]} color="#ef4444" lineWidth={4} />}
+      {/* 자르기 미리보기 — 잘릴 구간 빨강 (호/원은 여러 점의 폴리라인) */}
+      {trimPreview && trimPreview.length >= 2 && (
+        <Line points={trimPreview.map((p) => toWorld(p))} color="#ef4444" lineWidth={4} />
+      )}
 
       {/* 사각형/원 드래그 미리보기 */}
       {draftView && (
