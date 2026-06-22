@@ -5,6 +5,7 @@
 import { useEffect } from "react";
 import { useAppStore, selectionBodyIds, type SketchTool } from "../store/useAppStore";
 import type { ViewPreset } from "../viewport/cameraMath";
+import type { ConstraintKind } from "../kernel/sketchConstraints";
 
 /** 숫자키 → 표준 뷰 (Shapr3D 식). 없으면 null. */
 export function viewForKey(key: string): ViewPreset | null {
@@ -34,6 +35,19 @@ export function sketchToolForKey(key: string): SketchTool | null {
   return m[key.toLowerCase()] ?? null;
 }
 
+/** Shift+키 → 구속조건 (스케치 모드). 없으면 null. */
+export function sketchConstraintForKey(key: string): ConstraintKind | null {
+  const m: Record<string, ConstraintKind> = {
+    h: "horizontal",
+    v: "vertical",
+    a: "parallel",
+    p: "perpendicular",
+    e: "equal",
+    n: "coincident",
+  };
+  return m[key.toLowerCase()] ?? null;
+}
+
 export function useKeyboardShortcuts(): void {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -46,6 +60,11 @@ export function useKeyboardShortcuts(): void {
       const mod = e.ctrlKey || e.metaKey;
 
       if (st.sketchActive) {
+        // Shift+키 = 구속조건 (도구 단축키보다 먼저 — Shift+A 가 'arc' 로 새지 않게)
+        if (e.shiftKey && !mod) {
+          const con = sketchConstraintForKey(key);
+          if (con) { st.applySketchConstraint(con); e.preventDefault(); return; }
+        }
         const tool = sketchToolForKey(key);
         if (tool) { st.setSketchTool(tool); e.preventDefault(); return; }
         if (low === "o") { st.openSketchTransform("offset"); e.preventDefault(); return; }

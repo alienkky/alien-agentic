@@ -585,3 +585,59 @@ describe("useAppStore — 면 위에 스케치(Sketch on Face)", () => {
     expect(sk.plane.normal[1]).toBeCloseTo(1, 5);
   });
 });
+
+describe("useAppStore — 스케치 구속조건 (Shift+클릭 → 적용)", () => {
+  /** 활성 스케치에 사각형 한 획을 만든다 (u: w/2, v: h/2 반치). */
+  function rect(hw: number, hh: number): void {
+    const st = useAppStore.getState();
+    st.cancelSketch();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("rectangle");
+    st.sketchDragStart({ u: -hw, v: -hh });
+    st.sketchDragMove({ u: hw, v: hh });
+    st.sketchDragEnd();
+  }
+
+  it("toggleConstraintSel: 같은 항목 두 번 → 비움", () => {
+    rect(1, 1);
+    const st = useAppStore.getState();
+    st.toggleConstraintSel({ type: "seg", s: 0, i: 0 });
+    expect(useAppStore.getState().constraintSel).toHaveLength(1);
+    useAppStore.getState().toggleConstraintSel({ type: "seg", s: 0, i: 0 });
+    expect(useAppStore.getState().constraintSel).toHaveLength(0);
+  });
+
+  it("수평 구속: 세로 선분을 수평으로 (둘째 끝점 이동)", () => {
+    rect(1, 1); // pts: (-1,-1)(1,-1)(1,1)(-1,1). seg1 = 세로 우변
+    const st = useAppStore.getState();
+    st.toggleConstraintSel({ type: "seg", s: 0, i: 1 });
+    st.applySketchConstraint("horizontal");
+    const stroke = useAppStore.getState().sketchStrokes[0]!;
+    expect(stroke[2]!.v).toBeCloseTo(stroke[1]!.v); // 수평
+    expect(useAppStore.getState().constraintSel).toHaveLength(0); // 적용 후 선택 비움
+  });
+
+  it("동일 구속: 둘째 선분 길이를 첫(기준) 선분과 같게", () => {
+    rect(2, 1); // 가로변 len4 / 세로변 len2
+    const st = useAppStore.getState();
+    st.toggleConstraintSel({ type: "seg", s: 0, i: 0 }); // 기준(가로 len4)
+    st.toggleConstraintSel({ type: "seg", s: 0, i: 1 }); // 대상(세로 len2)
+    st.applySketchConstraint("equal");
+    const stroke = useAppStore.getState().sketchStrokes[0]!;
+    const a = stroke[1]!;
+    const b = stroke[2]!;
+    expect(Math.hypot(b.u - a.u, b.v - a.v)).toBeCloseTo(4);
+  });
+
+  it("선택 부족: 평행(선분 2개)인데 1개 → 적용 안 함 + 안내 상태", () => {
+    rect(1, 1);
+    const st = useAppStore.getState();
+    const before = useAppStore.getState().sketchStrokes;
+    st.toggleConstraintSel({ type: "seg", s: 0, i: 0 });
+    st.applySketchConstraint("parallel");
+    expect(useAppStore.getState().sketchStrokes).toBe(before); // 변화 없음
+    expect(useAppStore.getState().status).toContain("선분 2개");
+    expect(useAppStore.getState().constraintSel).toHaveLength(1); // 선택 유지
+  });
+});

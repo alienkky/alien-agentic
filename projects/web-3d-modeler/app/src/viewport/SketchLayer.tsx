@@ -21,8 +21,8 @@ const PLANE_COLOR: Record<PlaneId, string> = { xz: "#4fd1c5", xy: "#5b9cff", yz:
 /** 평면 색 — 표준평면이면 고유색, 면 위 평면이면 기본 청록. */
 const planeColorFor = (plane: SketchPlaneDef): string => PLANE_COLOR[plane.id as PlaneId] ?? "#4fd1c5";
 
-/** Shapr3D 식 스케치 팔레트 — 선=연한 흰파랑, 점=파랑, 면=파랑, 보조=회색. */
-const SK = { line: "#cdd9ee", fill: "#5b9cff", point: "#2f6bff", active: "#5b9cff", guide: "#7d8a9e", selected: "#f59e0b" };
+/** Shapr3D 식 스케치 팔레트 — 선=연한 흰파랑, 점=파랑, 면=파랑, 보조=회색, 구속선택=초록. */
+const SK = { line: "#cdd9ee", fill: "#5b9cff", point: "#2f6bff", active: "#5b9cff", guide: "#7d8a9e", selected: "#f59e0b", constrained: "#22c55e" };
 
 /** 스케치 평면 격자 (local XY, 어댑티브 셀). planeMatrix 그룹 안에 두어 그 평면에 눕는다. */
 function SketchGrid({ cell }: { cell: number }): JSX.Element {
@@ -110,6 +110,10 @@ function StrokeView({ plane, pts, strokeIndex, ptSize }: { plane: SketchPlaneDef
   const startPointDrag = useAppStore((s) => s.startPointDrag);
   const selectedPoint = useAppStore((s) => s.sketchSelectedPoint);
   const startSegDrag = useAppStore((s) => s.startSegDrag);
+  const constraintSel = useAppStore((s) => s.constraintSel);
+  const toggleConstraintSel = useAppStore((s) => s.toggleConstraintSel);
+  const inConstraint = (type: "seg" | "point", i: number): boolean =>
+    constraintSel.some((r) => r.type === type && r.s === strokeIndex && r.i === i);
 
   const toWorld = (p: SketchPoint): [number, number, number] => planeToWorld(plane, p.u, p.v);
   const closed = pts.length >= 3;
@@ -129,28 +133,42 @@ function StrokeView({ plane, pts, strokeIndex, ptSize }: { plane: SketchPlaneDef
           const a = pts[i]!;
           const b = pts[(i + 1) % pts.length]!;
           const sel = selectedSeg?.s === strokeIndex && selectedSeg?.i === i;
+          const con = inConstraint("seg", i);
+          // wrap 선분(닫힌 획의 마지막)은 치수/구속 규약 밖 → 구속 선택 제외
+          const constrainable = i + 1 < pts.length;
           return (
             <Line
               key={`seg${i}`}
               points={[toWorld(a), toWorld(b)]}
-              color={sel ? SK.selected : SK.line}
-              lineWidth={sel ? 3 : 2}
-              onPointerDown={(e) => { e.stopPropagation(); startSegDrag(strokeIndex, i, worldToPlane(plane, e.point.x, e.point.y, e.point.z)); }}
+              color={con ? SK.constrained : sel ? SK.selected : SK.line}
+              lineWidth={con || sel ? 3 : 2}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                // Shift+클릭 = 구속 대상 토글, 그 외 = 선분 드래그 이동
+                if (e.nativeEvent.shiftKey && constrainable) toggleConstraintSel({ type: "seg", s: strokeIndex, i });
+                else startSegDrag(strokeIndex, i, worldToPlane(plane, e.point.x, e.point.y, e.point.z));
+              }}
             />
           );
         })}
       {!isCircleLike &&
         pts.map((p, i) => {
           const selPt = selectedPoint?.s === strokeIndex && selectedPoint?.i === i;
+          const conPt = inConstraint("point", i);
           return (
             <mesh
               key={`pt${i}`}
               position={toWorld(p)}
               renderOrder={5}
-              onPointerDown={(e) => { e.stopPropagation(); startPointDrag(strokeIndex, i); }}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                // Shift+클릭 = 구속 대상(점) 토글, 그 외 = 점 드래그 이동
+                if (e.nativeEvent.shiftKey) toggleConstraintSel({ type: "point", s: strokeIndex, i });
+                else startPointDrag(strokeIndex, i);
+              }}
             >
-              <sphereGeometry args={[ptSize, 14, 14]} />
-              <meshBasicMaterial color={selPt ? SK.selected : SK.point} depthTest={false} />
+              <sphereGeometry args={[conPt ? ptSize * 1.4 : ptSize, 14, 14]} />
+              <meshBasicMaterial color={conPt ? SK.constrained : selPt ? SK.selected : SK.point} depthTest={false} />
             </mesh>
           );
         })}
@@ -282,8 +300,10 @@ export function SketchLayer(): JSX.Element | null {
         <Line key={`g${i}`} points={[toWorld(g.anchor), toWorld(g.to)]} color="#a855f7" lineWidth={1} dashed dashSize={0.25} gapSize={0.18} />
       ))}
 
-      {/* 자르기 미리보기 — 잘릴 구간 빨강 */}
-      {trimPreview && <Line points={[toWorld(trimPreview.a), toWorld(trimPreview.b)]} color="#ef4444" lineWidth={4} />}
+      {/* 자르기 미리보기 — 잘릴 구간 빨강 (호/원은 여러 점의 폴리라인) */}
+      {trimPreview && trimPreview.length >= 2 && (
+        <Line points={trimPreview.map((p) => toWorld(p))} color="#ef4444" lineWidth={4} />
+      )}
 
       {/* 사각형/원 드래그 미리보기 */}
       {draftView && (
