@@ -280,12 +280,12 @@ interface AppState {
   deleteSketchStrokeAt: (uv: SketchPoint) => void;
   /** 점 편집 — 선택/드래그 이동 */
   sketchSelectedPoint: { s: number; i: number } | null;
-  sketchDraggingPoint: { s: number; i: number } | null;
-  startPointDrag: (s: number, i: number) => void;
+  sketchDraggingPoint: { s: number; i: number; down: SketchPoint; moved: boolean } | null;
+  startPointDrag: (s: number, i: number, uv: SketchPoint) => void;
   movePointDrag: (uv: SketchPoint) => void;
   endPointDrag: () => void;
   /** 선분 편집 — 선분을 통째로 드래그 이동 (두 끝점 평행 이동) */
-  sketchDraggingSeg: { s: number; i: number; last: SketchPoint } | null;
+  sketchDraggingSeg: { s: number; i: number; last: SketchPoint; down: SketchPoint; moved: boolean } | null;
   startSegDrag: (s: number, i: number, uv: SketchPoint) => void;
   moveSegDrag: (uv: SketchPoint) => void;
   endSegDrag: () => void;
@@ -820,22 +820,33 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { sketchStrokes: s.sketchStrokes.filter((_, i) => i !== idx), sketchSelectedSeg: null, sketchSelectedPoint: null, status: "선 삭제" };
     }),
 
-  startPointDrag: (s, i) => set({ sketchSelectedPoint: { s, i }, sketchDraggingPoint: { s, i }, gizmoDragging: true, status: "점 이동 — 끌어서 옮기기" }),
+  // 탭(거의 안 움직임) = 구속 선택 토글, 끌면(threshold 초과) = 이동. Shapr3D 식 — Shift 불필요.
+  startPointDrag: (s, i, uv) => set({ sketchDraggingPoint: { s, i, down: uv, moved: false }, gizmoDragging: true }),
   movePointDrag: (uv) =>
     set((s) => {
-      if (!s.sketchDraggingPoint) return {};
-      const { s: si, i } = s.sketchDraggingPoint;
+      const d = s.sketchDraggingPoint;
+      if (!d) return {};
+      const th = Math.max(0.05, s.camera.radius * 0.008);
+      if (!d.moved && Math.hypot(uv.u - d.down.u, uv.v - d.down.v) < th) return {}; // 아직 탭
+      const { s: si, i } = d;
       const p: SketchPoint = s.snap.grid ? { u: snap(uv.u), v: snap(uv.v) } : uv;
       const strokes = s.sketchStrokes.map((st, idx) => (idx === si ? st.map((pt, j) => (j === i ? p : pt)) : st));
-      return { sketchStrokes: strokes };
+      return { sketchStrokes: strokes, sketchDraggingPoint: { ...d, moved: true }, sketchSelectedPoint: { s: si, i }, status: "점 이동 — 끌어서 옮기기" };
     }),
-  endPointDrag: () => set({ sketchDraggingPoint: null, gizmoDragging: false, status: "점 이동 완료" }),
+  endPointDrag: () => {
+    const d = get().sketchDraggingPoint;
+    set({ sketchDraggingPoint: null, gizmoDragging: false });
+    if (d && !d.moved) get().toggleConstraintSel({ type: "point", s: d.s, i: d.i });
+    else set({ status: "점 이동 완료" });
+  },
 
-  startSegDrag: (s, i, uv) => set({ sketchDraggingSeg: { s, i, last: uv }, sketchSelectedSeg: { s, i }, sketchSelectedPoint: null, gizmoDragging: true, status: "선분 이동 — 끌어서 옮기기" }),
+  startSegDrag: (s, i, uv) => set({ sketchDraggingSeg: { s, i, last: uv, down: uv, moved: false }, gizmoDragging: true }),
   moveSegDrag: (uv) =>
     set((st) => {
       const d = st.sketchDraggingSeg;
       if (!d) return {};
+      const th = Math.max(0.05, st.camera.radius * 0.008);
+      if (!d.moved && Math.hypot(uv.u - d.down.u, uv.v - d.down.v) < th) return {}; // 아직 탭
       const du = uv.u - d.last.u;
       const dv = uv.v - d.last.v;
       const strokes = st.sketchStrokes.map((stroke, si) => {
@@ -844,9 +855,17 @@ export const useAppStore = create<AppState>((set, get) => ({
         const j2 = (d.i + 1) % n; // 닫힌 획의 마지막 선분은 끝점이 0번
         return stroke.map((p, j) => (j === d.i || j === j2 ? { u: p.u + du, v: p.v + dv } : p));
       });
-      return { sketchStrokes: strokes, sketchDraggingSeg: { ...d, last: uv } };
+      return { sketchStrokes: strokes, sketchDraggingSeg: { ...d, last: uv, moved: true }, sketchSelectedSeg: { s: d.s, i: d.i }, sketchSelectedPoint: null, status: "선분 이동 — 끌어서 옮기기" };
     }),
-  endSegDrag: () => set({ sketchDraggingSeg: null, gizmoDragging: false, status: "선분 이동 완료" }),
+  endSegDrag: () => {
+    const d = get().sketchDraggingSeg;
+    set({ sketchDraggingSeg: null, gizmoDragging: false });
+    if (d && !d.moved) {
+      // wrap 선분(닫힌 획의 마지막)은 구속 대상 제외 — 치수/구속 규약과 동일
+      const stroke = get().sketchStrokes[d.s];
+      if (stroke && d.i + 1 < stroke.length) get().toggleConstraintSel({ type: "seg", s: d.s, i: d.i });
+    } else if (d) set({ status: "선분 이동 완료" });
+  },
 
   openSketchTransform: (mode) =>
     set((s) => (s.sketchStrokes.length === 0 ? { status: "먼저 스케치 도형을 그리세요" } : { sketchTransformMode: mode })),

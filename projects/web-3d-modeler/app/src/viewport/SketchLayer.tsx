@@ -13,6 +13,7 @@ import {
   planeToWorld, worldToPlane,
   type PlaneId, type SketchPlaneDef, type SketchPoint,
 } from "../kernel/sketchPlane";
+import { CONSTRAINT_SPECS, type ConstraintKind } from "../kernel/sketchConstraints";
 
 const PLANE_ROT: Record<PlaneId, [number, number, number]> = {
   xz: [-Math.PI / 2, 0, 0], xy: [0, 0, 0], yz: [0, Math.PI / 2, 0],
@@ -136,19 +137,22 @@ function StrokeView({ plane, pts, strokeIndex, ptSize }: { plane: SketchPlaneDef
           const con = inConstraint("seg", i);
           // wrap 선분(닫힌 획의 마지막)은 치수/구속 규약 밖 → 구속 선택 제외
           const constrainable = i + 1 < pts.length;
+          const onSegDown = (e: { stopPropagation: () => void; nativeEvent: PointerEvent; point: THREE.Vector3 }) => {
+            e.stopPropagation();
+            // Shift+클릭 = 즉시 구속 토글. 그 외 = 탭이면 구속 선택, 끌면 이동 (startSegDrag 가 판별)
+            if (e.nativeEvent.shiftKey && constrainable) toggleConstraintSel({ type: "seg", s: strokeIndex, i });
+            else startSegDrag(strokeIndex, i, worldToPlane(plane, e.point.x, e.point.y, e.point.z));
+          };
           return (
-            <Line
-              key={`seg${i}`}
-              points={[toWorld(a), toWorld(b)]}
-              color={con ? SK.constrained : sel ? SK.selected : SK.line}
-              lineWidth={con || sel ? 3 : 2}
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                // Shift+클릭 = 구속 대상 토글, 그 외 = 선분 드래그 이동
-                if (e.nativeEvent.shiftKey && constrainable) toggleConstraintSel({ type: "seg", s: strokeIndex, i });
-                else startSegDrag(strokeIndex, i, worldToPlane(plane, e.point.x, e.point.y, e.point.z));
-              }}
-            />
+            <group key={`seg${i}`}>
+              {/* 넉넉한 투명 히트라인 — 얇은 선도 쉽게 집히게 (Shapr3D 식) */}
+              <Line points={[toWorld(a), toWorld(b)]} color={SK.line} lineWidth={14} transparent opacity={0} onPointerDown={onSegDown} />
+              <Line
+                points={[toWorld(a), toWorld(b)]}
+                color={con ? SK.constrained : sel ? SK.selected : SK.line}
+                lineWidth={con || sel ? 3 : 2}
+              />
+            </group>
           );
         })}
       {!isCircleLike &&
@@ -156,20 +160,26 @@ function StrokeView({ plane, pts, strokeIndex, ptSize }: { plane: SketchPlaneDef
           const selPt = selectedPoint?.s === strokeIndex && selectedPoint?.i === i;
           const conPt = inConstraint("point", i);
           return (
-            <mesh
-              key={`pt${i}`}
-              position={toWorld(p)}
-              renderOrder={5}
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                // Shift+클릭 = 구속 대상(점) 토글, 그 외 = 점 드래그 이동
-                if (e.nativeEvent.shiftKey) toggleConstraintSel({ type: "point", s: strokeIndex, i });
-                else startPointDrag(strokeIndex, i);
-              }}
-            >
-              <sphereGeometry args={[conPt ? ptSize * 1.4 : ptSize, 14, 14]} />
-              <meshBasicMaterial color={conPt ? SK.constrained : selPt ? SK.selected : SK.point} depthTest={false} />
-            </mesh>
+            <group key={`pt${i}`}>
+              {/* 넉넉한 투명 히트 구 — 작은 점도 쉽게 집히게 (Shapr3D 식) */}
+              <mesh
+                position={toWorld(p)}
+                renderOrder={6}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  // Shift+클릭 = 즉시 구속 토글. 그 외 = 탭이면 구속 선택, 끌면 이동 (startPointDrag 가 판별)
+                  if (e.nativeEvent.shiftKey) toggleConstraintSel({ type: "point", s: strokeIndex, i });
+                  else startPointDrag(strokeIndex, i, worldToPlane(plane, e.point.x, e.point.y, e.point.z));
+                }}
+              >
+                <sphereGeometry args={[ptSize * 2.8, 10, 10]} />
+                <meshBasicMaterial transparent opacity={0} depthTest={false} depthWrite={false} />
+              </mesh>
+              <mesh position={toWorld(p)} renderOrder={5}>
+                <sphereGeometry args={[conPt ? ptSize * 1.4 : ptSize, 14, 14]} />
+                <meshBasicMaterial color={conPt ? SK.constrained : selPt ? SK.selected : SK.point} depthTest={false} />
+              </mesh>
+            </group>
           );
         })}
       {!isCircleLike &&
@@ -208,6 +218,75 @@ function PlanePicker(): JSX.Element {
         <div className="whitespace-nowrap rounded bg-aa-bg/90 px-2 py-1 text-xs text-aa-text">기준면을 선택하세요</div>
       </Html>
     </group>
+  );
+}
+
+/** 선택 항목 옆에 떠서 유효한 구속만 보여주는 떠다니는 바 (Shapr3D 식 컨텍스트 메뉴). */
+const CONSTRAINT_CHIPS: { kind: ConstraintKind; label: string }[] = [
+  { kind: "horizontal", label: "수평" },
+  { kind: "vertical", label: "수직" },
+  { kind: "parallel", label: "평행" },
+  { kind: "perpendicular", label: "직교" },
+  { kind: "equal", label: "동일" },
+  { kind: "coincident", label: "일치" },
+];
+
+function ConstraintHud({ plane }: { plane: SketchPlaneDef }): JSX.Element | null {
+  const constraintSel = useAppStore((s) => s.constraintSel);
+  const strokes = useAppStore((s) => s.sketchStrokes);
+  const apply = useAppStore((s) => s.applySketchConstraint);
+  const clearSel = useAppStore((s) => s.clearConstraintSel);
+  if (constraintSel.length === 0) return null;
+
+  // 선택 항목들의 평면 좌표 중심 → 그 위에 바를 띄운다
+  let su = 0, sv = 0, n = 0;
+  for (const r of constraintSel) {
+    const st = strokes[r.s];
+    if (!st) continue;
+    if (r.type === "point") {
+      const p = st[r.i];
+      if (p) { su += p.u; sv += p.v; n++; }
+    } else {
+      const a = st[r.i];
+      const b = st[(r.i + 1) % st.length];
+      if (a && b) { su += (a.u + b.u) / 2; sv += (a.v + b.v) / 2; n++; }
+    }
+  }
+  if (n === 0) return null;
+
+  const segCount = constraintSel.filter((r) => r.type === "seg").length;
+  const ptCount = constraintSel.filter((r) => r.type === "point").length;
+  const ready = (k: ConstraintKind): boolean => {
+    const sp = CONSTRAINT_SPECS[k];
+    return (sp.target === "seg" ? segCount : ptCount) === sp.count;
+  };
+  const pos = planeToWorld(plane, su / n, sv / n);
+
+  return (
+    <Html position={pos} center style={{ pointerEvents: "auto" }} zIndexRange={[60, 0]}>
+      <div className="flex w-max -translate-y-12 items-center gap-1 whitespace-nowrap rounded-xl border border-aa-border bg-aa-surface/98 px-1.5 py-1 shadow-xl backdrop-blur">
+        {CONSTRAINT_CHIPS.map((c) => {
+          const ok = ready(c.kind);
+          return (
+            <button
+              key={c.kind}
+              type="button"
+              disabled={!ok}
+              onClick={(e) => { e.stopPropagation(); apply(c.kind); }}
+              className={[
+                "whitespace-nowrap rounded-lg px-2 py-1 text-xs transition-colors",
+                ok ? "bg-aa-accent/15 text-aa-accent hover:bg-aa-accent/25" : "cursor-not-allowed text-aa-text-dim/40",
+              ].join(" ")}
+            >
+              {c.label}
+            </button>
+          );
+        })}
+        <div className="mx-0.5 h-4 w-px bg-aa-border" />
+        <span className="px-1 text-[10px] text-aa-text-dim">선분 {segCount} · 점 {ptCount}</span>
+        <button type="button" onClick={(e) => { e.stopPropagation(); clearSel(); }} className="rounded-lg px-1.5 py-1 text-xs text-aa-text-dim hover:text-aa-text">✕</button>
+      </div>
+    </Html>
   );
 }
 
@@ -294,6 +373,9 @@ export function SketchLayer(): JSX.Element | null {
       {strokes.map((stroke, i) => (
         <StrokeView key={i} plane={plane} pts={stroke} strokeIndex={i} ptSize={ptSize} />
       ))}
+
+      {/* 선택 항목 옆 떠다니는 구속 바 (Shapr3D 식) */}
+      <ConstraintHud plane={plane} />
 
       {/* 보라색 정렬 안내선 (수평/수직/끝점) */}
       {guides.map((g, i) => (

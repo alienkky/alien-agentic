@@ -355,8 +355,8 @@ describe("useAppStore — 스케치 그리기 도구(호·스플라인·삭제)"
     st.sketchDragStart({ u: 0, v: 0 });
     st.sketchDragMove({ u: 4, v: 4 });
     st.sketchDragEnd();
-    st.startPointDrag(0, 0);
-    expect(useAppStore.getState().sketchDraggingPoint).toEqual({ s: 0, i: 0 });
+    st.startPointDrag(0, 0, { u: 0, v: 0 });
+    expect(useAppStore.getState().sketchDraggingPoint).toMatchObject({ s: 0, i: 0, moved: false });
     st.movePointDrag({ u: 1, v: 1 });
     expect(useAppStore.getState().sketchStrokes[0]![0]).toEqual({ u: 1, v: 1 });
     st.endPointDrag();
@@ -380,6 +380,38 @@ describe("useAppStore — 스케치 그리기 도구(호·스플라인·삭제)"
     expect(stroke[2]).toEqual({ u: 4, v: 4 }); // 나머지 점은 그대로
     st.endSegDrag();
     expect(useAppStore.getState().sketchDraggingSeg).toBeNull();
+  });
+
+  it("탭(안 움직임) = 구속 선택 토글 (Shift 불필요) — 점", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("rectangle");
+    st.sketchDragStart({ u: 0, v: 0 });
+    st.sketchDragMove({ u: 4, v: 4 });
+    st.sketchDragEnd();
+    st.startPointDrag(0, 0, { u: 0, v: 0 });
+    st.endPointDrag(); // 이동 없이 뗌 → 탭
+    expect(useAppStore.getState().constraintSel).toEqual([{ type: "point", s: 0, i: 0 }]);
+    expect(useAppStore.getState().sketchStrokes[0]![0]).toEqual({ u: 0, v: 0 }); // 안 움직임
+  });
+
+  it("탭(안 움직임) = 구속 선택 토글 — 선분 (wrap 선분은 제외)", () => {
+    const st = useAppStore.getState();
+    st.beginSketch();
+    st.pickPlane("xz");
+    st.setSketchTool("rectangle");
+    st.sketchDragStart({ u: 0, v: 0 });
+    st.sketchDragMove({ u: 4, v: 4 });
+    st.sketchDragEnd();
+    st.startSegDrag(0, 0, { u: 2, v: 0 });
+    st.endSegDrag(); // 탭
+    expect(useAppStore.getState().constraintSel).toEqual([{ type: "seg", s: 0, i: 0 }]);
+    // wrap 선분(i=3, 점3→점0)은 구속 대상에서 제외돼야 함
+    st.clearConstraintSel();
+    st.startSegDrag(0, 3, { u: 0, v: 2 });
+    st.endSegDrag();
+    expect(useAppStore.getState().constraintSel).toEqual([]);
   });
 });
 
