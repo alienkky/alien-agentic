@@ -2,18 +2,22 @@
 
 진짜 회사의 *Jira / Kanban / Linear* 자리.
 
-## 파일 구조
+## 파일 구조 (ALI-105 이후)
 
 ```
 shared-memory/tasks/
-├── _backlog.md       # 미시작 업무
-├── _in-progress.md   # 진행 중 (담당 + 마감)
-├── _done.md          # 완료 + 회고
-├── _blocked.md       # 막힌 자리 + 해결 후보
-└── {task-id}.md      # 개별 업무 디테일
+├── index.md          # ★ scripts/aa-index.py 가 자동 생성 — 손으로 만지지 않음
+├── log.md            # ★ scripts/aa-log.py 가 git 이벤트를 append — 손으로 만지지 않음
+└── {task-id}.md      # 개별 업무 디테일 (front matter 의 `status` 가 진실의 원본)
 ```
 
-`_*.md` 파일들은 *인덱스*. 디테일은 개별 `{task-id}.md` 안에.
+> 이전의 `_backlog.md` / `_in-progress.md` / `_done.md` / `_blocked.md` 수기 인덱스는
+> 폐기됐다. `status` 별 뷰가 필요하면 `index.md` 의 Entry Points 표를 status 로 그룹핑해
+> 후처리하거나 `aa task list --status=...` 를 쓴다 (예정).
+
+자동 갱신:
+- 작업 종료 시: `python scripts/aa-index.py shared-memory/tasks`
+- PR 직전: `scripts/aa-pr.py` 가 `--all` 로 모든 폴더의 index/log 를 재컴파일한 뒤 PR 생성.
 
 ## 업무 표준 포맷
 
@@ -63,4 +67,4 @@ created: 2026-05-13T15:30
 ## 작동 원칙
 - 한 사람(에이전트)이 동시에 P0 *2개 이상* 가지지 않음 — 컨텍스트 스위칭 비용
 - *blocked* 자리는 24시간 안에 해결 또는 escalation
-- 매일 아침 `client-concierge` 가 인덱스 갱신
+- 매일 아침 `client-concierge` 가 `aa-index.py shared-memory/tasks` 호출 + dashboard 동기화

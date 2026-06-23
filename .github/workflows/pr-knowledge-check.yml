@@ -40,6 +40,11 @@ jobs:
           # PR head 브랜치명을 직접 검사하도록 강제.
           GIT_BRANCH_OVERRIDE: ${{ github.head_ref }}
 
+      - name: Precompile index.md / log.md (ALI-105)
+        run: |
+          python scripts/aa-index.py --all || true
+          python scripts/aa-log.py --all --limit 30 || true
+
       - name: Build conflict report
         id: report
         run: |

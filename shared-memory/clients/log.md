@@ -1,0 +1,27 @@
+# Log: shared-memory/clients
+
+Append-only OpenViking folder log. Newest entries at bottom.
+
+| Time | Event | Actor | Path | Layer | Detail |
+|---|---|---|---|---|---|
+| 2026-06-06T20:31:07+09:00 | append | Alien Kim | shared-memory/clients/_self-alien-agentic/index.md | L1 | 294eb79 "🛸 ALI-105 S6 — aa-index/aa-log + tasks 인덱스 통합 (+ ALI-103 hook)" |
+| 2026-06-06T20:31:07+09:00 | append | Alien Kim | shared-memory/clients/_self-alien-agentic/log.md | L1 | 294eb79 "🛸 ALI-105 S6 — aa-index/aa-log + tasks 인덱스 통합 (+ ALI-103 hook)" |
+| 2026-06-06T20:31:07+09:00 | append | Alien Kim | shared-memory/clients/_template/index.md | L1 | 294eb79 "🛸 ALI-105 S6 — aa-index/aa-log + tasks 인덱스 통합 (+ ALI-103 hook)" |
+| 2026-06-06T20:31:07+09:00 | append | Alien Kim | shared-memory/clients/_template/log.md | L1 | 294eb79 "🛸 ALI-105 S6 — aa-index/aa-log + tasks 인덱스 통합 (+ ALI-103 hook)" |
+| 2026-06-06T20:31:07+09:00 | append | Alien Kim | shared-memory/clients/index.md | L1 | 294eb79 "🛸 ALI-105 S6 — aa-index/aa-log + tasks 인덱스 통합 (+ ALI-103 hook)" |
+| 2026-06-06T20:31:07+09:00 | append | Alien Kim | shared-memory/clients/log.md | L1 | 294eb79 "🛸 ALI-105 S6 — aa-index/aa-log + tasks 인덱스 통합 (+ ALI-103 hook)" |
+| 2026-06-05T14:59:03+09:00 | append | Alien Kim | shared-memory/clients/_self-alien-agentic/WHY/doctrine-of-mind.md | L1 | 3409a88 "🛸 27명 에이전트 머리에 사상(心訣) 새김 + 보존판 사본 (ALI-96 #2,#3)" |
+| 2026-05-14T15:42:47+09:00 | update | Alien Kim | shared-memory/clients/README.md | L1 | f95298a "🛸 베러먼데이 흔적 제거 + 헌법 3.5단계 + 27명 스킬 시드" |
+| 2026-05-14T15:42:47+09:00 | move | Alien Kim | shared-memory/clients/_self-alien-agentic/WHY/master-narrative-30s-v1.md | L1 | f95298a shared-memory/clients/_self-baremonday-blbp/WHY/master-narrative-30s-v1.md -> shared-memory/clients/_self-alien-agentic/WHY/master-narrative-30s-v1.md |
+| 2026-05-14T15:42:47+09:00 | append | Alien Kim | shared-memory/clients/_self-alien-agentic/WHY/origin-diagnosis-4layer.md | L1 | f95298a "🛸 베러먼데이 흔적 제거 + 헌법 3.5단계 + 27명 스킬 시드" |
+| 2026-05-14T15:42:47+09:00 | append | Alien Kim | shared-memory/clients/_self-alien-agentic/WHY/pain-interpretation.md | L1 | f95298a "🛸 베러먼데이 흔적 제거 + 헌법 3.5단계 + 27명 스킬 시드" |
+| 2026-05-14T15:42:47+09:00 | delete_proposed | Alien Kim | shared-memory/clients/_self-baremonday-blbp/WHY/origin-diagnosis-4layer.md | L1 | f95298a "🛸 베러먼데이 흔적 제거 + 헌법 3.5단계 + 27명 스킬 시드" |
+| 2026-05-14T15:42:47+09:00 | delete_proposed | Alien Kim | shared-memory/clients/_self-baremonday-blbp/WHY/pain-interpretation.md | L1 | f95298a "🛸 베러먼데이 흔적 제거 + 헌법 3.5단계 + 27명 스킬 시드" |
+| 2026-05-14T06:17:20+09:00 | append | Alien Kim | shared-memory/clients/README.md | L1 | d78b4de "🛸 Phase 1 잔여 5자리 — Multica fork + 27명 시드 + clients memory + aa serve + Tailscale" |
+| 2026-05-14T06:17:20+09:00 | append | Alien Kim | shared-memory/clients/_template/memory/decisions.md | L1 | d78b4de "🛸 Phase 1 잔여 5자리 — Multica fork + 27명 시드 + clients memory + aa serve + Tailscale" |
+| 2026-05-14T06:17:20+09:00 | append | Alien Kim | shared-memory/clients/_template/memory/learnings.md | L1 | d78b4de "🛸 Phase 1 잔여 5자리 — Multica fork + 27명 시드 + clients memory + aa serve + Tailscale" |
+| 2026-05-14T06:17:20+09:00 | append | Alien Kim | shared-memory/clients/_template/memory/mistakes.md | L1 | d78b4de "🛸 Phase 1 잔여 5자리 — Multica fork + 27명 시드 + clients memory + aa serve + Tailscale" |
+| 2026-05-14T06:17:20+09:00 | append | Alien Kim | shared-memory/clients/_template/memory/work.md | L1 | d78b4de "🛸 Phase 1 잔여 5자리 — Multica fork + 27명 시드 + clients memory + aa serve + Tailscale" |
+| 2026-05-13T17:53:47+09:00 | append | Alien Kim | shared-memory/clients/_self-baremonday-blbp/WHY/master-narrative-30s-v1.md | L1 | 284671f "🛸 Initial commit — Alien Agentic D-1 (2026-05-13)" |
+| 2026-05-13T17:53:47+09:00 | append | Alien Kim | shared-memory/clients/_self-baremonday-blbp/WHY/origin-diagnosis-4layer.md | L1 | 284671f "🛸 Initial commit — Alien Agentic D-1 (2026-05-13)" |
+| 2026-05-13T17:53:47+09:00 | append | Alien Kim | shared-memory/clients/_self-baremonday-blbp/WHY/pain-interpretation.md | L1 | 284671f "🛸 Initial commit — Alien Agentic D-1 (2026-05-13)" |
