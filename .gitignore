@@ -48,6 +48,10 @@ desktop.ini
 *.tmp
 ~$*
 
+# === aa-pr 자동 보고서 임시 파일 ===
+.aa-pr-body.md
+.aa-pr.json
+
 # === Logs ===
 *.log
 logs/
