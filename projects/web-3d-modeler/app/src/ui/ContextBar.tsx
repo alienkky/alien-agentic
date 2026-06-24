@@ -4,12 +4,13 @@
  */
 import { IconButton } from "./IconButton";
 import { SubtractIcon, UnionIcon, IntersectIcon } from "./icons";
-import { useAppStore, selectionBodyIds, selectionEdges } from "../store/useAppStore";
+import { useAppStore, selectionBodyIds, selectionEdges, selectionFace } from "../store/useAppStore";
 
 export function ContextBar(): JSX.Element | null {
   const selection = useAppStore((s) => s.selection);
   const booleanOp = useAppStore((s) => s.booleanOp);
   const openEdgeFeature = useAppStore((s) => s.openEdgeFeature);
+  const openFacePushPull = useAppStore((s) => s.openFacePushPull);
   const clearSelection = useAppStore((s) => s.clearSelection);
   const busy = useAppStore((s) => s.busy);
 
@@ -18,6 +19,7 @@ export function ContextBar(): JSX.Element | null {
   const bodyCount = selectionBodyIds(selection).length;
   const ready = bodyCount >= 2;
   const edges = selectionEdges(selection);
+  const face = selectionFace(selection);
 
   return (
     <div className="pointer-events-none absolute bottom-6 left-0 right-0 z-10 flex justify-center px-3">
@@ -40,6 +42,19 @@ export function ContextBar(): JSX.Element | null {
               className="min-h-[44px] rounded-lg bg-aa-bg px-3 text-sm text-aa-text aa-hoverable disabled:opacity-40"
             >
               모따기 (거리)
+            </button>
+            <div className="h-6 w-px bg-aa-border" />
+          </>
+        ) : face ? (
+          <>
+            <span className="px-2 text-xs text-aa-text-dim">면 1개</span>
+            <button
+              type="button"
+              onClick={openFacePushPull}
+              disabled={busy}
+              className="min-h-[44px] rounded-lg bg-aa-bg px-3 text-sm text-aa-text aa-hoverable disabled:opacity-40"
+            >
+              Push/Pull (거리)
             </button>
             <div className="h-6 w-px bg-aa-border" />
           </>

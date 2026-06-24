@@ -68,6 +68,16 @@ export interface ChamferParams {
   distance: number;
 }
 
+/** 면 Push/Pull: 평면 면 1개를 법선 방향으로 밀고/당기기. */
+export interface FacePushPullParams {
+  /** 대상 면 id (TessellatedMesh.faceRanges 의 faceId). */
+  faceId: number;
+  /** 이동 거리 (mm). +면 법선 방향으로 당기기(grow), −면 밀기(shrink). */
+  distance: number;
+  /** 면 바깥 법선(월드, 정규화). 호출 측이 메시에서 계산해 넘긴다. */
+  normal: [number, number, number];
+}
+
 /** 워커가 expose 하는 커널 API (Comlink 경유). */
 export interface KernelAPI {
   /** WASM 로딩 완료까지 대기. true 면 준비됨. */
@@ -91,6 +101,11 @@ export interface KernelAPI {
    * 입력 셰이프는 소비된다. OCCT 백엔드 전용 — FAST(메시)는 거부한다.
    */
   chamfer(shapeId: string, params: ChamferParams, resultId: string): Promise<TessellatedMesh>;
+  /**
+   * 면 Push/Pull: shapeId 의 평면 면 1개를 법선 방향으로 distance 만큼 밀고/당기기 → resultId 새 셰이프.
+   * 입력 셰이프는 소비된다. OCCT 백엔드 전용 — FAST(메시)는 store 가 결정론 경로로 대체한다.
+   */
+  facePushPull(shapeId: string, params: FacePushPullParams, resultId: string): Promise<TessellatedMesh>;
   /** 셰이프 폐기 (커널 측 메모리 해제). */
   deleteShape(shapeId: string): Promise<void>;
 }

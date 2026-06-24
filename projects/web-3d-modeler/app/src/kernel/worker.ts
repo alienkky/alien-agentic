@@ -16,6 +16,7 @@ import type {
   BooleanOp,
   FilletParams,
   ChamferParams,
+  FacePushPullParams,
   TessellatedMesh,
 } from "./types";
 import { tessellateBox } from "./occt/boxMesh";
@@ -88,6 +89,15 @@ const worker: KernelWorker = {
     validateEdgeFeature(backend, "chamfer", params.edgeIds, params.distance);
     const { occtChamfer } = await import("./occt/occtModule");
     return occtChamfer(shapeId, params, resultId);
+  },
+
+  async facePushPull(shapeId: string, params: FacePushPullParams, resultId: string): Promise<TessellatedMesh> {
+    // OCCT 전용 B-rep 경로. FAST(메시) 평면 면 변형은 store 가 결정론 경로(meshFacePushPull)로 처리한다.
+    if (backend !== "occt") {
+      throw new Error("면 Push/Pull(B-rep)은 OCCT 백엔드에서만 가능합니다. FAST 모드는 메시 경로를 씁니다.");
+    }
+    const { occtFacePushPull } = await import("./occt/occtModule");
+    return occtFacePushPull(shapeId, params, resultId);
   },
 
   async deleteShape(shapeId: string): Promise<void> {

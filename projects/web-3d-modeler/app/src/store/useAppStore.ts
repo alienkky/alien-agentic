@@ -7,6 +7,7 @@ import { createKernelClient, type KernelHandle } from "../kernel/bridge";
 import type { KernelBackend } from "../kernel/worker";
 import type { TessellatedMesh, BooleanOp } from "../kernel/types";
 import type { EdgeFeatureKind } from "../kernel/edgeFeature";
+import { meshFacePushPull, facePlane, validateFacePushPull } from "../kernel/facePushPull";
 import { meshBoolean } from "../kernel/meshBoolean";
 import { extrudeProfile } from "../kernel/extrude";
 import { revolveProfile, type RevolveAxis } from "../kernel/revolve";
@@ -57,6 +58,16 @@ export function selectionEdges(sel: SelItem[]): { shapeId: string; edgeIds: numb
   const shapeId = edges[0]!.shapeId;
   const edgeIds = edges.filter((e) => e.shapeId === shapeId).map((e) => e.index);
   return { shapeId, edgeIds };
+}
+
+/**
+ * Push/Pull 입력용 — 정확히 면 1개만 선택됐을 때 그 면 참조를 돌려준다.
+ * 면 Push/Pull 은 한 번에 한 평면 면만 변형한다(다중 선택·바디 선택이면 null).
+ */
+export function selectionFace(sel: SelItem[]): { shapeId: string; faceId: number } | null {
+  const faces = sel.filter((s) => s.kind === "face");
+  if (faces.length !== 1 || sel.length !== 1) return null;
+  return { shapeId: faces[0]!.shapeId, faceId: faces[0]!.index };
 }
 
 function sameSel(a: SelItem, b: SelItem): boolean {
@@ -177,6 +188,10 @@ interface AppState {
   revolveOpen: boolean;
   /** 모서리 피처 다이얼로그 (필렛/모따기). null 이면 닫힘 */
   edgeFeatureOpen: EdgeFeatureKind | null;
+  /** 면 Push/Pull 다이얼로그 열림 여부 (거리 정밀 입력) */
+  facePushPullOpen: boolean;
+  /** 면 Push/Pull 드래그 세션 (핸들을 끌어 실시간 거리). null 이면 비활성 */
+  facePushPullDrag: { shapeId: string; faceId: number; normal: Vec3; origin: Vec3; distance: number } | null;
   /** 돌출 드래그 세션 (스케치 핸들을 끌어 실시간 높이). null 이면 비활성 */
   extrudeDrag: { sketchId: string; height: number } | null;
   /** 패턴 다이얼로그 열림 여부 */
@@ -323,6 +338,16 @@ interface AppState {
   closeEdgeFeature: () => void;
   /** 선택 모서리에 필렛(반지름)/모따기(거리) 적용. OCCT 전용 — FAST 는 거부 안내 */
   applyEdgeFeature: (kind: EdgeFeatureKind, value: number) => Promise<void>;
+  /** 면 Push/Pull 다이얼로그 열기/닫기 */
+  openFacePushPull: () => void;
+  closeFacePushPull: () => void;
+  /** 선택한 평면 면을 거리만큼 밀고/당기기 (+당기기/−밀기). OCCT=B-rep, FAST=메시 */
+  applyFacePushPull: (distance: number) => Promise<void>;
+  /** 면 Push/Pull 드래그: 시작 / 거리 갱신 / 확정 / 취소 */
+  startFacePushPullDrag: () => void;
+  setFacePushPullDistance: (d: number) => void;
+  commitFacePushPullDrag: () => void;
+  cancelFacePushPullDrag: () => void;
   /** STL 파일 불러오기 → 바디로 추가 */
   importStl: (buffer: ArrayBuffer, name: string) => void;
 
@@ -418,6 +443,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   extrudeOpen: false,
   revolveOpen: false,
   edgeFeatureOpen: null,
+  facePushPullOpen: false,
+  facePushPullDrag: null,
   extrudeDrag: null,
   patternOpen: false,
   transformMode: null,
@@ -1134,6 +1161,118 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ busy: false });
     }
   },
+
+  openFacePushPull: () => {
+    const f = selectionFace(get().selection);
+    if (!f) {
+      set({ status: "Push/Pull: 면 1개를 선택하세요 (면 클릭)" });
+      return;
+    }
+    const mesh = get().shapes.find((m) => m.shapeId === f.shapeId);
+    if (!mesh) {
+      set({ status: "Push/Pull: 바디를 찾을 수 없습니다" });
+      return;
+    }
+    try {
+      validateFacePushPull(mesh, f.faceId, 1); // 평면 여부만 사전 확인 (거리는 1로 통과)
+    } catch (err) {
+      set({ status: err instanceof Error ? err.message : String(err) });
+      return;
+    }
+    set({ facePushPullOpen: true, status: "면 Push/Pull — 거리를 입력하세요 (+당기기 / −밀기)" });
+  },
+  closeFacePushPull: () => set({ facePushPullOpen: false }),
+
+  applyFacePushPull: async (distance) => {
+    const st = get();
+    if (st.busy) return;
+    const f = selectionFace(st.selection);
+    if (!f) {
+      set({ status: "Push/Pull: 면 1개를 선택하세요", facePushPullOpen: false });
+      return;
+    }
+    const mesh = st.shapes.find((m) => m.shapeId === f.shapeId);
+    if (!mesh) {
+      set({ status: "Push/Pull: 바디를 찾을 수 없습니다", facePushPullOpen: false });
+      return;
+    }
+    let normal: Vec3;
+    try {
+      validateFacePushPull(mesh, f.faceId, distance);
+      const plane = facePlane(mesh, f.faceId)!;
+      normal = plane.normal;
+    } catch (err) {
+      set({ status: err instanceof Error ? err.message : String(err), facePushPullOpen: false });
+      return;
+    }
+    const dir = distance > 0 ? "당기기" : "밀기";
+    set({ busy: true, status: `면 Push/Pull 중 (${dir} ${Math.abs(distance)})…` });
+    try {
+      const resultId = `pushpull-${++counter}`;
+      // OCCT 모드면 진짜 B-rep 프리즘±불리언(워커), 아니면 결정론 메시 평면 면 변형(메인 스레드).
+      const result =
+        st.backend === "occt" && kernel
+          ? await kernel.client.facePushPull(f.shapeId, { faceId: f.faceId, distance, normal }, resultId)
+          : meshFacePushPull(mesh, f.faceId, distance, resultId);
+      set((s) => {
+        const transforms = { ...s.transforms };
+        const off = transforms[f.shapeId]; // 이동 기즈모 오프셋을 새 셰이프로 승계 (제자리 유지)
+        delete transforms[f.shapeId];
+        if (off) transforms[resultId] = off;
+        return {
+          shapes: [...s.shapes.filter((m) => m.shapeId !== f.shapeId), result],
+          transforms,
+          selection: [],
+          facePushPullOpen: false,
+          history: [...s.history, { id: resultId, label: `면 ${dir} ${Math.abs(distance)}` }],
+          status: `면 Push/Pull 완료 → ${resultId}`,
+        };
+      });
+    } catch (err) {
+      set({ status: `오류: ${err instanceof Error ? err.message : String(err)}`, facePushPullOpen: false });
+    } finally {
+      set({ busy: false });
+    }
+  },
+
+  startFacePushPullDrag: () => {
+    const f = selectionFace(get().selection);
+    if (!f) {
+      set({ status: "Push/Pull: 면을 선택하세요" });
+      return;
+    }
+    const mesh = get().shapes.find((m) => m.shapeId === f.shapeId);
+    if (!mesh) return;
+    let plane;
+    try {
+      validateFacePushPull(mesh, f.faceId, 1);
+      plane = facePlane(mesh, f.faceId)!;
+    } catch (err) {
+      set({ status: err instanceof Error ? err.message : String(err) });
+      return;
+    }
+    set({
+      facePushPullDrag: { shapeId: f.shapeId, faceId: f.faceId, normal: plane.normal, origin: plane.origin, distance: 0 },
+      gizmoDragging: true, // 드래그 중 카메라/픽킹 차단
+      status: "끌어서 면을 밀거나(−) 당기세요(+)",
+    });
+  },
+  setFacePushPullDistance: (d) =>
+    set((s) => {
+      if (!s.facePushPullDrag) return {};
+      // 격자 스냅이 켜져 있으면 0.5 mm 단위로 끊는다 (밀기/당기기 양방향)
+      const distance = s.snap.grid ? Math.round(d / SNAP) * SNAP : d;
+      return {
+        facePushPullDrag: { ...s.facePushPullDrag, distance },
+        status: `면 ${distance >= 0 ? "당기기" : "밀기"} ${Math.abs(distance).toFixed(1)} mm`,
+      };
+    }),
+  commitFacePushPullDrag: () => {
+    const d = get().facePushPullDrag;
+    set({ facePushPullDrag: null, gizmoDragging: false });
+    if (d && Math.abs(d.distance) > 1e-6) void get().applyFacePushPull(d.distance);
+  },
+  cancelFacePushPullDrag: () => set({ facePushPullDrag: null, gizmoDragging: false, status: "Push/Pull 취소" }),
 
   importStl: (buffer, name) => {
     try {

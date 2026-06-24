@@ -17,6 +17,7 @@ import type {
   BooleanOp,
   FilletParams,
   ChamferParams,
+  FacePushPullParams,
 } from "../types";
 import { resolveEdgeIds } from "../edgeFeature";
 
@@ -83,6 +84,10 @@ interface OccCurve extends OccDeletable {
   LastParameter(): number;
   Value(u: number): OccPnt;
 }
+/** gp_Vec: 면 Push/Pull 프리즘 압출 방향(법선 × 거리). */
+interface OccVec extends OccDeletable {
+  X(): number;
+}
 
 interface OccInstance {
   BRepPrimAPI_MakeBox: new (dx: number, dy: number, dz: number) => OccShapeMaker;
@@ -93,6 +98,8 @@ interface OccInstance {
   BRepAlgoAPI_Common: new (a: OccShape, b: OccShape) => OccShapeMaker;
   BRepFilletAPI_MakeFillet: new (shape: OccShape) => OccFilletMaker;
   BRepFilletAPI_MakeChamfer: new (shape: OccShape) => OccChamferMaker;
+  BRepPrimAPI_MakePrism: new (profile: OccShape, vec: OccVec) => OccShapeMaker;
+  gp_Vec: new (x: number, y: number, z: number) => OccVec;
   BRepMesh_IncrementalMesh: new (
     shape: OccShape,
     deflection: number,
@@ -277,6 +284,77 @@ export function occtChamfer(
   resultId: string,
 ): Promise<TessellatedMesh> {
   return occtEdgeFeature("chamfer", shapeId, params.edgeIds, params.distance, resultId);
+}
+
+/* ── 면 Push/Pull (평면 면 프리즘 ± 불리언) ──────────────────── */
+
+/**
+ * 셰이프의 면들을 explorer 순서대로 TopoDS_Face 배열로 수집한다.
+ * **registerAndTessellate 의 면 루프와 동일한 순서** → faceId 가 일치한다.
+ * 반환된 Face 들은 호출 측이 .delete() 책임을 진다.
+ */
+function collectFaces(oc: OccInstance, shape: OccShape): OccShape[] {
+  const out: OccShape[] = [];
+  const exp = new oc.TopExp_Explorer(shape, oc.TopAbs_FACE);
+  try {
+    for (; exp.More(); exp.Next()) {
+      out.push(oc.TopoDS.prototype.Face(exp.Current()));
+    }
+  } finally {
+    exp.delete();
+  }
+  return out;
+}
+
+/**
+ * 평면 면 Push/Pull — 선택 면을 법선×거리 만큼 프리즘 압출 후, 당기기(+)는 Fuse,
+ * 밀기(−)는 Cut 한다(압출 벡터가 부호를 그대로 담아 안쪽으로 향하면 재료를 깎는다).
+ *
+ * ⚠️ device-verify-pending: OCCT WASM 전용이라 헤드리스(CI)에서 런타임 검증 불가.
+ *    평면 판정은 store 가 메시로 선검증하므로 여기서는 평면 면을 신뢰한다.
+ * 메모리 규약(절대): gp_Vec·프리즘·불리언 maker·수집 Face 전부 .delete(). 입력 셰이프는 소비.
+ */
+export async function occtFacePushPull(
+  shapeId: string,
+  params: FacePushPullParams,
+  resultId: string,
+): Promise<TessellatedMesh> {
+  const oc = await loadOcct();
+  const src = shapeStore.get(shapeId);
+  if (!src) {
+    throw new Error("면 Push/Pull: 입력 셰이프를 찾을 수 없습니다 (OCCT 셰이프만 가능)");
+  }
+
+  const faces = collectFaces(oc, src);
+  try {
+    const face = faces[params.faceId];
+    if (!face) {
+      throw new Error("면 Push/Pull: 선택한 면을 찾을 수 없습니다");
+    }
+    const { distance, normal } = params;
+    // 압출 벡터: 바깥 법선 × distance. 당기기(+)는 바깥, 밀기(−)는 안쪽으로 향한다.
+    const vec = new oc.gp_Vec(normal[0] * distance, normal[1] * distance, normal[2] * distance);
+    const prism = new oc.BRepPrimAPI_MakePrism(face, vec);
+    let result: OccShape;
+    try {
+      const tool = prism.Shape();
+      const maker =
+        distance >= 0 ? new oc.BRepAlgoAPI_Fuse(src, tool) : new oc.BRepAlgoAPI_Cut(src, tool);
+      try {
+        result = maker.Shape();
+      } finally {
+        maker.delete();
+      }
+    } finally {
+      vec.delete();
+      prism.delete();
+    }
+    // 입력 소비 (필렛/불리언과 동일 규약 — 원본은 결과로 대체된다)
+    occtDeleteShape(shapeId);
+    return registerAndTessellate(oc, result, resultId);
+  } finally {
+    for (const face of faces) face.delete();
+  }
 }
 
 /* ── 테셀레이션 (면 + 모서리) ───────────────────────────────── */
