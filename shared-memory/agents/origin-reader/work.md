@@ -63,3 +63,13 @@ tags: [agent, work, why]
   - #1=A: **Multica autopilot 생성** id `109e4c5d-de34-483e-a07e-bb05ebb69f16` — run_only, assignee origin-reader, schedule cron `0 9 * * *` Asia/Seoul (다음 실행 2026-06-28 09:00 KST). 매일 daily-reflection/{날짜}.md 작성 후 main 직접 push.
 - 매듭 완전 해소: 진단(층4) → 검증 → 루틴 설계 → 자동 가동 → main 합류. 미머지 표류 0.
 - 다음 핸드오프: (없음 — 자동 루틴 가동 중)
+
+### 2026-06-27 · ALI-12 — Alien Objentic 듀얼 정체 통역
+- 호출자: 기영님 ("에이젠틱=온라인, 오브젠틱=오프라인 생성물: 3D프린팅·AI로봇·우주공학")
+- 산출물: `clients/_self-alien-agentic/WHY/agentic-objentic-duality.md` (통역 v1, 가설)
+  - 이름 해독: Agent↔Object, 공유 -entic 뿌리
+  - 공통 뿌리 가설: "외계 효율로 생성한다" — 회사를 'AI 컨설팅'이 아닌 '외계 효율 생성 회사'로 재정의
+  - 매듭: Objentic 의 Why 가 (A) 기존 Why 확장 vs (B) 별도 사업 — 미정. 물리 생성은 WHAT이 WHY 앞지르기 쉬움(헌법 §4 시험)
+- 보정 대기: 3개 질문(이름/공통뿌리/A·B)
+- 다음 핸드오프: vision-architect·story-weaver — 단 A/B 확정 후
+- 주의: 진입 시 local main 이 stale(ac7b286)이라 origin/main(8591894)로 reset 후 작업 — 매듭의 실사례(미동기)
