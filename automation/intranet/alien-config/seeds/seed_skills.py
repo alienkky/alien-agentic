@@ -71,6 +71,28 @@ SKILL_SOURCES: dict[str, str] = {
 
 
 # ──────────────────────────────────────────────────────────────────────────
+# 영문 식별자 → 한글 인명 (multica agent.name 이 영문/혼합 형태여도 한글 키로
+# 매칭되게 하는 역매핑. memory-api KOREAN_NAMES 와 동일).
+# ──────────────────────────────────────────────────────────────────────────
+ENG_TO_KOR: dict[str, str] = {
+    "origin-reader": "심연우", "pain-interpreter": "민애린",
+    "vision-architect": "윤지평", "culture-linguist": "서가온",
+    "story-weaver": "한벼리", "process-cartographer": "고도현",
+    "agent-architect": "구도연", "workflow-engineer": "류한길",
+    "integration-specialist": "연다리", "data-strategist": "차곡담",
+    "kpi-translator": "정도량", "org-designer": "양터전",
+    "prompt-engineer": "남말씨", "subagent-builder": "표본새",
+    "mcp-connector": "방연동", "automation-coder": "공도율",
+    "knowledge-architect": "장서윤", "ui-ux-designer": "백그림",
+    "qa-tester": "하검수", "sales-closer": "주결음",
+    "content-scout": "노소문", "client-concierge": "안다정",
+    "finance-tracker": "나재율", "brand-keeper": "문지율",
+    "trend-hunter": "추세현", "case-curator": "모사록",
+    "future-forecaster": "오먼동",
+}
+
+
+# ──────────────────────────────────────────────────────────────────────────
 # 27명(한글 표시명) → 스킬 매핑
 # ──────────────────────────────────────────────────────────────────────────
 AGENT_SKILLS: dict[str, list[str]] = {
@@ -199,8 +221,20 @@ def main() -> int:
 
     # ── 2. 27명에게 스킬 할당 ─────────────────────────────────────────────
     print("[2] 27명 스킬 할당")
+    # agent.name 이 영문("origin-reader") / 한글("심연우") / 혼합("심연우 (origin-reader)")
+    # 어느 형태든 AGENT_SKILLS 의 한글 키로 매칭되게, 모든 변형을 키로 등록.
     cur.execute("SELECT name, id FROM agent WHERE workspace_id = %s", (workspace_id,))
-    agent_id = {row[0]: row[1] for row in cur.fetchall()}
+    agent_id: dict[str, str] = {}
+    for _name, _aid in cur.fetchall():
+        agent_id[_name] = _aid
+        _m = re.match(r"^(.+?)\s*\(([^)]+)\)\s*$", _name)
+        if _m:
+            # "심연우 (origin-reader)" → "심연우"·"origin-reader" 둘 다 키
+            agent_id.setdefault(_m.group(1).strip(), _aid)
+            agent_id.setdefault(_m.group(2).strip(), _aid)
+        elif _name in ENG_TO_KOR:
+            # 영문만인 경우 → 한글 키도 등록
+            agent_id.setdefault(ENG_TO_KOR[_name], _aid)
 
     cur.execute(
         """

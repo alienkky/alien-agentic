@@ -1,0 +1,59 @@
+﻿# Caddyfile.template -- setup-caddy.ps1 가 {{HOST}}, {{TAILSCALE_IP}}, {{CERT_DIR}},
+# {{LOG_DIR}} 치환 후 Caddyfile 로 떨궈둠. 직접 수정 금지 -- 템플릿만 고치고
+# setup-caddy.ps1 재실행.
+#
+# 목적: tailscale serve 가 WebSocket Upgrade 를 forward 못 해서 Multica 실시간
+# 푸시(받은함 카운팅·에이전트 상태·코멘트)가 죽는 사고(2026-05-27) 의 fix.
+# Caddy 는 Upgrade 헤더를 자동 감지해 WS 를 native 로 프록시한다.
+
+{
+    auto_https off
+    admin off
+    # 외부 ACME 안 씀 -- Tailscale cert 를 직접 마운트
+}
+
+{{HOST}}:443 {
+    # Tailscale 인터페이스 IP 에만 listen -- 공용 NIC 노출 0
+    bind {{TAILSCALE_IP}}
+
+    tls "{{CERT_DIR}}/{{HOST}}.crt" "{{CERT_DIR}}/{{HOST}}.key"
+
+    # Alien Memory API (sidecar) -- /api/alien-memory/* 를 127.0.0.1:8765 로
+    # uri strip_prefix 로 prefix 제거 후 forward
+    # (호출 예: /api/alien-memory/agents -> sidecar 의 /agents)
+    handle /api/alien-memory/* {
+        uri strip_prefix /api/alien-memory
+        reverse_proxy 127.0.0.1:8765 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # 그 외 모든 요청 -> Multica frontend (localhost:3000)
+    # WebSocket 은 Caddy 가 Upgrade 헤더를 자동 감지 → 같은 reverse_proxy 로 처리
+    handle {
+        reverse_proxy localhost:3000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+            # 60초 idle 끊김 방지 -- WS 장수명 보장
+            transport http {
+                keepalive 30s
+                keepalive_idle_conns 16
+            }
+        }
+    }
+
+    encode gzip zstd
+
+    log {
+        output file "{{LOG_DIR}}/access.log" {
+            roll_size 10mb
+            roll_keep 7
+        }
+        format console
+    }
+}

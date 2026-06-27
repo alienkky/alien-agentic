@@ -92,5 +92,12 @@ shared-memory/.obsidian/.trash/
 shared-memory/.obsidian/plugins/*/main.js
 shared-memory/.obsidian/plugins/*/styles.css
 shared-memory/.trash/
+shared-memory/_inbox/
 # 첨부파일 폴더 (크기 커질 수 있음 — 필요시 주석 해제하여 추적)
 # shared-memory/_attachments/
+
+# === Multica 업데이트 백업 (런타임 산출물) ===
+automation/intranet/alien-config/_backup/
+
+# === Multica DB 일일 백업 (.sql.gz — 용량 큼, git 추적 X. 로컬+외부에만 보관) ===
+backups/multica-db/

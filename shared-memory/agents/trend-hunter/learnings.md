@@ -1,3 +1,13 @@
+---
+agent: trend-hunter
+korean_name: 추세현
+role: 트렌드
+division: rnd
+type: agent-memory
+file_type: learnings
+tags: [agent, learnings, rnd]
+---
+
 # trend-hunter / learnings.md
 > 무엇을 배웠나 — 패턴·인사이트 누적
 

@@ -1,3 +1,13 @@
+---
+agent: trend-hunter
+korean_name: 추세현
+role: 트렌드
+division: rnd
+type: agent-memory
+file_type: decisions
+tags: [agent, decisions, rnd]
+---
+
 # trend-hunter / decisions.md
 > 무엇을 결정했나 — 판단 근거 보존
 
