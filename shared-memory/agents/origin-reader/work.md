@@ -45,3 +45,13 @@ tags: [agent, work, why]
   - 브랜치 `agent/origin-reader/cf5dd9c2` origin push 완료. PR: https://github.com/alienkky/alien-agentic/pull/new/agent/origin-reader/cf5dd9c2
 - 미해결: gh/multica PR-생성 명령 없음 → PR open·merge 는 기영님 GitHub 에서. #3(4층 진단 v1 보정)은 재설명 후 보정 대기.
 - 다음 핸드오프: (없음 — PR 머지 + 4층 보정 코멘트 대기)
+
+### 2026-06-27 · ALI-12 #3 — 층 4 검증 + 매일 자기평가 루틴 신설
+- 호출자: 기영님 ("3번 맞는 말이야 ... 매일 떨어져서 평가 해줘")
+- 산출물:
+  - 진단서 상태 갱신: `WHY/origin-diagnosis-4layer.md` → 검증 1차 (층 4 confirmed)
+  - 검증 데이터: `meta/origin-reader-corrections/2026-06-27-self-layer4-confirmed.md`
+  - 매일 자기평가 루틴: `clients/_self-alien-agentic/daily-reflection/` (README + _TEMPLATE + 첫 시드 2026-06-27)
+  - 자동화 핸드오프: `messages/20260627-1255-origin-reader-to-workflow-engineer-...md`
+- 핵심: 매듭이 ALI-12 자체(미머지 브랜치=기억 표류)로 자기 증명됨. 첫 시드가 그 사건을 데이터로 기록.
+- 다음 핸드오프: workflow-engineer (자동 트리거) — 기영님 승인 대기

@@ -3,13 +3,20 @@ client: Alien Agentic — 자체 자기 진단
 type: Origin Diagnosis (4-Layer)
 agent: origin-reader
 date: 2026-05-13
-version: v1 (가설 — 기영님 보정 대기 중)
-status: 진단 1차 / 검증 0차
+version: v1 (층 4 검증됨 — 기영님 "맞다" 2026-06-27)
+status: 진단 1차 / 검증 1차 (층 4 confirmed)
+validated_on: 2026-06-27
+validated_by: 기영님 (ALI-12)
 ---
 
 # Origin Diagnosis — Alien Agentic 자체 (v1)
 
-> 이 진단서는 **가설**입니다. 4층 각각에 대해 기영님의 *"맞다 / 틀리다 / 보정"* 코멘트가 필요합니다.
+> **✅ 검증 1차 (2026-06-27, ALI-12):** 기영님이 **층 4 매듭 가설을 "맞다"로 확정**.
+> 동시에 *매듭 해소*를 요청 — "우리 회사도 매일 한 걸음 떨어져서 평가해 달라."
+> → 해소책: [`../daily-reflection/`](../daily-reflection/) 매일 자기평가 루틴 신설.
+> 검증 데이터: [`shared-memory/meta/origin-reader-corrections/2026-06-27-self-layer4-confirmed.md`](../../../meta/origin-reader-corrections/2026-06-27-self-layer4-confirmed.md)
+>
+> 나머지 층(1~3)은 여전히 보정 가능한 **가설**입니다. 4층 각각에 대해 기영님의 *"맞다 / 틀리다 / 보정"* 코멘트가 계속 데이터가 됩니다.
 > 그 코멘트가 곧 `origin-reader` 에이전트의 *진짜 검증 데이터*가 됩니다.
 
 ---
