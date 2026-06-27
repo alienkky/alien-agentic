@@ -1,0 +1,16 @@
+{
+  "useMarkdownLinks": false,
+  "newFileLocation": "folder",
+  "newFileFolderPath": "00-inbox",
+  "attachmentFolderPath": "_attachments",
+  "promptDelete": false,
+  "trashOption": "local",
+  "legacyEditor": false,
+  "livePreview": true,
+  "defaultViewMode": "source",
+  "foldHeading": false,
+  "foldIndent": true,
+  "showUnsupportedFiles": false,
+  "theme": "system",
+  "translucency": false
+}

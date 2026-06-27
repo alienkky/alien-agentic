@@ -1,6 +1,16 @@
-# {agent-name} · learnings.md
+---
+agent: {agent-name}
+korean_name: {한국어 이름}
+role: {역할 한 줄}
+division: {why|how|what|ctrl|rd}
+type: agent-memory
+file_type: learnings
+tags: [agent, learnings, {division}]
+---
 
-이 에이전트가 *새로 발견한 패턴·통찰*을 호출별로 append.
+# Learnings — 배운 것·통찰
+
+관련: [[_index]] | [[agents/README]] | [[work]]
 
 ## 표준 항목
 
@@ -8,7 +18,7 @@
 ### 2026-MM-DD HH:MM · {slug}
 **패턴**: {한 줄 요약}
 
-**상황**: {어느 호출/어떤 클라이언트/어떤 자료에서 보였나}
+**상황**: {어느 호출/어떤 클라이언트/어떤 자료에서 보였나 — [[관련 파일]] 링크}
 
 **가설**: {왜 이 패턴이 작동했나}
 
