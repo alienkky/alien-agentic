@@ -36,3 +36,12 @@ tags: [agent, work, why]
 - 컨텍스트: git log, `shared-memory/clients/_self-alien-agentic/WHY/*`, branches `agent/why/b762ec55`·`claude/add-chatgpt-integration-U5jfU`
 - 산출물: 본 메모리 폴더 복구(origin-reader work/learnings/decisions/mistakes) + ALI-12 진단 보고
 - 다음 핸드오프: (없음 — 기영님 머지 결정 대기)
+
+### 2026-06-27 · ALI-12 후속 — 1·2번 복구 실행
+- 호출자: 기영님 (ALI-12 "1,2번 진행")
+- 실행:
+  - #2 메모리 복구 = `f430cc7` (위 기록)
+  - #1 squad-register 코드 복구 = cherry-pick `c208000` → `f97252d`. cli.py 충돌 2자리 수동 해소(`aa design` 섹션 + squad_app 섹션 둘 다 보존), config.py SQUADS_DIR, squads.py, shared-memory/squads/* 복구. `ast.parse` OK.
+  - 브랜치 `agent/origin-reader/cf5dd9c2` origin push 완료. PR: https://github.com/alienkky/alien-agentic/pull/new/agent/origin-reader/cf5dd9c2
+- 미해결: gh/multica PR-생성 명령 없음 → PR open·merge 는 기영님 GitHub 에서. #3(4층 진단 v1 보정)은 재설명 후 보정 대기.
+- 다음 핸드오프: (없음 — PR 머지 + 4층 보정 코멘트 대기)
