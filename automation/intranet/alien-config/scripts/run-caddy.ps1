@@ -31,10 +31,21 @@ Get-Process caddy -ErrorAction SilentlyContinue | ForEach-Object {
 }
 Start-Sleep -Seconds 1
 
-# Caddy 가동 (포어그라운드 -- Task 가 살아있는 동안 살아있음)
+# Caddy 가동 (콘솔 창 숨김).
+# powershell 을 -WindowStyle Hidden 으로 띄워도 caddy.exe(콘솔 앱)는 실행 시
+# *자체 콘솔 창* 을 새로 할당받아 화면에 뜬다(재부팅 시 검은 창). 그래서
+# `& $caddyExe` 직접 호출 대신 Start-Process -WindowStyle Hidden + 출력 리다이렉트로
+# 창 없이 백그라운드 실행하고, Task lifecycle 유지 위해 WaitForExit 로 대기한다.
 Set-Location $caddyDir
-& $caddyExe run --config $cfg --adapter caddyfile *>&1 |
-    Out-File -FilePath $log -Append -Encoding utf8
+$errLog = "{0}.err" -f $log
+$caddyProc = Start-Process -FilePath $caddyExe `
+    -ArgumentList @("run", "--config", "`"$cfg`"", "--adapter", "caddyfile") `
+    -WorkingDirectory $caddyDir `
+    -WindowStyle Hidden `
+    -PassThru `
+    -RedirectStandardOutput $log `
+    -RedirectStandardError $errLog
+$caddyProc.WaitForExit()
 
-"=== exit {0} at {1} ===" -f $LASTEXITCODE, (Get-Date -Format "HH:mm:ss") |
-    Out-File -FilePath $log -Append -Encoding utf8
+"=== exit {0} at {1} ===" -f $caddyProc.ExitCode, (Get-Date -Format "HH:mm:ss") |
+    Out-File -FilePath $errLog -Append -Encoding utf8
