@@ -73,3 +73,10 @@ tags: [agent, work, why]
 - 보정 대기: 3개 질문(이름/공통뿌리/A·B)
 - 다음 핸드오프: vision-architect·story-weaver — 단 A/B 확정 후
 - 주의: 진입 시 local main 이 stale(ac7b286)이라 origin/main(8591894)로 reset 후 작업 — 매듭의 실사례(미동기)
+
+### 2026-06-27 · ALI-12 — Objentic 통역 v2 (기영님 보정 반영)
+- 호출자: 기영님 ("1. 주제, 오브제, 같은 개념 / 2. 외계인의 시선으로 현실화해서 만드는 것 포함")
+- 보정 2자리: ① Object→**오브제(objet)** (주제=오브제) ② 공통뿌리 "외계 효율로 생성"→**"외계인의 시선으로 현실화"** ③ 매듭 **(A) 확정** — Objentic=시선의 물질 현실화, 별도 Why 아님
+- 산출물: `WHY/agentic-objentic-duality.md` v2 재작성 + `meta/origin-reader-corrections/2026-06-27-objentic-objet-realization.md`
+- 학습: 브랜드 조어 해독 시 *발음의 모국어/외국어 층* 먼저 의심 (Obj=영어object 단정이 매듭)
+- 다음 핸드오프: vision-architect·story-weaver — unblocked, 기영님 가동 지시 대기
