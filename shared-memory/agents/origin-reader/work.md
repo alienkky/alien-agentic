@@ -87,3 +87,11 @@ tags: [agent, work, why]
 - 산출물: `WHY/agentic-objentic-duality.md` v2.1 §5 추가 + `meta/origin-reader-corrections/2026-06-27-objentic-2nd-brand.md`
 - 학습: Why-통일(A) ≠ 같은 조직단위. 브랜드/조직 구조는 별개 축으로 물어라 (내가 묶어버린 게 과추론)
 - 메모리 방향: `_self-alien-objentic/` 전용 공간 (가동 대기). 열린 질문: 모회사/하우스 이름?
+
+### 2026-06-27 · ALI-12 — 조직 구조 확정 (v2.2): aa 본회사 ⊃ ao nested
+- 호출자: 기영님 ("aa 가 본 회사고 그 안에 ao 가 있는 것")
+- 확정: **계층 구조.** aa=본 회사+온라인 코어, ao=aa 안에 든 오프라인 브랜드. 형제 아님.
+- 보정: v2.1 "형제 2브랜드+별도 모회사?" 틀림. 메모리 `_self-alien-objentic/`(top-level) → `_self-alien-agentic/objentic/`(nested)
+- 산출물: `WHY/agentic-objentic-duality.md` v2.2 §5 + `meta/origin-reader-corrections/2026-06-27-aa-house-ao-nested.md`
+- 학습: 브랜드 2개+ 등장 시 "수평(형제) vs 수직(포함)" 을 첫 질문으로. 조어·구조는 한 번에 못 맞춤(보정 4회) → 선택지형 질문이 정답
+- 다음 핸드오프: vision-architect·story-weaver — 가동 지시 대기 (구조 확정됨)

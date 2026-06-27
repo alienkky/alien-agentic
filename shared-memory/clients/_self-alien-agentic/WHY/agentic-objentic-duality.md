@@ -4,7 +4,7 @@ type: Identity Interpretation (origin-reader 통역)
 agent: origin-reader
 date: 2026-06-27
 source: ALI-12 (기영님 코멘트)
-status: v2.1 — 브랜드 구조 확정 (Objentic = 공식 2번째 브랜드, 2026-06-27)
+status: v2.2 — 조직 구조 확정 (aa 본회사 ⊃ ao nested, 2026-06-27)
 validated_on: 2026-06-27
 related: [origin-diagnosis-4layer.md, master-narrative-30s-v1.md]
 ---
@@ -77,26 +77,35 @@ v1 의 매듭("물건 만드는 일엔 시선의 핵이 자동으로 안 따라�
 
 ---
 
-## 5. 브랜드 구조 확정 (2026-06-27)
+## 5. 조직 구조 확정 (2026-06-27)
 
-기영님 확정: **Alien Objentic = Alien Agentic 의 공식 2번째 브랜드회사명.**
+기영님 확정: **"aa 가 본 회사고 그 안에 ao 가 있는 것."**
 
-| | 브랜드 1 | 브랜드 2 |
+→ 형제 브랜드가 **아니다.** 계층(포함) 구조다:
+
+```
+Alien Agentic (aa) — 본 회사 (the house)
+   │   온라인 코어 (에이전트·진단·소프트웨어) 를 직접 운영
+   └── Alien Objentic (ao) — aa 안에 든 오프라인 브랜드
+           오브제(물질) 현실화 — 3D 프린팅·AI 로봇·우주공학
+```
+
+| 축 | Alien Agentic (aa) | Alien Objentic (ao) |
 |---|---|---|
-| 이름 | **Alien Agentic** | **Alien Objentic** |
-| 현실화 형태 | 비트 (디지털) | 오브제 (물질) |
-| 만드는 것 | 진단·판단·소프트웨어 | 3D 프린팅·AI 로봇·우주공학 |
-| Why | (공유) 외계인의 시선으로 현실화한다 | (동일) |
+| 위치 | **본 회사 (모체)** | aa **안에** 든 브랜드 |
+| 현실화 형태 | 비트 (온라인 코어) | 오브제 (물질) |
+| Why | 외계인의 시선으로 현실화한다 | (상속 — 동일) |
 
-- **Why 는 하나, 브랜드는 둘.** Objentic 은 별개 *브랜드회사*이되 *별개 Why* 가 아니다 — 같은 시선의 두 번째 손.
-- 따라서 v1·v2 의 "한 채널" 표현을 **보정**: Objentic 은 *내부 한 채널*이 아니라 *대외적으로 독립된 2번째 브랜드*다. 단 진단의 뿌리(4층·매듭·시선)는 Agentic 과 공유.
-- **메모리 구조 (확정)**: Objentic 전용 정체 공간을 둔다 — `shared-memory/clients/_self-alien-objentic/`. 단 그 안 WHY 는 *공유 뿌리 + Objentic 고유 표면*만 담고, 4층 매듭은 `_self-alien-agentic` 진단서를 상속/참조한다. (실제 폴더 생성은 기영님 가동 지시 후.)
-- **열린 질문**: 두 브랜드 위에 *모회사/하우스 이름*이 따로 있나? 아니면 Alien Agentic 이 곧 모회사명 겸 브랜드1 인가? (현재 후자로 가정.)
+- **보정 (v2.1 → v2.2)**: v2.1 의 "형제 2브랜드, 그 위 모회사?" 가정은 **틀렸다.** aa 자체가 모체이고 ao 는 *그 안*이다. aa = 모회사 겸 온라인 코어, ao = 내부 오프라인 브랜드.
+- **메모리 구조 (보정)**: 별도 top-level `_self-alien-objentic/` 가 아니라 **aa 안에 nested**:
+  `shared-memory/clients/_self-alien-agentic/objentic/` (브랜드 표면·오브제 카탈로그). 4층 매듭·시선 뿌리는 상위 `_self-alien-agentic/WHY/` 를 그대로 상속.
+- **시선의 일관성**: ao 가 aa *안*에 있으므로, ao 의 모든 오브제도 aa 의 4층 진단·자기평가 루틴(daily-reflection) 사정권 안에 든다. 별도 진단 체계 불필요 — 같은 거울을 쓴다.
 
 ---
 
 ## 검증 데이터
-- `meta/origin-reader-corrections/2026-06-27-objentic-objet-realization.md` (v1→v2)
-- `meta/origin-reader-corrections/2026-06-27-objentic-2nd-brand.md` (v2→브랜드 구조 확정)
+- `meta/origin-reader-corrections/2026-06-27-objentic-objet-realization.md` (v1→v2: 오브제+시선)
+- `meta/origin-reader-corrections/2026-06-27-objentic-2nd-brand.md` (v2→v2.1: 2번째 브랜드)
+- `meta/origin-reader-corrections/2026-06-27-aa-house-ao-nested.md` (v2.1→v2.2: aa 본회사, ao nested)
 
 🛸
