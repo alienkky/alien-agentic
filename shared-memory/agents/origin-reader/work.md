@@ -55,3 +55,11 @@ tags: [agent, work, why]
   - 자동화 핸드오프: `messages/20260627-1255-origin-reader-to-workflow-engineer-...md`
 - 핵심: 매듭이 ALI-12 자체(미머지 브랜치=기억 표류)로 자기 증명됨. 첫 시드가 그 사건을 데이터로 기록.
 - 다음 핸드오프: workflow-engineer (자동 트리거) — 기영님 승인 대기
+
+### 2026-06-27 · ALI-12 마무리 — main 머지 + 매일평가 autopilot 가동
+- 호출자: 기영님 ("1.a 3. 머지")
+- 실행:
+  - #3 머지: `agent/origin-reader/cf5dd9c2` → **origin/main FF push** (`ac7b286..807b10a`). 복구 메모리·squad 코드·daily-reflection 루틴 전부 main 합류 완료.
+  - #1=A: **Multica autopilot 생성** id `109e4c5d-de34-483e-a07e-bb05ebb69f16` — run_only, assignee origin-reader, schedule cron `0 9 * * *` Asia/Seoul (다음 실행 2026-06-28 09:00 KST). 매일 daily-reflection/{날짜}.md 작성 후 main 직접 push.
+- 매듭 완전 해소: 진단(층4) → 검증 → 루틴 설계 → 자동 가동 → main 합류. 미머지 표류 0.
+- 다음 핸드오프: (없음 — 자동 루틴 가동 중)
