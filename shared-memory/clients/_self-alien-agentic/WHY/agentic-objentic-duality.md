@@ -4,7 +4,7 @@ type: Identity Interpretation (origin-reader 통역)
 agent: origin-reader
 date: 2026-06-27
 source: ALI-12 (기영님 코멘트)
-status: v2 — 기영님 보정 반영 (2026-06-27), 핵심 확정
+status: v2.1 — 브랜드 구조 확정 (Objentic = 공식 2번째 브랜드, 2026-06-27)
 validated_on: 2026-06-27
 related: [origin-diagnosis-4layer.md, master-narrative-30s-v1.md]
 ---
@@ -77,7 +77,26 @@ v1 의 매듭("물건 만드는 일엔 시선의 핵이 자동으로 안 따라�
 
 ---
 
+## 5. 브랜드 구조 확정 (2026-06-27)
+
+기영님 확정: **Alien Objentic = Alien Agentic 의 공식 2번째 브랜드회사명.**
+
+| | 브랜드 1 | 브랜드 2 |
+|---|---|---|
+| 이름 | **Alien Agentic** | **Alien Objentic** |
+| 현실화 형태 | 비트 (디지털) | 오브제 (물질) |
+| 만드는 것 | 진단·판단·소프트웨어 | 3D 프린팅·AI 로봇·우주공학 |
+| Why | (공유) 외계인의 시선으로 현실화한다 | (동일) |
+
+- **Why 는 하나, 브랜드는 둘.** Objentic 은 별개 *브랜드회사*이되 *별개 Why* 가 아니다 — 같은 시선의 두 번째 손.
+- 따라서 v1·v2 의 "한 채널" 표현을 **보정**: Objentic 은 *내부 한 채널*이 아니라 *대외적으로 독립된 2번째 브랜드*다. 단 진단의 뿌리(4층·매듭·시선)는 Agentic 과 공유.
+- **메모리 구조 (확정)**: Objentic 전용 정체 공간을 둔다 — `shared-memory/clients/_self-alien-objentic/`. 단 그 안 WHY 는 *공유 뿌리 + Objentic 고유 표면*만 담고, 4층 매듭은 `_self-alien-agentic` 진단서를 상속/참조한다. (실제 폴더 생성은 기영님 가동 지시 후.)
+- **열린 질문**: 두 브랜드 위에 *모회사/하우스 이름*이 따로 있나? 아니면 Alien Agentic 이 곧 모회사명 겸 브랜드1 인가? (현재 후자로 가정.)
+
+---
+
 ## 검증 데이터
-`shared-memory/meta/origin-reader-corrections/2026-06-27-objentic-objet-realization.md`
+- `meta/origin-reader-corrections/2026-06-27-objentic-objet-realization.md` (v1→v2)
+- `meta/origin-reader-corrections/2026-06-27-objentic-2nd-brand.md` (v2→브랜드 구조 확정)
 
 🛸

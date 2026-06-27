@@ -80,3 +80,10 @@ tags: [agent, work, why]
 - 산출물: `WHY/agentic-objentic-duality.md` v2 재작성 + `meta/origin-reader-corrections/2026-06-27-objentic-objet-realization.md`
 - 학습: 브랜드 조어 해독 시 *발음의 모국어/외국어 층* 먼저 의심 (Obj=영어object 단정이 매듭)
 - 다음 핸드오프: vision-architect·story-weaver — unblocked, 기영님 가동 지시 대기
+
+### 2026-06-27 · ALI-12 — Objentic 브랜드 구조 확정 (v2.1)
+- 호출자: 기영님 ("3. 에일리언 에이젠틱의 2번째 브랜드회사명")
+- 확정: Objentic = 대외 독립 **2번째 브랜드회사** (Why 는 Agentic 과 공유). v1·v2 "한 채널" 표현 보정 → "독립 브랜드, 공유 Why".
+- 산출물: `WHY/agentic-objentic-duality.md` v2.1 §5 추가 + `meta/origin-reader-corrections/2026-06-27-objentic-2nd-brand.md`
+- 학습: Why-통일(A) ≠ 같은 조직단위. 브랜드/조직 구조는 별개 축으로 물어라 (내가 묶어버린 게 과추론)
+- 메모리 방향: `_self-alien-objentic/` 전용 공간 (가동 대기). 열린 질문: 모회사/하우스 이름?
