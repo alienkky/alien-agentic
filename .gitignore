@@ -83,3 +83,6 @@ shared-memory/_inbox/
 
 # === Multica 업데이트 백업 (런타임 산출물) ===
 automation/intranet/alien-config/_backup/
+
+# === Multica DB 일일 백업 (.sql.gz — 용량 큼, git 추적 X. 로컬+외부에만 보관) ===
+backups/multica-db/
