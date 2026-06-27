@@ -1,12 +1,8 @@
----
-agent: future-forecaster
-korean_name: 오먼동
-role: 미래예측
-division: rnd
-type: agent-memory
-file_type: decisions
-tags: [agent, decisions, rnd]
----
+# decisions.md — future-forecaster
 
-# Decisions — 의사결정과 그 이유
+## 2026-06-23
 
+- **forecasts/ 폴더 신규 생성** → 이전 예측 보고서가 없었음. Q2-2026.md를 첫 파일로.
+- **에이전트 메모리 폴더 신규 생성** → future-forecaster 디렉토리 최초 초기화.
+- **다섯 시대 프레임워크로 분석 구조화** → 헌법 기반 분석 유지.
+- **"우리가 사라지는 자리" 포함** → 5단계 시나리오에 자본 소진 위험 명시 (절대 금지 항목: 과한 낙관).

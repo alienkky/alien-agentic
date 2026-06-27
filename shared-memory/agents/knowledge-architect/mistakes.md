@@ -1,12 +1,15 @@
 ---
 agent: knowledge-architect
 korean_name: 장서윤
-role: 지식설계
+role: Obsidian 지식 시스템 구축
 division: what
 type: agent-memory
 file_type: mistakes
-tags: [agent, mistakes, what, mistake]
+tags: [agent, mistakes, what]
 ---
 
-# Mistakes — 실패·교훈 (가장 비싼 자산)
+# Mistakes — 틀린 자리와 교훈
 
+관련: [[_index]] | [[agents/README]] | [[work]]
+
+(여기 아래로 append)

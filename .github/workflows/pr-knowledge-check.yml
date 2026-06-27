@@ -1,0 +1,114 @@
+name: PR knowledge check (write-time compile)
+
+# ALI-103 — 에이전트가 만든 PR 의 지식 충돌을 자동 재검증한다.
+# 같은 검증을 로컬에서는 `scripts/aa-pr.py submit` 가 미리 돌리지만,
+# CI 가 다시 한 번 돌려서 *최신 main 기준*으로 확정 보고서를 PR 에 코멘트로 박는다.
+#
+# 머지 권한은 사람만. 이 워크플로는 auto-merge 를 하지 않는다.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write   # 코멘트·라벨 부착
+  issues: write          # gh label create 가 issue write 권한 필요
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # base..HEAD diff 위해 전체 히스토리 필요
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify branch naming (agent/<name>/<slug>)
+        id: branch
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          python scripts/aa-pr.py verify-branch || echo "::warning::브랜치명 규칙 위반: $BRANCH"
+        env:
+          # verify-branch 는 _current_branch() 로 git 을 본다 — PR 머지 SHA 가 아니라
+          # PR head 브랜치명을 직접 검사하도록 강제.
+          GIT_BRANCH_OVERRIDE: ${{ github.head_ref }}
+
+      - name: Precompile index.md / log.md (ALI-105)
+        run: |
+          python scripts/aa-index.py --all || true
+          python scripts/aa-log.py --all --limit 30 || true
+
+      - name: Build conflict report
+        id: report
+        run: |
+          git fetch origin "${{ github.base_ref }}":"refs/remotes/origin/${{ github.base_ref }}"
+          python scripts/aa-pr.py report \
+            --base "origin/${{ github.base_ref }}" \
+            -o ".aa-pr-body.md"
+          {
+            echo "report<<EOF"
+            cat .aa-pr-body.md
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build conflict report (JSON for labels)
+        id: report_json
+        run: |
+          python scripts/aa-pr.py check \
+            --base "origin/${{ github.base_ref }}" \
+            --json > .aa-pr.json
+          echo "has_errors=$(python -c 'import json; print(str(json.load(open(".aa-pr.json"))["has_errors"]).lower())')" >> "$GITHUB_OUTPUT"
+
+      - name: Upsert PR comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: aa-pr
+          path: .aa-pr-body.md
+
+      - name: Ensure labels exist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for L in aa-pr clean review-needed knowledge-conflict branch-naming-violation; do
+            gh label create "$L" --force --color BFD4F2 || true
+          done
+
+      - name: Apply labels
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python - <<'PY'
+          import json, subprocess, os
+          rep = json.load(open(".aa-pr.json"))
+          labels = ["aa-pr"]
+          if not rep["branch_ok"]:
+              labels.append("branch-naming-violation")
+          conflicts = rep.get("conflicts", [])
+          if any(c["severity"] == "error" for c in conflicts):
+              labels.append("knowledge-conflict")
+          elif any(c["severity"] == "warn" for c in conflicts):
+              labels.append("review-needed")
+          else:
+              labels.append("clean")
+          pr = os.environ["PR_NUMBER"]
+          subprocess.run(
+              ["gh", "pr", "edit", pr, "--add-label", ",".join(labels)],
+              check=False,
+          )
+          PY
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fail job on hard errors
+        if: steps.report_json.outputs.has_errors == 'true'
+        run: |
+          echo "::error::지식 충돌(error 등급) 발견 — PR 본문 코멘트 확인."
+          exit 1

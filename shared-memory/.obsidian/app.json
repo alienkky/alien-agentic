@@ -1,17 +1,16 @@
 {
-  "alwaysUpdateLinks": true,
-  "newFileLocation": "folder",
-  "newFileFolderPath": "_inbox",
-  "attachmentFolderPath": "_attachments",
-  "showLineNumber": true,
-  "foldHeading": true,
-  "foldIndent": true,
   "useMarkdownLinks": false,
+  "newFileLocation": "folder",
+  "newFileFolderPath": "00-inbox",
+  "attachmentFolderPath": "_attachments",
   "promptDelete": false,
-  "defaultViewMode": "preview",
+  "trashOption": "local",
+  "legacyEditor": false,
   "livePreview": true,
-  "showFrontmatter": true,
-  "tabSize": 2,
-  "showInlineTitle": true,
-  "readableLineLength": true
+  "defaultViewMode": "source",
+  "foldHeading": false,
+  "foldIndent": true,
+  "showUnsupportedFiles": false,
+  "theme": "system",
+  "translucency": false
 }

@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * AA 디자인 토큰 — ALIEN SPACE (자체 IP 브랜딩)
+ * 외계의 효율: 깊은 우주 배경 + 차분한 청록 액센트.
+ */
+:root {
+  --aa-bg: #0b0e14;
+  --aa-surface: #131822;
+  --aa-surface-2: #1b2230;
+  --aa-border: #2a3344;
+  --aa-text: #e6ebf2;
+  --aa-text-dim: #8b97a8;
+  --aa-accent: #4fd1c5;
+  --aa-accent-dim: #2c8a82;
+
+  /* 폴더블 힌지 안전영역 폴백 (Viewport Segments 미지원 브라우저) */
+  --aa-hinge: 0px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--aa-bg);
+  color: var(--aa-text);
+  font-family: "Pretendard", system-ui, sans-serif;
+  /* 터치/펜 본진: 브라우저 기본 제스처(스크롤·줌)를 우리가 가져온다 */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  overscroll-behavior: none;
+}
+
+/* 펜으로 호버 가능한 디바이스에서만 hover 프리뷰를 켠다 */
+@media (hover: hover) and (pointer: fine) {
+  .aa-hoverable:hover {
+    background: var(--aa-surface-2);
+  }
+}

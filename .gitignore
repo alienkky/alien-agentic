@@ -1,3 +1,12 @@
+# === Private domain — 가족·심리·번아웃·미공개 의사결정 격리 ===
+# 헌법 §VIII 가족 시간 신성화의 데이터 레이어 확장.
+# README.md 만 추적(경계 안내문), 내부 파일 전부 격리.
+# 정책: shared-memory/context/private-domain-policy.md
+shared-memory/_private/*
+!shared-memory/_private/README.md
+**/_private/*
+!**/_private/README.md
+
 # === Secrets — 절대 추적 금지 ===
 .env
 .env.*
@@ -48,6 +57,10 @@ desktop.ini
 *.tmp
 ~$*
 
+# === aa-pr 자동 보고서 임시 파일 ===
+.aa-pr-body.md
+.aa-pr.json
+
 # === Logs ===
 *.log
 logs/
@@ -70,16 +83,18 @@ automation/intranet/multica/
 # 커스터마이즈(브랜드 디자인시스템·스킬)는 alien-config/open-design/ 에만
 automation/intranet/open-design/
 
-# === Obsidian Vault (shared-memory/) — 설정·MOC·템플릿은 추적, 런타임은 제외 ===
-# .obsidian/ 의 우리 설정 JSON 은 추적하되, 창 레이아웃·캐시·플러그인 바이너리는 제외
+# === Obsidian Vault (shared-memory/) ===
+# 커밋: app.json, core-plugins.json, community-plugins.json, plugins/*/data.json, 템플릿
+# 제외: 개인 워크스페이스, 휴지통, 플러그인 바이너리 (Obsidian이 자동 다운로드)
 shared-memory/.obsidian/workspace.json
 shared-memory/.obsidian/workspace-mobile.json
-shared-memory/.obsidian/cache
-shared-memory/.obsidian/plugins/
-shared-memory/.obsidian/themes/
+shared-memory/.obsidian/.trash/
+shared-memory/.obsidian/plugins/*/main.js
+shared-memory/.obsidian/plugins/*/styles.css
 shared-memory/.trash/
-shared-memory/_attachments/
 shared-memory/_inbox/
+# 첨부파일 폴더 (크기 커질 수 있음 — 필요시 주석 해제하여 추적)
+# shared-memory/_attachments/
 
 # === Multica 업데이트 백업 (런타임 산출물) ===
 automation/intranet/alien-config/_backup/

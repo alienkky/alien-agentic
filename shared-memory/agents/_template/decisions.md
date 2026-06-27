@@ -1,6 +1,16 @@
-# {agent-name} · decisions.md
+---
+agent: {agent-name}
+korean_name: {한국어 이름}
+role: {역할 한 줄}
+division: {why|how|what|ctrl|rd}
+type: agent-memory
+file_type: decisions
+tags: [agent, decisions, {division}]
+---
 
-이 에이전트가 *내린 결정과 그 이유*를 호출별로 append.
+# Decisions — 결정과 그 이유
+
+관련: [[_index]] | [[agents/README]] | [[work]]
 
 ## 표준 항목
 
@@ -15,6 +25,8 @@
 **기각 이유**: {다른 자리는 왜 X}
 
 **되돌릴 조건**: {어떤 신호가 보이면 이 결정을 재고할까}
+
+관련: [[{연관 태스크 또는 파일}]]
 ```
 
 (여기 아래로 append)

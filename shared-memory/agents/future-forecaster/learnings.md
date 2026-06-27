@@ -1,12 +1,9 @@
----
-agent: future-forecaster
-korean_name: 오먼동
-role: 미래예측
-division: rnd
-type: agent-memory
-file_type: learnings
-tags: [agent, learnings, rnd]
----
+# learnings.md — future-forecaster
 
-# Learnings — 배운 것·통찰
+## 2026-06-23
 
+- **거버넌스 갭 60%가 우리 WHY 도입 전제의 시장 증거다.** 이 숫자를 세일즈 자료에 넣을 것.
+- **McKinsey 2만 에이전트 + 4만 인간 모델** — 우리 27 에이전트 + 1인 모델과 비교하는 콘텐츠가 강력한 포지셔닝 도구.
+- **Claude Fable 5 수출 통제**는 한국 시장 직접 영향 가능. 트래킹 필요 항목으로 등록.
+- **AI 컨설팅 산출물이 "문서 → 살아있는 시스템"으로 전환** = 우리 WHAT Deploy 모델이 이미 선행한 방향. 이걸 외부 언어로 표현해야.
+- **수직 AI 기회**: F&B 특화 AI 컨설팅은 아직 공백. 기영님의 실전 데이터가 핵심 자산.

@@ -1,0 +1,25 @@
+{
+  "command_timeout": 5,
+  "templates_folder": "meta/templates",
+  "auto_jump_to_cursor": false,
+  "use_system_commands": false,
+  "pt_default_new_file_type": 0,
+  "enable_system_commands": false,
+  "shell_path": "",
+  "user_scripts_folder": "",
+  "enable_folder_templates": true,
+  "folder_templates": [
+    {
+      "folder": "agents",
+      "path": "meta/templates/agent-work.md"
+    },
+    {
+      "folder": "daily-logs",
+      "path": "meta/templates/daily-log.md"
+    }
+  ],
+  "syntax_highlighting": true,
+  "syntax_highlighting_mobile": false,
+  "enabled_templates_hotkeys": [],
+  "startup_templates": []
+}
