@@ -1,4 +1,4 @@
-# backup-multica-daily.ps1 — Multica DB + usage 매일 자동 백업 (재발 방지)
+﻿# backup-multica-daily.ps1 — Multica DB + usage 매일 자동 백업 (재발 방지)
 #
 # 배경 (2026-06-26 84GB 삭제 사고): Docker vhdx 가 삭제되면 multica DB(이슈·
 # 코멘트·작업 이력)가 통째로 사라진다. usage JSONL 도 git 커밋 안 하면 vhdx 와
