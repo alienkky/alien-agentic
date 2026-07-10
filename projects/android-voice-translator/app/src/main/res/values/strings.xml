@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Voice Translator</string>
+
+    <string name="start">● 듣기 시작</string>
+    <string name="stop">■ 멈춤</string>
+
+    <string name="listening_japanese">🎙 日本語</string>
+    <string name="listening_english">🎙 English</string>
+    <string name="listening_korean">🎙 한국어</string>
+
+    <string name="lang_korean">한국어</string>
+    <string name="lang_english">English</string>
+    <string name="lang_japanese">日本語</string>
+
+    <string name="status_preparing">번역 모델 준비 중…</string>
+    <string name="status_ready">준비됨 — 버튼을 눌러 말하세요</string>
+    <string name="status_listening">듣는 중…</string>
+
+    <string name="mode_ondevice">엔진: 온디바이스(오프라인)</string>
+    <string name="mode_cloud">엔진: 클라우드 Whisper</string>
+
+    <string name="hint_source">여기에 인식된 음성이 표시됩니다</string>
+    <string name="hint_translated">번역 결과</string>
+    <string name="translating">번역 중…</string>
+
+    <string name="settings_button">⚙ 설정</string>
+    <string name="overlay_button">⧉ 오버레이</string>
+    <string name="overlay_button_stop">⧉ 오버레이 끄기</string>
+    <string name="internal_button">🔊 폰 내부 소리 자막 (영상·앱)</string>
+
+    <string name="internal_min_version">내부 소리 캡처는 Android 10 이상에서만 가능합니다</string>
+    <string name="internal_needs_cloud">내부 소리 번역은 설정에서 클라우드 Whisper(API 키)가 필요합니다</string>
+    <string name="internal_started">내부 소리 자막을 시작했습니다 (오버레이 ✕ 로 종료)</string>
+    <string name="internal_listening">내부 소리 듣는 중… (영상을 재생하세요)</string>
+    <string name="internal_cancelled">내부 소리 캡처가 취소되었습니다</string>
+    <string name="internal_failed">내부 소리 캡처를 시작할 수 없습니다</string>
+
+    <string name="overlay_need_permission">다른 앱 위에 표시 권한이 필요합니다</string>
+    <string name="overlay_started">오버레이 자막을 시작했습니다</string>
+    <string name="overlay_stopped">오버레이 자막을 껐습니다</string>
+    <string name="overlay_close">✕ 닫기</string>
+    <string name="overlay_channel_name">자막 오버레이</string>
+    <string name="overlay_notification_title">실시간 번역 자막 실행 중</string>
+    <string name="overlay_notification_text">탭하여 멈출 수 있습니다</string>
+
+    <string name="settings_title">설정</string>
+    <string name="settings_target">번역 결과 언어</string>
+    <string name="settings_speak">번역을 음성으로 읽어주기 (TTS)</string>
+    <string name="settings_use_cloud">클라우드 Whisper 사용 (고정밀)</string>
+    <string name="settings_cloud_hint">켜면 네트워크와 API 키가 필요합니다. 끄면 온디바이스 오프라인 인식을 씁니다.</string>
+    <string name="settings_base_url">Whisper API Base URL</string>
+    <string name="settings_api_key">API Key</string>
+    <string name="settings_model">모델 (예: whisper-1)</string>
+    <string name="settings_overlay_section">오버레이 자막</string>
+    <string name="settings_font_value">글자 크기: %1$d sp</string>
+    <string name="settings_opacity_value">배경 투명도: %1$d%%</string>
+    <string name="settings_save">저장</string>
+
+    <string name="error_no_mic_permission">마이크 권한이 필요합니다</string>
+    <string name="error_no_recognizer">이 기기에서 음성 인식을 사용할 수 없습니다</string>
+    <string name="error_model_download">모델 다운로드 실패: %1$s</string>
+    <string name="error_translate">번역 오류: %1$s</string>
+</resources>
