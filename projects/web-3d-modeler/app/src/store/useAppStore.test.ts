@@ -461,6 +461,30 @@ describe("useAppStore — 스케치 변형(미러·패턴·오프셋·투상)", 
   });
 });
 
+describe("useAppStore — 단면 보기", () => {
+  beforeEach(() => {
+    void useAppStore.getState().clear();
+    if (useAppStore.getState().sectionActive) useAppStore.getState().toggleSection();
+  });
+
+  it("선택 면 없으면 기본 XZ(y=0) 평면으로 단면 켜기/끄기", () => {
+    const st = useAppStore.getState();
+    st.toggleSection();
+    expect(useAppStore.getState().sectionActive).toBe(true);
+    expect(useAppStore.getState().sectionPlane).toEqual({ normal: [0, 1, 0], point: [0, 0, 0] });
+    st.toggleSection();
+    expect(useAppStore.getState().sectionActive).toBe(false);
+  });
+
+  it("선택한 면의 법선을 단면 평면으로", () => {
+    const st = useAppStore.getState();
+    st.addMesh(tessellateBox(4, 4, 4, "box-1"), "박스"); // 면2 = +Y
+    st.selectEntity({ kind: "face", shapeId: "box-1", index: 2 });
+    st.toggleSection();
+    expect(useAppStore.getState().sectionPlane!.normal[1]).toBeCloseTo(1, 5);
+  });
+});
+
 describe("useAppStore — 측정", () => {
   beforeEach(() => {
     useAppStore.getState().clearMeasure();
